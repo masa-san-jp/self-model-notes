@@ -257,6 +257,8 @@ def _validate_entity_fields(entity: Entity, vocab: dict[str, Any]) -> list[Valid
                 if field in context:
                     errors += _validate_enum_value(entity, f"context.{field}", context[field], vocab["context_dimensions"][field])
     elif entity.type == "claim":
+        if "raw_voice" in entity.meta:
+            errors.append(_error(entity, "raw_voice", "raw voice belongs on an Event, not a Claim", "move the raw voice to an Event and reference it as evidence"))
         errors += _validate_enum(entity, "layer", vocab["claim_layers"])
         errors += _validate_enum(entity, "scope", vocab["scopes"])
         errors += _validate_enum(entity, "confidence", vocab["confidence"])
