@@ -5,8 +5,10 @@
 ```bash
 cat overviews/coverage.md
 python3 tools/bundle.py --subject subject/<id>
-python3 tools/export_signals.py --subject subject/<id> --purpose artistic-research
+python3 tools/export_signals.py --subject subject/<id> --purpose artistic-research --operation export-signals
 ```
+
+exportはSourceごとの同意を再検証し、1件でも不足があれば全体をdenyする。raw voice本文は既定で含まれない。運用上の復旧や衝突回避は[`docs/operations.md`](operations.md)を参照する。
 
 ## 解釈規則
 
@@ -28,4 +30,3 @@ python3 tools/export_signals.py --subject subject/<id> --purpose artistic-resear
 - 同意確認を迂回して上流entityを直接読む。
 
 追加・訂正はIssueに「対象Subject/Event」「根拠Source」「目的」「必要期限」を書く。entitiesや生成物を直接変更しない。
-

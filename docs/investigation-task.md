@@ -40,6 +40,8 @@ python3 tools/build_graph.py
 python3 tools/audit.py --subject subject/<id>
 ```
 
+運用時の復旧・並行作業・生成物の扱いは[`docs/operations.md`](operations.md)に従う。生成物を手編集して検証を通すことはしない。
+
 ## 6. 人間による確認点
 
 - raw voiceの引用範囲が同意内か。
@@ -51,4 +53,3 @@ python3 tools/audit.py --subject subject/<id>
 ## 7. 完了
 
 変更entity、検証結果、同意判定、未確認事項をPRへ記載する。新たなschema判断が必要なら実装せずIssueを作る。
-
