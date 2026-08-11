@@ -1,0 +1,54 @@
+name: Autonomous implementation task
+description: One bounded task for a Luna/Sonnet-level execution agent
+title: "[SM-XXX] "
+body:
+  - type: input
+    id: task_id
+    attributes:
+      label: Task ID
+      placeholder: SM-XXX
+    validations:
+      required: true
+  - type: textarea
+    id: objective
+    attributes:
+      label: Objective
+      description: One outcome only.
+    validations:
+      required: true
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Dependencies
+      description: List completed task IDs and evidence.
+    validations:
+      required: true
+  - type: textarea
+    id: allowed_paths
+    attributes:
+      label: Allowed paths
+      description: The agent must not edit outside these paths.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: Testable completion conditions.
+    validations:
+      required: true
+  - type: textarea
+    id: checks
+    attributes:
+      label: Required checks
+      description: Exact commands and expected result.
+    validations:
+      required: true
+  - type: textarea
+    id: stop_conditions
+    attributes:
+      label: Stop conditions
+      description: Decisions the agent may not make autonomously.
+    validations:
+      required: true
+

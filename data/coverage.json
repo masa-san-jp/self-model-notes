@@ -1,0 +1,11 @@
+{
+  "counts": {
+    "claim": 0,
+    "event": 0,
+    "measurement": 0,
+    "pattern": 0,
+    "source": 0,
+    "subject": 0
+  },
+  "schema_version": 1
+}

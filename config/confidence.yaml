@@ -1,0 +1,11 @@
+version: 1
+levels:
+  unknown: 根拠状態を評価できない
+  low: 限定的な根拠のみで代替説明が有力
+  medium: 複数根拠があるが文脈・反証に制限がある
+  high: 複数時点・複数文脈・反証検討を含む強い根拠
+policy:
+  numeric_probability: forbidden
+  automatic_promotion: forbidden
+  counterevidence_retention: required
+
