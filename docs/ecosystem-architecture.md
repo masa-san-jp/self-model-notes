@@ -34,7 +34,14 @@ marketing-trends-notes ───────┘
 4. 実データではなく匿名fixtureでE2Eを通す。
 5. 同意範囲を確認したデータだけを実運用へ接続する。
 
+## SM-011 cross-repository evidence
+
+- Consumer repository: [masa-san-jp/agentic-art-research](https://github.com/masa-san-jp/agentic-art-research)
+- Upstream pin: `self-model-notes@7f1f371486fe983f0bcfefbbf92a5df1326dac7b`
+- Local consumer fixture: [`tests/contracts/agentic-art-research-consumer-v1.fixture.json`](../tests/contracts/agentic-art-research-consumer-v1.fixture.json)
+- The fixture contains only the versioned signal contract; it does not copy core entities. Empty upstream inputs remain `certainty: unknown` with empty evidence refs.
+- Read-only check at [agentic-art-research main](https://github.com/masa-san-jp/agentic-art-research) (README commit `9d5efd14ea6e226c1430446ff5f55dbfa63357f2`) found no consumer `research_signals` contract file; the expected path returned [404](https://github.com/masa-san-jp/agentic-art-research/blob/main/tests/contracts/research-signals-v1.schema.json). No external repository write was made; consumer-side test integration remains review-gated.
+
 ## 完了の定義
 
 4リポジトリが同じschemaを持つことではない。各リポジトリが独立した正本を保ちながら、commit固定された機械可読signalを相互に検証できることを完了とする。
-

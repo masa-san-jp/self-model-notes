@@ -46,3 +46,10 @@ research_signals:
 - JSON Schema `tests/contracts/research-signals-v1.schema.json`で出力を検証する。
 - consumerは`schema` major versionが未知ならfail closedする。
 - source repositoryとcommit SHAを固定し、再現可能にする。
+
+## Consumer handoff (SM-011)
+
+- Consumer: [agentic-art-research](https://github.com/masa-san-jp/agentic-art-research)
+- Upstream pin for this fixture: `self-model-notes@7f1f371486fe983f0bcfefbbf92a5df1326dac7b`
+- Cross-repository fixture: [`tests/contracts/agentic-art-research-consumer-v1.fixture.json`](../tests/contracts/agentic-art-research-consumer-v1.fixture.json)
+- Result: the local fixture is schema-shaped, contains no core entities, and represents missing upstream inputs as `certainty: unknown`. The external repository was checked read-only at README commit `9d5efd14ea6e226c1430446ff5f55dbfa63357f2`; the expected contract path returned [404](https://github.com/masa-san-jp/agentic-art-research/blob/main/tests/contracts/research-signals-v1.schema.json). No external PR was created; consumer-side execution is review-gated.
