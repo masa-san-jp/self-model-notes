@@ -1,6 +1,10 @@
 {
-  "content_sha256": "8657af7032f150516a7289bb7774205e2eecad747573c5404fd3c01107f18fe0",
+  "content_sha256": "564ae248ce821de5370cf7020b0d7d5c937a56c09ba8a6f91322ee41b9100c65",
   "edges": [],
   "nodes": [],
-  "schema_version": 1
+  "schema_version": 1,
+  "trace_edges": [],
+  "trace_paths": {
+    "source_to_pattern": []
+  }
 }
