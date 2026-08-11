@@ -198,6 +198,28 @@ class ValidationTest(unittest.TestCase):
         self.assertTrue(any(error.field == "context.domains" for error in errors))
         self.assertTrue(any(error.field == "alternative_explanations" and "list" in error.message for error in errors))
 
+    def test_null_list_fields_remain_unknown_and_empty_lists_remain_no_items(self):
+        entities = valid_entities()
+        event = next(entity for entity in entities if entity.id == "event/example-001")
+        claim = next(entity for entity in entities if entity.id == "claim/example-control")
+        event.meta["delayed_outcome"] = None
+        claim.meta["counterevidence"] = None
+
+        errors = validate_entities(entities)
+
+        self.assertEqual(errors, [])
+        self.assertEqual(event.meta["delayed_outcome"], None)
+        self.assertEqual(claim.meta["counterevidence"], None)
+
+    def test_null_claim_evidence_and_pattern_evidence_are_rejected(self):
+        claim = make_entity("claim", "no-evidence", supporting_evidence=None)
+        pattern = make_entity("pattern", "no-evidence", evidence=None)
+
+        errors = validate_entities([claim, pattern])
+
+        self.assertTrue(any(error.field == "supporting_evidence" and "no evidence" in error.message for error in errors))
+        self.assertTrue(any(error.field == "evidence" and "multiple distinct Events" in error.message for error in errors))
+
 
 if __name__ == "__main__":
     unittest.main()

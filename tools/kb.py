@@ -135,7 +135,7 @@ def _require(entity: Entity, fields: Iterable[str]) -> list[ValidationError]:
     return errors
 
 
-def _validate_list(entity: Entity, field: str, *, allow_none: bool = False) -> list[ValidationError]:
+def _validate_list(entity: Entity, field: str, *, allow_none: bool = True) -> list[ValidationError]:
     if field not in entity.meta:
         return []
     value = entity.meta.get(field)
@@ -175,6 +175,8 @@ def _validate_enum_list(entity: Entity, field: str, allowed: Iterable[str]) -> l
     errors = _validate_list(entity, field)
     if errors:
         return errors
+    if entity.meta[field] is None:
+        return []
     allowed_set = set(allowed)
     errors = []
     for value in entity.meta[field]:
@@ -262,10 +264,12 @@ def _validate_entity_fields(entity: Entity, vocab: dict[str, Any]) -> list[Valid
         errors += _validate_list(entity, "conditions")
         errors += _validate_list(entity, "counterevidence")
         errors += _validate_list(entity, "alternative_explanations")
-        if isinstance(entity.meta.get("alternative_explanations"), list) and len(entity.meta["alternative_explanations"]) < 2:
+        alternatives = entity.meta.get("alternative_explanations")
+        if not isinstance(alternatives, list) or len(alternatives) < 2:
             errors.append(_error(entity, "alternative_explanations", "at least two alternatives are required", "add materially different explanations"))
         errors += _validate_list(entity, "supporting_evidence")
-        if isinstance(entity.meta.get("supporting_evidence"), list) and not entity.meta["supporting_evidence"]:
+        supporting_evidence = entity.meta.get("supporting_evidence")
+        if not isinstance(supporting_evidence, list) or not supporting_evidence:
             errors.append(_error(entity, "supporting_evidence", "claim has no evidence", "reference at least one Event"))
     elif entity.type == "pattern":
         for field in ("recurring_appraisal", "recurring_drive", "recurring_action", "reinforcement", "contexts_seen", "evidence", "claim_refs", "counterevidence"):
@@ -274,7 +278,7 @@ def _validate_entity_fields(entity: Entity, vocab: dict[str, Any]) -> list[Valid
         errors += _validate_enum(entity, "confidence", vocab["confidence"])
         errors += _validate_enum(entity, "status", vocab["claim_statuses"])
         evidence = entity.meta.get("evidence")
-        if isinstance(evidence, list) and len(set(evidence)) < 2:
+        if not isinstance(evidence, list) or len(set(evidence)) < 2:
             errors.append(_error(entity, "evidence", "pattern requires multiple distinct Events", "keep it as a Claim until repeated"))
     elif entity.type == "measurement":
         errors += _validate_mapping(entity, "instrument")
@@ -359,6 +363,8 @@ def _reference_values(entity: Entity, field: str, is_list: bool) -> tuple[list[A
         return [], []
     value = entity.meta[field]
     if is_list:
+        if value is None:
+            return [], []
         if not isinstance(value, list):
             return [], [_error(entity, field, "must be a list of entity IDs", f"use a YAML list for `{field}`")]
         return value, []
