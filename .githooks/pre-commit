@@ -1,0 +1,5 @@
+#!/usr/bin/env sh
+set -eu
+python3 tools/build_graph.py --check
+python3 -m unittest discover -s tests -p "test_*.py"
+

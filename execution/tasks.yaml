@@ -1,0 +1,249 @@
+version: 1
+policy:
+  selection: lowest-ready-id
+  unit: one-task-one-agent-one-pr
+  shared_locks:
+    - docs/schema.md
+    - tools/kb.py
+    - execution/tasks.yaml
+  status_values: [blocked, ready, in-progress, review, done]
+
+tasks:
+  - id: SM-001
+    title: Freeze schema and entity examples
+    phase: 0
+    status: ready
+    depends_on: []
+    allowed_paths:
+      - docs/schema.md
+      - config/*.yaml
+      - entities/**/README.md
+      - tests/test_schema.py
+    acceptance:
+      - Six entity types have complete valid and invalid examples
+      - ID/path/reference rules are unambiguous
+      - Unknown, state, context and trait semantics are testable
+      - No unresolved schema decision remains in implementation prose
+    checks:
+      - python3 -m unittest tests.test_schema
+    stop_if:
+      - A new entity type is required
+      - A pattern promotion threshold must be invented
+    evidence: []
+
+  - id: SM-002
+    title: Implement canonical loader and structural validator
+    phase: 1
+    status: blocked
+    depends_on: [SM-001]
+    allowed_paths:
+      - tools/kb.py
+      - tools/build_graph.py
+      - tests/test_loader.py
+      - tests/test_validation.py
+    acceptance:
+      - Markdown frontmatter round-trips without semantic loss
+      - Required fields, ID/path, vocabulary and references are validated
+      - Subject mismatches and circular supersession fail
+      - Validation errors include file, field and remediation
+    checks:
+      - python3 -m unittest tests.test_loader tests.test_validation
+      - python3 tools/build_graph.py --check
+    stop_if:
+      - Schema prose cannot determine expected behavior
+    evidence: []
+
+  - id: SM-003
+    title: Enforce epistemic and measurement prohibitions
+    phase: 1
+    status: blocked
+    depends_on: [SM-002]
+    allowed_paths:
+      - tools/kb.py
+      - tests/test_epistemic_rules.py
+      - tests/fixtures/invalid/**
+    acceptance:
+      - Claim without evidence, confidence or two alternatives fails
+      - Single-event pattern fails
+      - Unofficial measurement with numeric scores fails
+      - Raw voice placed in claim fails
+      - Trait is never auto-promoted
+    checks:
+      - python3 -m unittest tests.test_epistemic_rules
+    stop_if:
+      - A scientific threshold not present in Issue 1 is required
+    evidence: []
+
+  - id: SM-004
+    title: Build deterministic graph and coverage outputs
+    phase: 2
+    status: blocked
+    depends_on: [SM-002, SM-003]
+    allowed_paths:
+      - tools/build_graph.py
+      - data/graph.json
+      - data/coverage.json
+      - overviews/coverage.md
+      - tests/test_build_graph.py
+    acceptance:
+      - Graph nodes and edges trace Source to Pattern
+      - Coverage distinguishes unobserved, unknown and confirmed-empty
+      - Repeated runs produce byte-identical files
+      - Check mode detects stale generated files
+    checks:
+      - python3 -m unittest tests.test_build_graph
+      - python3 tools/build_graph.py
+      - python3 tools/build_graph.py --check
+    stop_if: []
+    evidence: []
+
+  - id: SM-005
+    title: Build versioned derived Self Model and bundle
+    phase: 2
+    status: blocked
+    depends_on: [SM-004]
+    allowed_paths:
+      - tools/build_self_model.py
+      - tools/bundle.py
+      - data/self-models/**
+      - tests/test_self_model.py
+      - tests/test_bundle.py
+    acceptance:
+      - Every derived statement carries entity evidence refs
+      - as_of and source commit are recorded
+      - Revised and rejected claims remain traceable
+      - Markdown bundle clearly separates observations and inference
+    checks:
+      - python3 -m unittest tests.test_self_model tests.test_bundle
+    stop_if: []
+    evidence: []
+
+  - id: SM-006
+    title: Implement soft epistemic audit
+    phase: 3
+    status: blocked
+    depends_on: [SM-004]
+    allowed_paths:
+      - tools/audit.py
+      - data/audit.json
+      - tests/test_audit.py
+    acceptance:
+      - Audit reports source concentration, context bias and counterevidence
+      - Audit flags trait claims without temporal and contextual breadth
+      - Audit proposes observations, not diagnostic conclusions
+      - Findings do not fail structural validation
+    checks:
+      - python3 -m unittest tests.test_audit
+      - python3 tools/audit.py --dry-run
+    stop_if:
+      - Audit needs an unvalidated psychological scoring formula
+    evidence: []
+
+  - id: SM-007
+    title: Enforce consent and privacy gates
+    phase: 4
+    status: blocked
+    depends_on: [SM-003]
+    allowed_paths:
+      - tools/kb.py
+      - tools/export_signals.py
+      - tests/test_consent.py
+      - tests/fixtures/consent/**
+    acceptance:
+      - Export is deny-by-default for missing, revoked or expired consent
+      - Purpose and operation are checked across all evidence sources
+      - Raw voice content is excluded by default
+      - Denial explains which source and rule blocked export without leaking content
+    checks:
+      - python3 -m unittest tests.test_consent
+    stop_if:
+      - Export would require weakening consent requirements
+    evidence: []
+
+  - id: SM-008
+    title: Implement research_signals v1 export contract
+    phase: 4
+    status: blocked
+    depends_on: [SM-005, SM-007]
+    allowed_paths:
+      - docs/interop-mapping.md
+      - tools/export_signals.py
+      - tests/contracts/research-signals-v1.schema.json
+      - tests/test_export_signals.py
+    acceptance:
+      - Output validates against a versioned JSON Schema
+      - Each signal has certainty and evidence refs
+      - Repository and commit provenance are present
+      - Unknown major schema versions fail closed
+    checks:
+      - python3 -m unittest tests.test_export_signals
+    stop_if:
+      - Consumer requires changing the core entity schema
+    evidence: []
+
+  - id: SM-009
+    title: Add anonymized full E2E fixture and CI
+    phase: 5
+    status: blocked
+    depends_on: [SM-006, SM-008]
+    allowed_paths:
+      - tests/fixtures/e2e/**
+      - tests/test_e2e.py
+      - .github/workflows/validate.yml
+      - .githooks/pre-commit
+      - docs/acceptance-matrix.md
+      - data/**
+      - overviews/coverage.md
+    acceptance:
+      - Source to Event to Claim to Pattern to Model to Export runs in CI
+      - Fixture contains no direct identifier or Masa-specific schema key
+      - All milestone acceptance rows are verified or explicitly review-gated
+      - Generated outputs are checked for staleness
+    checks:
+      - python3 -m unittest discover -s tests -p "test_*.py"
+      - python3 tools/build_graph.py --check
+    stop_if:
+      - A real person's sensitive data is needed
+    evidence: []
+
+  - id: SM-010
+    title: Add operator runbooks and recovery tests
+    phase: 5
+    status: blocked
+    depends_on: [SM-009]
+    allowed_paths:
+      - docs/operations.md
+      - docs/investigation-task.md
+      - docs/for-other-personas.md
+      - tests/test_cli.py
+    acceptance:
+      - New entity, validate, build, audit, bundle and export commands are executable
+      - Failure recovery does not require editing generated data
+      - Concurrent-agent collision rules are documented
+    checks:
+      - python3 -m unittest tests.test_cli
+    stop_if: []
+    evidence: []
+
+  - id: SM-011
+    title: Integrate with agentic-art-research consumer contract
+    phase: 6
+    status: blocked
+    depends_on: [SM-008, SM-009]
+    allowed_paths:
+      - docs/ecosystem-architecture.md
+      - docs/interop-mapping.md
+      - tests/contracts/**
+    external_paths:
+      - masa-san-jp/agentic-art-research
+    acceptance:
+      - Consumer pins repository commit and signal schema version
+      - Cross-repository fixture passes without copying core entities
+      - Missing one upstream KB remains explicit Unknown
+    checks:
+      - Document cross-repository contract test URL and result
+    stop_if:
+      - Any sibling core schema must be changed
+      - Project 4 coordination fields are unavailable
+    evidence: []
+

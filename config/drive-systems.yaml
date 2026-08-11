@@ -1,0 +1,18 @@
+version: 1
+systems:
+  D1: {label_ja: 生理的維持・恒常性, direction: maintain}
+  D2: {label_ja: 脅威・防御, direction: avoid-protect}
+  D3: {label_ja: 接近・報酬, direction: approach}
+  D4: {label_ja: 愛着・社会的安全, direction: approach-protect}
+  D5: {label_ja: 自律・制御・エージェンシー, direction: maintain-recover}
+  D6: {label_ja: 不確実性制御, direction: reduce}
+  D7: {label_ja: 社会的地位・評価, direction: approach-protect}
+  D8: {label_ja: 経験回避・苦痛制御, direction: avoid}
+  D9: {label_ja: 固着・反復, direction: repeat}
+  D10: {label_ja: 探索・学習, direction: approach}
+  D11: {label_ja: ケア・協力, direction: approach-protect}
+policy:
+  use: reference-axis
+  direct_inference_from_action: forbidden
+  numeric_scoring_without_validated_instrument: forbidden
+

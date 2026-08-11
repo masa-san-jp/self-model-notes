@@ -1,0 +1,8 @@
+version: 1
+dimensions:
+  domains: [work, learning, creative-practice, intimate-relationship, family, friendship, public, health, finance, other]
+  social: [alone, one-to-one, small-group, large-group, authority-present, evaluation, conflict, other]
+  uncertainty: [low, medium, high, unknown]
+  control: [self-directed, shared, externally-directed, unknown]
+extension_policy: issue-required
+

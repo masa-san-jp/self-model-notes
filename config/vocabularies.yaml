@@ -1,0 +1,21 @@
+version: 1
+entity_types: [subject, source, event, claim, pattern, measurement]
+plural_paths:
+  subject: subjects
+  source: sources
+  event: events
+  claim: claims
+  pattern: patterns
+  measurement: measurements
+claim_layers: [emotion, motivation, behavioral-principle, tension, other]
+claim_statuses: [hypothesis, supported, revised, rejected]
+scopes: [state, context-bound, trait-candidate, trait]
+confidence: [unknown, low, medium, high]
+source_kinds: [interview, conversation, diary, writing, behavior-log, decision-history, task-log, calendar, third-party-observation, formal-measurement, sensor, consent-record, other]
+allowed_purposes: [self-reflection, research, artistic-research]
+prohibited_purposes: [clinical-diagnosis, employment-decision, covert-profiling]
+allowed_operations: [store-reference, analyze, derive, bundle, export-signals]
+unknown_semantics:
+  null: not-known-or-not-observed
+  empty_list: checked-and-no-items
+
