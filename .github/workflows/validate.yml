@@ -18,10 +18,11 @@ jobs:
         run: python3 tools/build_graph.py --check
       - name: Tests
         run: python3 -m unittest discover -s tests -p "test_*.py"
+      - name: End-to-end anonymized fixture
+        run: python3 -m unittest tests.test_e2e
       - name: Soft audit
         run: python3 tools/audit.py --dry-run
       - name: Reproducible generated outputs
         run: |
           python3 tools/build_graph.py
           git diff --exit-code -- data/ overviews/coverage.md
-
