@@ -1,0 +1,99 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:self-model-notes:research-signals:v1",
+  "title": "Self Model Research Signals v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "subject",
+    "as_of",
+    "purpose",
+    "source_repository",
+    "source_commit",
+    "research_signals"
+  ],
+  "properties": {
+    "schema": {
+      "const": "urn:self-model-notes:research-signals:v1"
+    },
+    "subject": {
+      "type": "string",
+      "pattern": "^subject/[a-z0-9]+(?:-[a-z0-9]+)*$"
+    },
+    "as_of": {
+      "type": ["string", "null"],
+      "format": "date"
+    },
+    "purpose": {
+      "type": "string"
+    },
+    "source_repository": {
+      "type": "string",
+      "minLength": 1
+    },
+    "source_commit": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "research_signals": {
+      "$ref": "#/$defs/researchSignals"
+    }
+  },
+  "$defs": {
+    "signalItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["entity_ref", "statement", "certainty", "evidence_refs"],
+      "properties": {
+        "entity_ref": {
+          "type": "string"
+        },
+        "statement": {
+          "type": ["string", "null"]
+        },
+        "certainty": {
+          "enum": ["unknown", "low", "medium", "high"]
+        },
+        "evidence_refs": {
+          "type": "array",
+          "items": {"type": "string"},
+          "minItems": 1,
+          "uniqueItems": true
+        }
+      }
+    },
+    "researchSignals": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "seeks",
+        "protects",
+        "avoids",
+        "reacts_against",
+        "drawn_toward",
+        "influenced_by",
+        "tensions",
+        "recurring_patterns",
+        "emotional_material",
+        "raw_voice_refs",
+        "certainty",
+        "evidence_refs"
+      ],
+      "properties": {
+        "seeks": {"type": "array", "items": {"$ref": "#/$defs/signalItem"}},
+        "protects": {"type": "array", "items": {"$ref": "#/$defs/signalItem"}},
+        "avoids": {"type": "array", "items": {"$ref": "#/$defs/signalItem"}},
+        "reacts_against": {"type": "array", "items": {"$ref": "#/$defs/signalItem"}},
+        "drawn_toward": {"type": "array", "items": {"$ref": "#/$defs/signalItem"}},
+        "influenced_by": {"type": "array", "items": {"$ref": "#/$defs/signalItem"}},
+        "tensions": {"type": "array", "items": {"$ref": "#/$defs/signalItem"}},
+        "recurring_patterns": {"type": "array", "items": {"$ref": "#/$defs/signalItem"}},
+        "emotional_material": {"type": "array", "items": {"$ref": "#/$defs/signalItem"}},
+        "raw_voice_refs": {"type": "array", "items": {"type": "string"}},
+        "certainty": {"enum": ["unknown", "low", "medium", "high"]},
+        "evidence_refs": {"type": "array", "items": {"type": "string"}, "uniqueItems": true}
+      }
+    }
+  }
+}

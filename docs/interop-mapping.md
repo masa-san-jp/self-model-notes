@@ -7,6 +7,7 @@ schema: urn:self-model-notes:research-signals:v1
 subject: subject/example
 as_of: 2026-08-11
 purpose: artistic-research
+source_repository: masa-san-jp/self-model-notes
 source_commit: <sha>
 research_signals:
   seeks: []
@@ -42,6 +43,6 @@ research_signals:
 - 全signal itemに`evidence_refs`とitem-level certaintyを持たせられること。
 - raw voice本文は既定でexportせず、参照だけを出す。
 - `purpose: artistic-research`の同意がない根拠は除外ではなくexport全体をfailさせる。
+- JSON Schema `tests/contracts/research-signals-v1.schema.json`で出力を検証する。
 - consumerは`schema` major versionが未知ならfail closedする。
 - source repositoryとcommit SHAを固定し、再現可能にする。
-
