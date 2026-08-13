@@ -1,4 +1,5 @@
-version: 1
+version: 2
+updated_at: "2026-08-13"
 policy:
   selection: lowest-ready-id
   unit: one-task-one-agent-one-pr
@@ -12,7 +13,7 @@ tasks:
   - id: SM-001
     title: Freeze schema and entity examples
     phase: 0
-    status: ready
+    status: done
     depends_on: []
     allowed_paths:
       - docs/schema.md
@@ -29,12 +30,19 @@ tasks:
     stop_if:
       - A new entity type is required
       - A pattern promotion threshold must be invented
-    evidence: []
+    evidence:
+      - pr: 14
+        merge_commit: 5c6cdb38e9ffc632508e22285b9b7e0e1bbcc475
+        checks:
+          - ".venv/bin/python -m unittest tests.test_schema — 5 passed"
+          - ".venv/bin/python -m unittest discover -s tests -p 'test_*.py' — 7 passed"
+          - ".venv/bin/python tools/build_graph.py --check — passed"
+          - ".venv/bin/python tools/audit.py --dry-run — no findings"
 
   - id: SM-002
     title: Implement canonical loader and structural validator
     phase: 1
-    status: blocked
+    status: done
     depends_on: [SM-001]
     allowed_paths:
       - tools/kb.py
@@ -51,12 +59,19 @@ tasks:
       - python3 tools/build_graph.py --check
     stop_if:
       - Schema prose cannot determine expected behavior
-    evidence: []
+    evidence:
+      - pr: 15
+        merge_commit: 9cdb6d64402c76687ef11f4e978528db39347479
+        checks:
+          - ".venv/bin/python -m unittest tests.test_loader tests.test_validation — 10 passed"
+          - ".venv/bin/python -m unittest discover -s tests -p 'test_*.py' — 17 passed"
+          - ".venv/bin/python tools/build_graph.py --check — passed"
+          - ".venv/bin/python tools/audit.py --dry-run — no findings"
 
   - id: SM-003
     title: Enforce epistemic and measurement prohibitions
     phase: 1
-    status: blocked
+    status: done
     depends_on: [SM-002]
     allowed_paths:
       - tools/kb.py
@@ -72,12 +87,19 @@ tasks:
       - python3 -m unittest tests.test_epistemic_rules
     stop_if:
       - A scientific threshold not present in Issue 1 is required
-    evidence: []
+    evidence:
+      - pr: 16
+        merge_commit: 356d624b7329435c8f7dde78ca6049a62e0a69c5
+        checks:
+          - ".venv/bin/python -m unittest tests.test_epistemic_rules — 5 passed"
+          - ".venv/bin/python -m unittest discover -s tests -p 'test_*.py' — 24 passed"
+          - ".venv/bin/python tools/build_graph.py --check — passed"
+          - ".venv/bin/python tools/audit.py --dry-run — no findings"
 
   - id: SM-004
     title: Build deterministic graph and coverage outputs
     phase: 2
-    status: blocked
+    status: done
     depends_on: [SM-002, SM-003]
     allowed_paths:
       - tools/build_graph.py
@@ -95,12 +117,19 @@ tasks:
       - python3 tools/build_graph.py
       - python3 tools/build_graph.py --check
     stop_if: []
-    evidence: []
+    evidence:
+      - pr: 17
+        merge_commit: 5f69fc50a426131cfea6b7c3a01f67b2b9ff336b
+        checks:
+          - ".venv/bin/python -m unittest tests.test_build_graph — 4 passed"
+          - ".venv/bin/python tools/build_graph.py — passed"
+          - ".venv/bin/python tools/build_graph.py --check — passed"
+          - ".venv/bin/python tools/audit.py --dry-run — no findings"
 
   - id: SM-005
     title: Build versioned derived Self Model and bundle
     phase: 2
-    status: blocked
+    status: done
     depends_on: [SM-004]
     allowed_paths:
       - tools/build_self_model.py
@@ -116,12 +145,19 @@ tasks:
     checks:
       - python3 -m unittest tests.test_self_model tests.test_bundle
     stop_if: []
-    evidence: []
+    evidence:
+      - pr: 18
+        merge_commit: 6abd771a62f46a5de490dce4ea0041d952e01ec3
+        checks:
+          - ".venv/bin/python -m unittest tests.test_self_model tests.test_bundle — 6 passed"
+          - ".venv/bin/python -m unittest discover -s tests -p 'test_*.py' — 34 passed"
+          - ".venv/bin/python tools/build_graph.py --check — passed"
+          - ".venv/bin/python tools/audit.py --dry-run — no findings"
 
   - id: SM-006
     title: Implement soft epistemic audit
     phase: 3
-    status: blocked
+    status: done
     depends_on: [SM-004]
     allowed_paths:
       - tools/audit.py
@@ -137,12 +173,18 @@ tasks:
       - python3 tools/audit.py --dry-run
     stop_if:
       - Audit needs an unvalidated psychological scoring formula
-    evidence: []
+    evidence:
+      - pr: 19
+        merge_commit: e93c9c98e4a0268c2b72816edaf537057c4f6107
+        checks:
+          - ".venv/bin/python -m unittest tests.test_audit — 4 passed"
+          - ".venv/bin/python tools/audit.py --dry-run — passed"
+          - ".venv/bin/python tools/build_graph.py --check — passed"
 
   - id: SM-007
     title: Enforce consent and privacy gates
     phase: 4
-    status: blocked
+    status: done
     depends_on: [SM-003]
     allowed_paths:
       - tools/kb.py
@@ -158,12 +200,19 @@ tasks:
       - python3 -m unittest tests.test_consent
     stop_if:
       - Export would require weakening consent requirements
-    evidence: []
+    evidence:
+      - pr: 20
+        merge_commit: 6d3f7565bf53bca620afc9dd87ee7e187ba80c6e
+        checks:
+          - ".venv/bin/python -m unittest tests.test_consent — 5 passed"
+          - ".venv/bin/python tools/export_signals.py --subject subject/missing --purpose artistic-research — denied as expected"
+          - ".venv/bin/python tools/build_graph.py --check — passed"
+          - ".venv/bin/python tools/audit.py --dry-run — passed"
 
   - id: SM-008
     title: Implement research_signals v1 export contract
     phase: 4
-    status: blocked
+    status: done
     depends_on: [SM-005, SM-007]
     allowed_paths:
       - docs/interop-mapping.md
@@ -179,12 +228,19 @@ tasks:
       - python3 -m unittest tests.test_export_signals
     stop_if:
       - Consumer requires changing the core entity schema
-    evidence: []
+    evidence:
+      - pr: 21
+        merge_commit: 81ed1526942179985fdff8ca7c334c10224d3889
+        checks:
+          - ".venv/bin/python -m unittest tests.test_export_signals — 4 passed"
+          - ".venv/bin/python -m unittest discover -s tests -p 'test_*.py' — 47 passed"
+          - ".venv/bin/python tools/build_graph.py --check — passed"
+          - ".venv/bin/python tools/audit.py --dry-run — no findings"
 
   - id: SM-009
     title: Add anonymized full E2E fixture and CI
     phase: 5
-    status: blocked
+    status: done
     depends_on: [SM-006, SM-008]
     allowed_paths:
       - tests/fixtures/e2e/**
@@ -204,12 +260,19 @@ tasks:
       - python3 tools/build_graph.py --check
     stop_if:
       - A real person's sensitive data is needed
-    evidence: []
+    evidence:
+      - pr: 22
+        merge_commit: 3d9e108204989b47451b38d1383c36f5841874e2
+        checks:
+          - ".venv/bin/python -m unittest discover -s tests -p 'test_*.py' — 50 passed"
+          - ".venv/bin/python -m unittest tests.test_e2e — 3 passed"
+          - ".venv/bin/python tools/build_graph.py --check — passed"
+          - ".venv/bin/python tools/audit.py --dry-run — no findings"
 
   - id: SM-010
     title: Add operator runbooks and recovery tests
     phase: 5
-    status: blocked
+    status: done
     depends_on: [SM-009]
     allowed_paths:
       - docs/operations.md
@@ -223,12 +286,19 @@ tasks:
     checks:
       - python3 -m unittest tests.test_cli
     stop_if: []
-    evidence: []
+    evidence:
+      - pr: 23
+        merge_commit: 7f1f371486fe983f0bcfefbbf92a5df1326dac7b
+        checks:
+          - ".venv/bin/python -m unittest tests.test_cli — 4 passed"
+          - ".venv/bin/python -m unittest discover -s tests -p 'test_*.py' — 54 passed"
+          - ".venv/bin/python tools/build_graph.py --check — passed"
+          - ".venv/bin/python tools/audit.py --dry-run — no findings"
 
   - id: SM-011
     title: Integrate with agentic-art-research consumer contract
     phase: 6
-    status: blocked
+    status: done
     depends_on: [SM-008, SM-009]
     allowed_paths:
       - docs/ecosystem-architecture.md
@@ -245,5 +315,17 @@ tasks:
     stop_if:
       - Any sibling core schema must be changed
       - Project 4 coordination fields are unavailable
-    evidence: []
-
+    evidence:
+      - pr: 24
+        merge_commit: e60ab5f97e8ece06e762d8eb428e245964abf0a2
+        checks:
+          - "validate_research_signals — no errors"
+          - ".venv/bin/python -m unittest tests.test_export_signals tests.test_e2e tests.test_cli — 11 passed"
+          - "JSON fixture parse and git diff --check — passed"
+      - pr: 25
+        merge_commit: 53cdcb00d26a71ccf02d81b5a09e67804b9a2b73
+        checks:
+          - ".venv/bin/python -m unittest discover -s tests -p 'test_*.py' -q — 54 passed"
+          - ".venv/bin/python tools/build_graph.py --check — passed"
+          - ".venv/bin/python tools/audit.py — no findings"
+          - "External consumer PR #4 and its GitHub Actions run passed"
