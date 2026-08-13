@@ -1,3 +1,4 @@
+import json
 import subprocess
 import sys
 import unittest
@@ -36,7 +37,12 @@ class CLITests(unittest.TestCase):
 
         self.assertEqual(graph.returncode, 0, graph.stderr)
         self.assertEqual(audit.returncode, 0, audit.stderr)
-        self.assertIn('"findings": []', audit.stdout)
+        report = json.loads(audit.stdout)
+        self.assertIsInstance(report.get("findings"), list)
+        self.assertEqual(
+            report.get("policy"),
+            "soft review; findings propose observations and do not make diagnostic conclusions",
+        )
 
     def test_model_bundle_and_export_fail_closed_for_unknown_subject(self):
         model = self.run_cli("tools/build_self_model.py", "--subject", "subject/missing")

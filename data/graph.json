@@ -1,9 +1,122 @@
 {
-  "content_sha256": "564ae248ce821de5370cf7020b0d7d5c937a56c09ba8a6f91322ee41b9100c65",
-  "edges": [],
-  "nodes": [],
+  "content_sha256": "1dca6ce8976eed353d977737158fbbe51e448fc6e268785b2891efb3d3a8a73e",
+  "edges": [
+    {
+      "field": "subject",
+      "from": "claim/challenge-is-inherently-irrational",
+      "to": "subject/masa"
+    },
+    {
+      "field": "supporting_evidence",
+      "from": "claim/challenge-is-inherently-irrational",
+      "to": "event/watching-a-struggle-20260813"
+    },
+    {
+      "field": "subject",
+      "from": "claim/close-but-cannot-reach",
+      "to": "subject/masa"
+    },
+    {
+      "field": "supporting_evidence",
+      "from": "claim/close-but-cannot-reach",
+      "to": "event/watching-a-struggle-20260813"
+    },
+    {
+      "field": "subject",
+      "from": "claim/proximity-drives-attention",
+      "to": "subject/masa"
+    },
+    {
+      "field": "supporting_evidence",
+      "from": "claim/proximity-drives-attention",
+      "to": "event/watching-a-struggle-20260813"
+    },
+    {
+      "field": "source_refs",
+      "from": "event/watching-a-struggle-20260813",
+      "to": "source/interview-20260813"
+    },
+    {
+      "field": "subject",
+      "from": "event/watching-a-struggle-20260813",
+      "to": "subject/masa"
+    },
+    {
+      "field": "subject",
+      "from": "source/consent-20260813",
+      "to": "subject/masa"
+    },
+    {
+      "field": "subject",
+      "from": "source/interview-20260813",
+      "to": "subject/masa"
+    },
+    {
+      "field": "consent_refs",
+      "from": "subject/masa",
+      "to": "source/consent-20260813"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "claim/challenge-is-inherently-irrational",
+      "path": "entities/claims/challenge-is-inherently-irrational.md",
+      "type": "claim"
+    },
+    {
+      "id": "claim/close-but-cannot-reach",
+      "path": "entities/claims/close-but-cannot-reach.md",
+      "type": "claim"
+    },
+    {
+      "id": "claim/proximity-drives-attention",
+      "path": "entities/claims/proximity-drives-attention.md",
+      "type": "claim"
+    },
+    {
+      "id": "event/watching-a-struggle-20260813",
+      "path": "entities/events/watching-a-struggle-20260813.md",
+      "type": "event"
+    },
+    {
+      "id": "source/consent-20260813",
+      "path": "entities/sources/consent-20260813.md",
+      "type": "source"
+    },
+    {
+      "id": "source/interview-20260813",
+      "path": "entities/sources/interview-20260813.md",
+      "type": "source"
+    },
+    {
+      "id": "subject/masa",
+      "path": "entities/subjects/masa.md",
+      "type": "subject"
+    }
+  ],
   "schema_version": 1,
-  "trace_edges": [],
+  "trace_edges": [
+    {
+      "field": "supporting_evidence",
+      "from": "event/watching-a-struggle-20260813",
+      "to": "claim/challenge-is-inherently-irrational"
+    },
+    {
+      "field": "supporting_evidence",
+      "from": "event/watching-a-struggle-20260813",
+      "to": "claim/close-but-cannot-reach"
+    },
+    {
+      "field": "supporting_evidence",
+      "from": "event/watching-a-struggle-20260813",
+      "to": "claim/proximity-drives-attention"
+    },
+    {
+      "field": "source_refs",
+      "from": "source/interview-20260813",
+      "to": "event/watching-a-struggle-20260813"
+    }
+  ],
   "trace_paths": {
     "source_to_pattern": []
   }

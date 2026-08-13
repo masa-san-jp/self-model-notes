@@ -1,5 +1,20 @@
 {
-  "findings": [],
+  "findings": [
+    {
+      "code": "NO_COUNTEREVIDENCE",
+      "entity": "claim/challenge-is-inherently-irrational",
+      "next_check": "Search for an event under the same condition with a different action or outcome.",
+      "observed": "No counterevidence reference is recorded.",
+      "severity": "review"
+    },
+    {
+      "code": "NO_COUNTEREVIDENCE",
+      "entity": "claim/proximity-drives-attention",
+      "next_check": "Search for an event under the same condition with a different action or outcome.",
+      "observed": "No counterevidence reference is recorded.",
+      "severity": "review"
+    }
+  ],
   "policy": "soft review; findings propose observations and do not make diagnostic conclusions",
   "schema_version": 1,
   "subject": null
