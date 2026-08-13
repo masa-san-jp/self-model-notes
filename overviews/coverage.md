@@ -6,10 +6,10 @@
 
 | Entity | Count |
 |---|---:|
-| subject | 0 |
-| source | 0 |
-| event | 0 |
-| claim | 0 |
+| subject | 1 |
+| source | 2 |
+| event | 1 |
+| claim | 2 |
 | pattern | 0 |
 | measurement | 0 |
 
@@ -17,46 +17,46 @@
 
 | Field | Unobserved | Unknown | Confirmed empty | Observed |
 |---|---:|---:|---:|---:|
-| subject.consent_refs | 0 | 0 | 0 | 0 |
-| source.captured_at | 0 | 0 | 0 | 0 |
-| source.locator | 0 | 0 | 0 | 0 |
-| source.raw_content_stored | 0 | 0 | 0 | 0 |
-| source.consent.obtained | 0 | 0 | 0 | 0 |
-| source.consent.purposes | 0 | 0 | 0 | 0 |
-| source.consent.allowed_operations | 0 | 0 | 0 | 0 |
-| source.consent.expires_at | 0 | 0 | 0 | 0 |
-| source.consent.revoked_at | 0 | 0 | 0 | 0 |
-| source.reliability_notes | 0 | 0 | 0 | 0 |
-| event.time.observed_at | 0 | 0 | 0 | 0 |
-| event.time.precision | 0 | 0 | 0 | 0 |
-| event.context.domains | 0 | 0 | 0 | 0 |
-| event.context.social | 0 | 0 | 0 | 0 |
-| event.context.uncertainty | 0 | 0 | 0 | 0 |
-| event.context.control | 0 | 0 | 0 | 0 |
-| event.state.fatigue | 0 | 0 | 0 | 0 |
-| event.state.stress | 0 | 0 | 0 | 0 |
-| event.trigger | 0 | 0 | 0 | 0 |
-| event.observed_facts | 0 | 0 | 0 | 0 |
-| event.raw_voice | 0 | 0 | 0 | 0 |
-| event.appraisal | 0 | 0 | 0 | 0 |
-| event.emotion | 0 | 0 | 0 | 0 |
-| event.body | 0 | 0 | 0 | 0 |
-| event.cognition | 0 | 0 | 0 | 0 |
-| event.action | 0 | 0 | 0 | 0 |
-| event.immediate_outcome | 0 | 0 | 0 | 0 |
-| event.delayed_outcome | 0 | 0 | 0 | 0 |
-| event.source_refs | 0 | 0 | 0 | 0 |
-| claim.layer | 0 | 0 | 0 | 0 |
-| claim.scope | 0 | 0 | 0 | 0 |
-| claim.statement | 0 | 0 | 0 | 0 |
-| claim.conditions | 0 | 0 | 0 | 0 |
-| claim.supporting_evidence | 0 | 0 | 0 | 0 |
-| claim.counterevidence | 0 | 0 | 0 | 0 |
-| claim.alternative_explanations | 0 | 0 | 0 | 0 |
-| claim.confidence | 0 | 0 | 0 | 0 |
-| claim.status | 0 | 0 | 0 | 0 |
-| claim.supersedes | 0 | 0 | 0 | 0 |
-| claim.superseded_by | 0 | 0 | 0 | 0 |
+| subject.consent_refs | 0 | 0 | 0 | 1 |
+| source.captured_at | 0 | 0 | 0 | 2 |
+| source.locator | 0 | 0 | 0 | 2 |
+| source.raw_content_stored | 0 | 0 | 0 | 2 |
+| source.consent.obtained | 0 | 0 | 0 | 2 |
+| source.consent.purposes | 0 | 0 | 0 | 2 |
+| source.consent.allowed_operations | 0 | 0 | 0 | 2 |
+| source.consent.expires_at | 0 | 2 | 0 | 0 |
+| source.consent.revoked_at | 0 | 2 | 0 | 0 |
+| source.reliability_notes | 0 | 1 | 0 | 1 |
+| event.time.observed_at | 0 | 0 | 0 | 1 |
+| event.time.precision | 0 | 0 | 0 | 1 |
+| event.context.domains | 0 | 0 | 0 | 1 |
+| event.context.social | 0 | 0 | 0 | 1 |
+| event.context.uncertainty | 0 | 0 | 0 | 1 |
+| event.context.control | 0 | 0 | 0 | 1 |
+| event.state.fatigue | 0 | 1 | 0 | 0 |
+| event.state.stress | 0 | 1 | 0 | 0 |
+| event.trigger | 0 | 0 | 0 | 1 |
+| event.observed_facts | 0 | 0 | 0 | 1 |
+| event.raw_voice | 0 | 0 | 0 | 1 |
+| event.appraisal | 0 | 0 | 1 | 0 |
+| event.emotion | 0 | 0 | 1 | 0 |
+| event.body | 0 | 0 | 1 | 0 |
+| event.cognition | 0 | 0 | 1 | 0 |
+| event.action | 0 | 0 | 0 | 1 |
+| event.immediate_outcome | 0 | 0 | 1 | 0 |
+| event.delayed_outcome | 0 | 0 | 1 | 0 |
+| event.source_refs | 0 | 0 | 0 | 1 |
+| claim.layer | 0 | 0 | 0 | 2 |
+| claim.scope | 0 | 0 | 0 | 2 |
+| claim.statement | 0 | 0 | 0 | 2 |
+| claim.conditions | 0 | 0 | 0 | 2 |
+| claim.supporting_evidence | 0 | 0 | 0 | 2 |
+| claim.counterevidence | 0 | 0 | 2 | 0 |
+| claim.alternative_explanations | 0 | 0 | 0 | 2 |
+| claim.confidence | 0 | 0 | 0 | 2 |
+| claim.status | 0 | 0 | 0 | 2 |
+| claim.supersedes | 0 | 2 | 0 | 0 |
+| claim.superseded_by | 0 | 2 | 0 | 0 |
 | pattern.condition | 0 | 0 | 0 | 0 |
 | pattern.recurring_appraisal | 0 | 0 | 0 | 0 |
 | pattern.recurring_drive | 0 | 0 | 0 | 0 |

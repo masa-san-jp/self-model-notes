@@ -1,190 +1,190 @@
 {
   "counts": {
-    "claim": 0,
-    "event": 0,
+    "claim": 2,
+    "event": 1,
     "measurement": 0,
     "pattern": 0,
-    "source": 0,
-    "subject": 0
+    "source": 2,
+    "subject": 1
   },
   "field_coverage": {
     "claim.alternative_explanations": {
       "confirmed-empty": 0,
-      "observed": 0,
+      "observed": 2,
       "unknown": 0,
       "unobserved": 0
     },
     "claim.conditions": {
       "confirmed-empty": 0,
-      "observed": 0,
+      "observed": 2,
       "unknown": 0,
       "unobserved": 0
     },
     "claim.confidence": {
       "confirmed-empty": 0,
-      "observed": 0,
+      "observed": 2,
       "unknown": 0,
       "unobserved": 0
     },
     "claim.counterevidence": {
-      "confirmed-empty": 0,
+      "confirmed-empty": 2,
       "observed": 0,
       "unknown": 0,
       "unobserved": 0
     },
     "claim.layer": {
       "confirmed-empty": 0,
-      "observed": 0,
+      "observed": 2,
       "unknown": 0,
       "unobserved": 0
     },
     "claim.scope": {
       "confirmed-empty": 0,
-      "observed": 0,
+      "observed": 2,
       "unknown": 0,
       "unobserved": 0
     },
     "claim.statement": {
       "confirmed-empty": 0,
-      "observed": 0,
+      "observed": 2,
       "unknown": 0,
       "unobserved": 0
     },
     "claim.status": {
       "confirmed-empty": 0,
-      "observed": 0,
+      "observed": 2,
       "unknown": 0,
       "unobserved": 0
     },
     "claim.superseded_by": {
       "confirmed-empty": 0,
       "observed": 0,
-      "unknown": 0,
+      "unknown": 2,
       "unobserved": 0
     },
     "claim.supersedes": {
       "confirmed-empty": 0,
       "observed": 0,
-      "unknown": 0,
+      "unknown": 2,
       "unobserved": 0
     },
     "claim.supporting_evidence": {
       "confirmed-empty": 0,
-      "observed": 0,
+      "observed": 2,
       "unknown": 0,
       "unobserved": 0
     },
     "event.action": {
       "confirmed-empty": 0,
-      "observed": 0,
+      "observed": 1,
       "unknown": 0,
       "unobserved": 0
     },
     "event.appraisal": {
-      "confirmed-empty": 0,
+      "confirmed-empty": 1,
       "observed": 0,
       "unknown": 0,
       "unobserved": 0
     },
     "event.body": {
-      "confirmed-empty": 0,
+      "confirmed-empty": 1,
       "observed": 0,
       "unknown": 0,
       "unobserved": 0
     },
     "event.cognition": {
-      "confirmed-empty": 0,
+      "confirmed-empty": 1,
       "observed": 0,
       "unknown": 0,
       "unobserved": 0
     },
     "event.context.control": {
       "confirmed-empty": 0,
-      "observed": 0,
+      "observed": 1,
       "unknown": 0,
       "unobserved": 0
     },
     "event.context.domains": {
       "confirmed-empty": 0,
-      "observed": 0,
+      "observed": 1,
       "unknown": 0,
       "unobserved": 0
     },
     "event.context.social": {
       "confirmed-empty": 0,
-      "observed": 0,
+      "observed": 1,
       "unknown": 0,
       "unobserved": 0
     },
     "event.context.uncertainty": {
       "confirmed-empty": 0,
-      "observed": 0,
+      "observed": 1,
       "unknown": 0,
       "unobserved": 0
     },
     "event.delayed_outcome": {
-      "confirmed-empty": 0,
+      "confirmed-empty": 1,
       "observed": 0,
       "unknown": 0,
       "unobserved": 0
     },
     "event.emotion": {
-      "confirmed-empty": 0,
+      "confirmed-empty": 1,
       "observed": 0,
       "unknown": 0,
       "unobserved": 0
     },
     "event.immediate_outcome": {
-      "confirmed-empty": 0,
+      "confirmed-empty": 1,
       "observed": 0,
       "unknown": 0,
       "unobserved": 0
     },
     "event.observed_facts": {
       "confirmed-empty": 0,
-      "observed": 0,
+      "observed": 1,
       "unknown": 0,
       "unobserved": 0
     },
     "event.raw_voice": {
       "confirmed-empty": 0,
-      "observed": 0,
+      "observed": 1,
       "unknown": 0,
       "unobserved": 0
     },
     "event.source_refs": {
       "confirmed-empty": 0,
-      "observed": 0,
+      "observed": 1,
       "unknown": 0,
       "unobserved": 0
     },
     "event.state.fatigue": {
       "confirmed-empty": 0,
       "observed": 0,
-      "unknown": 0,
+      "unknown": 1,
       "unobserved": 0
     },
     "event.state.stress": {
       "confirmed-empty": 0,
       "observed": 0,
-      "unknown": 0,
+      "unknown": 1,
       "unobserved": 0
     },
     "event.time.observed_at": {
       "confirmed-empty": 0,
-      "observed": 0,
+      "observed": 1,
       "unknown": 0,
       "unobserved": 0
     },
     "event.time.precision": {
       "confirmed-empty": 0,
-      "observed": 0,
+      "observed": 1,
       "unknown": 0,
       "unobserved": 0
     },
     "event.trigger": {
       "confirmed-empty": 0,
-      "observed": 0,
+      "observed": 1,
       "unknown": 0,
       "unobserved": 0
     },
@@ -304,61 +304,61 @@
     },
     "source.captured_at": {
       "confirmed-empty": 0,
-      "observed": 0,
+      "observed": 2,
       "unknown": 0,
       "unobserved": 0
     },
     "source.consent.allowed_operations": {
       "confirmed-empty": 0,
-      "observed": 0,
+      "observed": 2,
       "unknown": 0,
       "unobserved": 0
     },
     "source.consent.expires_at": {
       "confirmed-empty": 0,
       "observed": 0,
-      "unknown": 0,
+      "unknown": 2,
       "unobserved": 0
     },
     "source.consent.obtained": {
       "confirmed-empty": 0,
-      "observed": 0,
+      "observed": 2,
       "unknown": 0,
       "unobserved": 0
     },
     "source.consent.purposes": {
       "confirmed-empty": 0,
-      "observed": 0,
+      "observed": 2,
       "unknown": 0,
       "unobserved": 0
     },
     "source.consent.revoked_at": {
       "confirmed-empty": 0,
       "observed": 0,
-      "unknown": 0,
+      "unknown": 2,
       "unobserved": 0
     },
     "source.locator": {
       "confirmed-empty": 0,
-      "observed": 0,
+      "observed": 2,
       "unknown": 0,
       "unobserved": 0
     },
     "source.raw_content_stored": {
       "confirmed-empty": 0,
-      "observed": 0,
+      "observed": 2,
       "unknown": 0,
       "unobserved": 0
     },
     "source.reliability_notes": {
       "confirmed-empty": 0,
-      "observed": 0,
-      "unknown": 0,
+      "observed": 1,
+      "unknown": 1,
       "unobserved": 0
     },
     "subject.consent_refs": {
       "confirmed-empty": 0,
-      "observed": 0,
+      "observed": 1,
       "unknown": 0,
       "unobserved": 0
     }
