@@ -1,5 +1,5 @@
 {
-  "content_sha256": "9a4a2ad722c4c4aa6e19d6aa429a508a41d542d57b707f6148c0700894e8a1e5",
+  "content_sha256": "1dca6ce8976eed353d977737158fbbe51e448fc6e268785b2891efb3d3a8a73e",
   "edges": [
     {
       "field": "subject",
@@ -9,6 +9,16 @@
     {
       "field": "supporting_evidence",
       "from": "claim/challenge-is-inherently-irrational",
+      "to": "event/watching-a-struggle-20260813"
+    },
+    {
+      "field": "subject",
+      "from": "claim/close-but-cannot-reach",
+      "to": "subject/masa"
+    },
+    {
+      "field": "supporting_evidence",
+      "from": "claim/close-but-cannot-reach",
       "to": "event/watching-a-struggle-20260813"
     },
     {
@@ -54,6 +64,11 @@
       "type": "claim"
     },
     {
+      "id": "claim/close-but-cannot-reach",
+      "path": "entities/claims/close-but-cannot-reach.md",
+      "type": "claim"
+    },
+    {
       "id": "claim/proximity-drives-attention",
       "path": "entities/claims/proximity-drives-attention.md",
       "type": "claim"
@@ -85,6 +100,11 @@
       "field": "supporting_evidence",
       "from": "event/watching-a-struggle-20260813",
       "to": "claim/challenge-is-inherently-irrational"
+    },
+    {
+      "field": "supporting_evidence",
+      "from": "event/watching-a-struggle-20260813",
+      "to": "claim/close-but-cannot-reach"
     },
     {
       "field": "supporting_evidence",

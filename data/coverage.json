@@ -1,6 +1,6 @@
 {
   "counts": {
-    "claim": 2,
+    "claim": 3,
     "event": 1,
     "measurement": 0,
     "pattern": 0,
@@ -10,67 +10,67 @@
   "field_coverage": {
     "claim.alternative_explanations": {
       "confirmed-empty": 0,
-      "observed": 2,
+      "observed": 3,
       "unknown": 0,
       "unobserved": 0
     },
     "claim.conditions": {
       "confirmed-empty": 0,
-      "observed": 2,
+      "observed": 3,
       "unknown": 0,
       "unobserved": 0
     },
     "claim.confidence": {
       "confirmed-empty": 0,
-      "observed": 2,
+      "observed": 3,
       "unknown": 0,
       "unobserved": 0
     },
     "claim.counterevidence": {
-      "confirmed-empty": 2,
+      "confirmed-empty": 3,
       "observed": 0,
       "unknown": 0,
       "unobserved": 0
     },
     "claim.layer": {
       "confirmed-empty": 0,
-      "observed": 2,
+      "observed": 3,
       "unknown": 0,
       "unobserved": 0
     },
     "claim.scope": {
       "confirmed-empty": 0,
-      "observed": 2,
+      "observed": 3,
       "unknown": 0,
       "unobserved": 0
     },
     "claim.statement": {
       "confirmed-empty": 0,
-      "observed": 2,
+      "observed": 3,
       "unknown": 0,
       "unobserved": 0
     },
     "claim.status": {
       "confirmed-empty": 0,
-      "observed": 2,
+      "observed": 3,
       "unknown": 0,
       "unobserved": 0
     },
     "claim.superseded_by": {
       "confirmed-empty": 0,
       "observed": 0,
-      "unknown": 2,
+      "unknown": 3,
       "unobserved": 0
     },
     "claim.supersedes": {
       "confirmed-empty": 0,
       "observed": 0,
-      "unknown": 2,
+      "unknown": 3,
       "unobserved": 0
     },
     "claim.supporting_evidence": {
       "confirmed-empty": 0,
-      "observed": 2,
+      "observed": 3,
       "unknown": 0,
       "unobserved": 0
     },

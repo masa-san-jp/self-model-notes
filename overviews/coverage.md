@@ -9,7 +9,7 @@
 | subject | 1 |
 | source | 2 |
 | event | 1 |
-| claim | 2 |
+| claim | 3 |
 | pattern | 0 |
 | measurement | 0 |
 
@@ -46,17 +46,17 @@
 | event.immediate_outcome | 0 | 0 | 1 | 0 |
 | event.delayed_outcome | 0 | 0 | 1 | 0 |
 | event.source_refs | 0 | 0 | 0 | 1 |
-| claim.layer | 0 | 0 | 0 | 2 |
-| claim.scope | 0 | 0 | 0 | 2 |
-| claim.statement | 0 | 0 | 0 | 2 |
-| claim.conditions | 0 | 0 | 0 | 2 |
-| claim.supporting_evidence | 0 | 0 | 0 | 2 |
-| claim.counterevidence | 0 | 0 | 2 | 0 |
-| claim.alternative_explanations | 0 | 0 | 0 | 2 |
-| claim.confidence | 0 | 0 | 0 | 2 |
-| claim.status | 0 | 0 | 0 | 2 |
-| claim.supersedes | 0 | 2 | 0 | 0 |
-| claim.superseded_by | 0 | 2 | 0 | 0 |
+| claim.layer | 0 | 0 | 0 | 3 |
+| claim.scope | 0 | 0 | 0 | 3 |
+| claim.statement | 0 | 0 | 0 | 3 |
+| claim.conditions | 0 | 0 | 0 | 3 |
+| claim.supporting_evidence | 0 | 0 | 0 | 3 |
+| claim.counterevidence | 0 | 0 | 3 | 0 |
+| claim.alternative_explanations | 0 | 0 | 0 | 3 |
+| claim.confidence | 0 | 0 | 0 | 3 |
+| claim.status | 0 | 0 | 0 | 3 |
+| claim.supersedes | 0 | 3 | 0 | 0 |
+| claim.superseded_by | 0 | 3 | 0 | 0 |
 | pattern.condition | 0 | 0 | 0 | 0 |
 | pattern.recurring_appraisal | 0 | 0 | 0 | 0 |
 | pattern.recurring_drive | 0 | 0 | 0 | 0 |
