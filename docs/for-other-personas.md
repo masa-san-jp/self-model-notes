@@ -5,7 +5,7 @@
 ```bash
 cat overviews/coverage.md
 python3 tools/bundle.py --subject subject/<id>
-python3 tools/export_signals.py --subject subject/<id> --purpose artistic-research --operation export-signals
+python3 tools/export_signals.py --purpose artistic-research --operation export-signals --limit 0
 ```
 
 exportはSourceごとの同意を再検証し、1件でも不足があれば全体をdenyする。raw voice本文は既定で含まれない。運用上の復旧や衝突回避は[`docs/operations.md`](operations.md)を参照する。

@@ -32,13 +32,13 @@
    python3 tools/bundle.py --subject subject/<id>
    ```
 
-5. exportは目的と操作を明示する。Sourceが1件でも同意不備なら全体がdenyされる。
+5. exportは目的と操作を明示する。`--subject`を省略すると全Subjectを対象にし、Sourceが1件でも同意不備なら全体がdenyされる。`--limit 0`は全件、`--output`省略時は標準出力。
 
    ```bash
    python3 tools/export_signals.py \
-     --subject subject/<id> \
      --purpose artistic-research \
-     --operation export-signals
+     --operation export-signals \
+     --limit 0
    ```
 
 ## 失敗時の復旧

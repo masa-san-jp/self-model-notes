@@ -7,7 +7,7 @@ import argparse
 import re
 import subprocess
 import sys
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -17,8 +17,8 @@ except ModuleNotFoundError:  # Imported as tools.export_signals by the test suit
     from tools.kb import ROOT, canonical_json, discover_entities, validate_entities
 
 
-RESEARCH_SIGNALS_SCHEMA = "urn:self-model-notes:research-signals:v1"
-SOURCE_REPOSITORY = "masa-san-jp/self-model-notes"
+EXPORT_CONTRACT_VERSION = "research-signal-export/v1"
+SOURCE_REPOSITORY = "self-model"
 
 
 def _list_refs(meta: dict[str, Any], field: str) -> list[str]:
@@ -30,7 +30,9 @@ def _list_refs(meta: dict[str, Any], field: str) -> list[str]:
     return []
 
 
-def _selected(entities, subject: str):
+def _selected(entities, subject: str | None):
+    if subject is None:
+        return list(entities)
     return [entity for entity in entities if entity.id == subject or entity.meta.get("subject") == subject]
 
 
@@ -149,13 +151,59 @@ def _signals(selected) -> list[dict[str, Any]]:
 
 def export_signals(
     entities,
-    subject: str,
+    subject: str | None,
     purpose: str,
     *,
     operation: str = "export-signals",
     today: date | None = None,
     source_commit: str | None = None,
 ) -> dict[str, Any]:
+    if subject is None:
+        subject_ids = sorted(entity.id for entity in entities if entity.type == "subject")
+        if not subject_ids:
+            return {
+                "allowed": False,
+                "subject": None,
+                "purpose": purpose,
+                "operation": operation,
+                "denials": [_denial("repository", "subject.exists", "No Subject is available for export.")],
+            }
+
+        results = [
+            export_signals(
+                entities,
+                subject_id,
+                purpose,
+                operation=operation,
+                today=today,
+                source_commit=source_commit,
+            )
+            for subject_id in subject_ids
+        ]
+        denials = [denial for result in results for denial in result.get("denials", [])]
+        if denials:
+            return {
+                "allowed": False,
+                "subject": None,
+                "subjects": subject_ids,
+                "purpose": purpose,
+                "operation": operation,
+                "denials": denials,
+            }
+
+        signals = [signal for result in results for signal in result["signals"]]
+        signals.sort(key=lambda item: item["entity_ref"])
+        return {
+            "allowed": True,
+            "subject": None,
+            "subjects": subject_ids,
+            "purpose": purpose,
+            "operation": operation,
+            "as_of": max((result.get("as_of") for result in results if result.get("as_of")), default=None),
+            "source_commit": source_commit if source_commit is not None else _source_commit(),
+            "signals": signals,
+        }
+
     selected = _selected(entities, subject)
     if not any(entity.id == subject and entity.type == "subject" for entity in selected):
         return {
@@ -199,145 +247,107 @@ def export_signals(
     }
 
 
-def _signal_item(signal: dict[str, Any]) -> dict[str, Any]:
-    certainty = signal.get("certainty")
-    return {
-        "entity_ref": signal["entity_ref"],
-        "statement": signal["statement"],
-        "certainty": certainty if isinstance(certainty, str) and certainty in {"unknown", "low", "medium", "high"} else "unknown",
-        "evidence_refs": signal["evidence_refs"],
-    }
+def _generated_at() -> str:
+    return datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
 
 
-def build_research_signals(result: dict[str, Any]) -> dict[str, Any]:
-    """Translate a consent-approved internal result to research_signals v1."""
+def build_research_signals(
+    result: dict[str, Any],
+    *,
+    generated_at: str | None = None,
+    limit: int = 0,
+) -> dict[str, Any]:
+    """Translate a consent-approved internal result to research-signal-export/v1."""
     if not result.get("allowed"):
         return result
-    signal_groups = {
-        "seeks": [],
-        "protects": [],
-        "avoids": [],
-        "reacts_against": [],
-        "drawn_toward": [],
-        "influenced_by": [],
-        "tensions": [],
-        "recurring_patterns": [],
-        "emotional_material": [],
-        "raw_voice_refs": [],
-    }
-    for signal in result.get("signals", []):
-        item = _signal_item(signal)
-        if signal["kind"] == "pattern":
-            signal_groups["recurring_patterns"].append(item)
-        elif signal.get("layer") == "emotion":
-            signal_groups["emotional_material"].append(item)
-        elif signal.get("layer") == "motivation":
-            signal_groups["seeks"].append(item)
-        elif signal.get("layer") == "behavioral-principle":
-            signal_groups["protects"].append(item)
-        elif signal.get("layer") == "tension":
-            signal_groups["tensions"].append(item)
-    for values in signal_groups.values():
-        values.sort(key=lambda item: item["entity_ref"])
-    evidence_refs = sorted({ref for values in signal_groups.values() for item in values for ref in item["evidence_refs"]})
-    certainties = {item["certainty"] for values in signal_groups.values() for item in values}
-    certainty = certainties.pop() if len(certainties) == 1 else "unknown"
+    if limit < 0:
+        raise ValueError("limit must be zero or a positive integer")
+    signals = list(result.get("signals", []))
+    if limit:
+        signals = signals[:limit]
     payload = {
-        "schema": RESEARCH_SIGNALS_SCHEMA,
-        "subject": result["subject"],
-        "as_of": result.get("as_of"),
-        "purpose": result["purpose"],
+        "contract_version": EXPORT_CONTRACT_VERSION,
         "source_repository": SOURCE_REPOSITORY,
         "source_commit": result.get("source_commit"),
-        "research_signals": {
-            **signal_groups,
-            "certainty": certainty,
-            "evidence_refs": evidence_refs,
-        },
+        "purpose": result["purpose"],
+        "generated_at": generated_at if generated_at is not None else _generated_at(),
+        "signal_count": len(signals),
+        "signals": signals,
     }
     errors = validate_research_signals(payload)
     if errors:
-        raise ValueError("research_signals v1 validation failed: " + "; ".join(errors))
+        raise ValueError("research-signal-export/v1 validation failed: " + "; ".join(errors))
     return payload
 
 
 def validate_research_signals(payload: dict[str, Any]) -> list[str]:
-    schema = payload.get("schema") if isinstance(payload, dict) else None
-    match = re.fullmatch(r"urn:self-model-notes:research-signals:v(?P<major>\d+)", str(schema))
-    if match is None or match.group("major") != "1":
-        raise ValueError(f"Unsupported research_signals schema major version: {schema!r}")
+    contract_version = payload.get("contract_version") if isinstance(payload, dict) else None
+    if contract_version != EXPORT_CONTRACT_VERSION:
+        raise ValueError(f"Unsupported research-signal-export contract version: {contract_version!r}")
     errors: list[str] = []
-    required = ("schema", "subject", "as_of", "purpose", "source_repository", "source_commit", "research_signals")
+    required = ("contract_version", "source_repository", "source_commit", "purpose", "generated_at", "signal_count", "signals")
     errors.extend(f"unknown top-level field: {field}" for field in set(payload) - set(required))
     errors.extend(f"missing required field: {field}" for field in required if field not in payload)
-    if not isinstance(payload.get("subject"), str):
-        errors.append("subject must be a string")
-    if not isinstance(payload.get("purpose"), str):
+    if payload.get("source_repository") != SOURCE_REPOSITORY:
+        errors.append("source_repository must be 'self-model'")
+    if not isinstance(payload.get("purpose"), str) or not payload.get("purpose"):
         errors.append("purpose must be a string")
-    as_of = payload.get("as_of")
-    if as_of is not None:
+    generated_at = payload.get("generated_at")
+    if not isinstance(generated_at, str):
+        errors.append("generated_at must be an RFC3339 timestamp")
+    else:
         try:
-            date.fromisoformat(as_of)
+            parsed_generated_at = datetime.fromisoformat(generated_at.replace("Z", "+00:00"))
+            if parsed_generated_at.tzinfo is None:
+                raise ValueError
         except (TypeError, ValueError):
-            errors.append("as_of must be an ISO date or null")
-    if not isinstance(payload.get("source_repository"), str):
-        errors.append("source_repository must be a string")
+            errors.append("generated_at must be an RFC3339 timestamp")
     if not isinstance(payload.get("source_commit"), str) or not re.fullmatch(r"[0-9a-f]{40}", str(payload.get("source_commit"))):
         errors.append("source_commit must be a 40-character hexadecimal SHA")
-    groups = payload.get("research_signals")
-    signal_fields = (
-        "seeks", "protects", "avoids", "reacts_against", "drawn_toward", "influenced_by",
-        "tensions", "recurring_patterns", "emotional_material", "raw_voice_refs",
-    )
-    if not isinstance(groups, dict):
-        errors.append("research_signals must be an object")
+    signal_count = payload.get("signal_count")
+    if isinstance(signal_count, bool) or not isinstance(signal_count, int) or signal_count < 0:
+        errors.append("signal_count must be a non-negative integer")
+    signals = payload.get("signals")
+    if not isinstance(signals, list):
+        errors.append("signals must be a list")
         return errors
-    allowed_group_fields = set((*signal_fields, "certainty", "evidence_refs"))
-    errors.extend(f"unknown research_signals field: {field}" for field in set(groups) - allowed_group_fields)
-    errors.extend(f"missing research_signals field: {field}" for field in (*signal_fields, "certainty", "evidence_refs") if field not in groups)
-    if groups.get("certainty") not in {"unknown", "low", "medium", "high"}:
-        errors.append("research_signals.certainty is outside the closed vocabulary")
-    if not isinstance(groups.get("evidence_refs"), list) or not all(isinstance(ref, str) for ref in groups.get("evidence_refs", [])):
-        errors.append("research_signals.evidence_refs must be a list of strings")
-    elif len(groups["evidence_refs"]) != len(set(groups["evidence_refs"])):
-        errors.append("research_signals.evidence_refs must contain unique references")
-    for field in signal_fields:
-        values = groups.get(field)
-        if not isinstance(values, list):
-            errors.append(f"research_signals.{field} must be a list")
+    if isinstance(signal_count, int) and not isinstance(signal_count, bool) and signal_count != len(signals):
+        errors.append("signal_count must equal the number of signals")
+    allowed_signal_fields = {"entity_ref", "kind", "layer", "statement", "certainty", "evidence_refs"}
+    required_signal_fields = allowed_signal_fields
+    for index, item in enumerate(signals):
+        if not isinstance(item, dict):
+            errors.append(f"signals[{index}] must be an object")
             continue
-        for index, item in enumerate(values):
-            if field == "raw_voice_refs":
-                if not isinstance(item, str):
-                    errors.append(f"research_signals.{field}[{index}] must be a string reference")
-                continue
-            if not isinstance(item, dict):
-                errors.append(f"research_signals.{field}[{index}] must be an object")
-                continue
-            allowed_item_fields = {"entity_ref", "statement", "certainty", "evidence_refs"}
-            errors.extend(f"unknown field in research_signals.{field}[{index}]: {item_field}" for item_field in set(item) - allowed_item_fields)
-            for item_field in ("entity_ref", "statement", "certainty", "evidence_refs"):
-                if item_field not in item:
-                    errors.append(f"research_signals.{field}[{index}] missing {item_field}")
-            if not isinstance(item.get("entity_ref"), str):
-                errors.append(f"research_signals.{field}[{index}].entity_ref must be a string")
-            if not isinstance(item.get("statement"), (str, type(None))):
-                errors.append(f"research_signals.{field}[{index}].statement must be a string or null")
-            if item.get("certainty") not in {"unknown", "low", "medium", "high"}:
-                errors.append(f"research_signals.{field}[{index}].certainty is outside the closed vocabulary")
-            if not isinstance(item.get("evidence_refs"), list) or not item.get("evidence_refs") or not all(isinstance(ref, str) for ref in item.get("evidence_refs", [])):
-                errors.append(f"research_signals.{field}[{index}].evidence_refs must be a non-empty list of strings")
-            elif len(item["evidence_refs"]) != len(set(item["evidence_refs"])):
-                errors.append(f"research_signals.{field}[{index}].evidence_refs must contain unique references")
+        errors.extend(f"unknown field in signals[{index}]: {field}" for field in set(item) - allowed_signal_fields)
+        errors.extend(f"signals[{index}] missing {field}" for field in required_signal_fields if field not in item)
+        if not isinstance(item.get("entity_ref"), str):
+            errors.append(f"signals[{index}].entity_ref must be a string")
+        if item.get("kind") not in {"claim", "pattern"}:
+            errors.append(f"signals[{index}].kind is outside the closed vocabulary")
+        if not isinstance(item.get("layer"), (str, type(None))):
+            errors.append(f"signals[{index}].layer must be a string or null")
+        if not isinstance(item.get("statement"), (str, type(None))):
+            errors.append(f"signals[{index}].statement must be a string or null")
+        if item.get("certainty") not in {"unknown", "low", "medium", "high"}:
+            errors.append(f"signals[{index}].certainty is outside the closed vocabulary")
+        if not isinstance(item.get("evidence_refs"), list) or not item.get("evidence_refs") or not all(isinstance(ref, str) for ref in item.get("evidence_refs", [])):
+            errors.append(f"signals[{index}].evidence_refs must be a non-empty list of strings")
+        elif len(item["evidence_refs"]) != len(set(item["evidence_refs"])):
+            errors.append(f"signals[{index}].evidence_refs must contain unique references")
     return errors
 
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--subject", required=True)
+    parser.add_argument("--subject")
     parser.add_argument("--purpose", required=True)
     parser.add_argument("--operation", default="export-signals")
+    parser.add_argument("--output")
+    parser.add_argument("--limit", type=int, default=0)
     args = parser.parse_args()
+    if args.limit < 0:
+        parser.error("--limit must be zero or a positive integer")
     entities = discover_entities()
     validation_errors = validate_entities(entities)
     if validation_errors:
@@ -355,11 +365,19 @@ def main() -> int:
         print(canonical_json(result), file=sys.stderr, end="")
         return 1
     try:
-        contract = build_research_signals(result)
+        contract = build_research_signals(result, limit=args.limit)
     except ValueError as error:
         print(f"Export denied: {error}", file=sys.stderr)
         return 1
-    print(canonical_json(contract), end="")
+    output = canonical_json(contract)
+    if args.output:
+        try:
+            Path(args.output).write_text(output, encoding="utf-8")
+        except OSError as error:
+            print(f"Export failed: {error}", file=sys.stderr)
+            return 1
+    else:
+        print(output, end="")
     return 0
 
 

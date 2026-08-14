@@ -1,22 +1,9 @@
 {
-  "schema": "urn:self-model-notes:research-signals:v1",
-  "subject": "subject/fixture",
-  "as_of": "2026-08-04",
-  "purpose": "artistic-research",
-  "source_repository": "masa-san-jp/self-model-notes",
+  "contract_version": "research-signal-export/v1",
+  "source_repository": "self-model",
   "source_commit": "7f1f371486fe983f0bcfefbbf92a5df1326dac7b",
-  "research_signals": {
-    "seeks": [],
-    "protects": [],
-    "avoids": [],
-    "reacts_against": [],
-    "drawn_toward": [],
-    "influenced_by": [],
-    "tensions": [],
-    "recurring_patterns": [],
-    "emotional_material": [],
-    "raw_voice_refs": [],
-    "certainty": "unknown",
-    "evidence_refs": []
-  }
+  "purpose": "artistic-research",
+  "generated_at": "2026-08-14T00:00:00Z",
+  "signal_count": 0,
+  "signals": []
 }

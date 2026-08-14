@@ -52,6 +52,7 @@ python3 tools/build_graph.py --check
 python3 -m unittest discover -s tests -p "test_*.py"
 python3 tools/build_graph.py
 python3 tools/audit.py
+python3 tools/export_signals.py --purpose artistic-research --limit 0
 ```
 
 ## 原則
@@ -63,4 +64,3 @@ python3 tools/audit.py
 - 正式尺度がなければ尺度得点を作らない。
 - 同意範囲外のデータをexportしない。
 - 心理診断、精神疾患推定、重大な人事判断には使わない。
-

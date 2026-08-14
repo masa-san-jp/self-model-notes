@@ -6,7 +6,7 @@ GitHub Project: [Agentic Art Research](https://github.com/users/masa-san-jp/proj
 
 | Repository | 正本とする知識 | 境界から出すもの | 持たないもの |
 |---|---|---|---|
-| `self-model-notes` | 人のEvent・Claim・Pattern・動的Self Model | `research_signals` | 芸術史、トレンド、作品生成 |
+| `self-model-notes` | 人のEvent・Claim・Pattern・動的Self Model | `research-signal-export/v1` | 芸術史、トレンド、作品生成 |
 | `art-history-notes` | 芸術史の時間・空間・関係KB | 作品・運動・技法・文脈signal | 個人の内面推定 |
 | `marketing-trends-notes` | 市場変化、実践、鮮度付き根拠 | trend / practice signal | 個人の内面推定 |
 | `agentic-art-research` | 3系統のsignalを束ねる調査オーケストレーション | research brief / trace | 上流KBの正本データ |
@@ -29,7 +29,7 @@ marketing-trends-notes ───────┘
 ## 依存順序
 
 1. 各上流KBが独立して検証・bundle・exportできる。
-2. `self-model-notes`の`research_signals` v1をfixtureで固定する。
+2. `self-model-notes`の`research-signal-export/v1` envelopeをfixtureで固定する。
 3. `agentic-art-research`側が3exportを受け取るcontract testを作る。
 4. 実データではなく匿名fixtureでE2Eを通す。
 5. 同意範囲を確認したデータだけを実運用へ接続する。
@@ -39,8 +39,8 @@ marketing-trends-notes ───────┘
 - Consumer repository: [masa-san-jp/agentic-art-research](https://github.com/masa-san-jp/agentic-art-research)
 - Upstream pin: `self-model-notes@7f1f371486fe983f0bcfefbbf92a5df1326dac7b`
 - Local consumer fixture: [`tests/contracts/agentic-art-research-consumer-v1.fixture.json`](../tests/contracts/agentic-art-research-consumer-v1.fixture.json)
-- The fixture contains only the versioned signal contract; it does not copy core entities. Empty upstream inputs remain `certainty: unknown` with empty evidence refs.
-- Read-only check at [agentic-art-research main](https://github.com/masa-san-jp/agentic-art-research) (README commit `9d5efd14ea6e226c1430446ff5f55dbfa63357f2`) found no consumer `research_signals` contract file; the expected path returned [404](https://github.com/masa-san-jp/agentic-art-research/blob/main/tests/contracts/research-signals-v1.schema.json). No external repository write was made; consumer-side test integration remains review-gated.
+- The fixture contains only the `research-signal-export/v1` envelope; it does not copy core entities. Empty upstream inputs remain an empty `signals` list.
+- The older `research_signals` fixture and consumer contract are superseded by Issue #28 and the parent orchestration decision. Consumer-side adoption remains review-gated until the orchestration adapter accepts this export envelope.
 
 ## 完了の定義
 

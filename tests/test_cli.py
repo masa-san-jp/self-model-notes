@@ -1,6 +1,7 @@
 import json
 import subprocess
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -61,6 +62,25 @@ class CLITests(unittest.TestCase):
         self.assertNotEqual(bundle.returncode, 0)
         self.assertNotEqual(export.returncode, 0)
         self.assertIn("Export denied", export.stderr)
+
+    def test_export_cli_supports_common_options(self):
+        with tempfile.TemporaryDirectory() as directory:
+            output_path = Path(directory) / "signals.json"
+            result = self.run_cli(
+                "tools/export_signals.py",
+                "--purpose",
+                "artistic-research",
+                "--output",
+                str(output_path),
+                "--limit",
+                "1",
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            payload = json.loads(output_path.read_text(encoding="utf-8"))
+            self.assertEqual(payload["contract_version"], "research-signal-export/v1")
+            self.assertEqual(payload["signal_count"], len(payload["signals"]))
+            self.assertEqual(payload["signal_count"], 1)
 
     def test_runbook_documents_non_destructive_recovery_and_collision_rules(self):
         runbook = (ROOT / "docs" / "operations.md").read_text(encoding="utf-8")

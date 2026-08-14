@@ -69,8 +69,8 @@ class EndToEndTests(unittest.TestCase):
         self.assertTrue(consented["allowed"])
         contract = build_research_signals(consented)
         self.assertEqual(validate_research_signals(contract), [])
-        self.assertTrue(contract["research_signals"]["seeks"])
-        self.assertTrue(contract["research_signals"]["recurring_patterns"])
+        self.assertEqual(contract["signal_count"], len(contract["signals"]))
+        self.assertTrue(contract["signals"])
 
         rendered = json.dumps({"graph": graph, "model": model, "bundle": bundle, "export": contract}, ensure_ascii=False)
         self.assertNotIn("synthetic voice one", rendered)
