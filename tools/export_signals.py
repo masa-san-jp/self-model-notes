@@ -7,7 +7,7 @@ import argparse
 import re
 import subprocess
 import sys
-from datetime import date, datetime
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -261,6 +261,85 @@ def build_research_signals(result: dict[str, Any]) -> dict[str, Any]:
     return payload
 
 
+EXPORT_CONTRACT = "research-signal-export/v1"
+EXPORT_REPOSITORY = "self-model"
+ADAPTER_VERSION = "1.0.0"
+# 本人の長期的な傾向は半年で見直す（アートリサーチ仕様書 9.2 の鮮度表）
+REVALIDATE_DAYS = 180
+# このKBの確度語彙 → 境界の確度語彙
+CERTAINTY_LEVEL = {"high": "observed", "medium": "inferred", "low": "uncertain", "unknown": "unknown"}
+GROUP_FIELDS = ("seeks", "protects", "avoids", "tensions", "recurring_patterns", "traits", "states", "contexts")
+
+
+def _statements(groups: dict, field: str) -> list[str]:
+    """境界は文字列の並びを受け取る。記録ごとの確度と出所は塊側に残す。"""
+    return [item["statement"] for item in groups.get(field, []) if isinstance(item, dict) and item.get("statement")]
+
+
+def build_signal_export(result: dict[str, Any], generated_at: str | None = None) -> dict[str, Any]:
+    """同意済みの派生情報を、境界が受け取る1件の記録として書き出す。
+
+    受け取る側は記録1件ごとに出所と確度を求める。このKBは属性をまとめて持って
+    いるので、subject 1件を記録1件に対応させ、まとめて持っている値を記録の欄へ移す。
+    値を新しく作らず、置き場所だけを変える。
+    """
+    grouped = build_research_signals(result)
+    groups = grouped["research_signals"]
+    subject = grouped["subject"]
+    slug = subject.split("/")[-1]
+    as_of = grouped.get("as_of")
+    stamp = generated_at or datetime.now(timezone(timedelta(hours=9))).replace(microsecond=0).isoformat()
+    checked = f"{as_of}T00:00:00+09:00" if as_of else stamp
+    revalidate = (
+        datetime.fromisoformat(checked) + timedelta(days=REVALIDATE_DAYS)
+    ).isoformat()
+
+    filled = {field: _statements(groups, field) for field in GROUP_FIELDS}
+    empty = sorted(field for field, values in filled.items() if not values)
+    unknowns = [f"{field} はまだ取得していない" for field in empty]
+    if not groups.get("raw_voice_refs"):
+        unknowns.append("本人の生の発話は記録されていない（この書き出しには元から含めない）")
+
+    record = {
+        "signal_id": f"self:{slug}",
+        "commit": grouped["source_commit"],
+        "entity_id": subject,
+        "source_locator": f"entities/{subject}.md",
+        "evidence_locator": f"entities/{subject}.md#evidence",
+        "evidence_kind": "derived",
+        "statement": f"{subject} の自己モデルから、同意の範囲内で書き出した派生情報。"
+                     f"内訳は " + "、".join(f"{field} {len(values)}件" for field, values in filled.items() if values) + "。",
+        "certainty": {
+            "level": CERTAINTY_LEVEL.get(groups.get("certainty"), "unknown"),
+            "basis": f"このKBの確度は {groups.get('certainty')!r}。記録ごとの確度と出所は entities 側に残す",
+        },
+        "unknowns": unknowns or ["この subject の未取得事項は entities 側にある"],
+        "constraints": [
+            f"{grouped['purpose']} の目的内でのみ利用する",
+            "同意の範囲を超えて再利用しない",
+            "生の発話を復元しない",
+        ],
+        "validity": {"status": "valid", "checked_at": checked},
+        "freshness": {"status": "current", "retrieved_at": checked, "revalidate_at": revalidate},
+        "generated_at": stamp,
+        "adapter_version": ADAPTER_VERSION,
+        "consent_scope": f"{grouped['purpose']}/{result['operation']}",
+        "export_permitted": True,
+        "raw_voice_locator": f"self-model://{subject}/raw-voice",
+        **filled,
+    }
+
+    return {
+        "contract_version": EXPORT_CONTRACT,
+        "source_repository": EXPORT_REPOSITORY,
+        "source_commit": grouped["source_commit"],
+        "purpose": grouped["purpose"],
+        "generated_at": stamp,
+        "signal_count": 1,
+        "signals": [record],
+    }
+
+
 def validate_research_signals(payload: dict[str, Any]) -> list[str]:
     schema = payload.get("schema") if isinstance(payload, dict) else None
     match = re.fullmatch(r"urn:self-model-notes:research-signals:v(?P<major>\d+)", str(schema))
@@ -334,7 +413,7 @@ def validate_research_signals(payload: dict[str, Any]) -> list[str]:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--subject", required=True)
+    parser.add_argument("--subject", help="省略時はこのKBの全 subject を出す")
     parser.add_argument("--purpose", required=True)
     parser.add_argument("--operation", default="export-signals")
     args = parser.parse_args()
@@ -349,17 +428,28 @@ def main() -> int:
             "denials": [_denial("repository", "structural-validation", "Entity validation failed; export is blocked.")],
         }
     else:
-        result = export_signals(entities, args.subject, args.purpose, operation=args.operation)
+        subjects = [args.subject] if args.subject else sorted(
+            entity.id for entity in entities if entity.id.startswith("subject/")
+        )
+        if not subjects:
+            print("Export denied: no subject entity found", file=sys.stderr)
+            return 1
+        results = [export_signals(entities, subject, args.purpose, operation=args.operation) for subject in subjects]
+        denied = next((item for item in results if not item["allowed"]), None)
+        result = denied if denied is not None else results[0]
     if not result["allowed"]:
         print("Export denied", file=sys.stderr)
         print(canonical_json(result), file=sys.stderr, end="")
         return 1
     try:
-        contract = build_research_signals(result)
+        payloads = [build_signal_export(item) for item in results]
     except ValueError as error:
         print(f"Export denied: {error}", file=sys.stderr)
         return 1
-    print(canonical_json(contract), end="")
+    payload = payloads[0]
+    payload["signals"] = [record for item in payloads for record in item["signals"]]
+    payload["signal_count"] = len(payload["signals"])
+    print(canonical_json(payload), end="")
     return 0
 
 
