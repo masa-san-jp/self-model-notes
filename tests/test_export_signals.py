@@ -7,6 +7,7 @@ from pathlib import Path
 from tests.test_consent import fixture_entities
 from tools.export_signals import (
     build_research_signals,
+    build_signal_export,
     export_signals,
     validate_research_signals,
 )
@@ -48,6 +49,36 @@ class ExportSignalsContractTests(unittest.TestCase):
             for item in values:
                 self.assertIn(item["certainty"], {"unknown", "low", "medium", "high"})
                 self.assertTrue(item["evidence_refs"])
+
+    def test_the_export_carries_one_record_per_claim_or_pattern(self):
+        """A subject folded into one record gives the candidate space one self, whatever the study holds."""
+        export = build_signal_export(self.approved_result(), generated_at="2026-08-11T00:00:00+09:00")
+
+        self.assertEqual(export["signal_count"], len(export["signals"]))
+        self.assertGreater(export["signal_count"], 1)
+
+    def test_each_record_is_addressable_on_its_own(self):
+        export = build_signal_export(self.approved_result(), generated_at="2026-08-11T00:00:00+09:00")
+
+        ids = [signal["signal_id"] for signal in export["signals"]]
+        self.assertEqual(len(set(ids)), len(ids))
+        for signal in export["signals"]:
+            self.assertTrue(signal["entity_id"])
+            self.assertIn(signal["entity_id"], signal["source_locator"])
+
+    def test_a_record_carries_its_own_statement_not_a_summary_of_all(self):
+        export = build_signal_export(self.approved_result(), generated_at="2026-08-11T00:00:00+09:00")
+
+        statements = {signal["statement"] for signal in export["signals"]}
+        self.assertEqual(len(statements), len(export["signals"]))
+
+    def test_consent_denial_still_produces_no_records(self):
+        denied = dict(self.approved_result())
+        denied["allowed"] = False
+
+        export = build_signal_export(denied, generated_at="2026-08-11T00:00:00+09:00")
+
+        self.assertEqual(0, export["signal_count"])
 
     def test_unknown_major_schema_version_fails_closed(self):
         payload = build_research_signals(self.approved_result())
