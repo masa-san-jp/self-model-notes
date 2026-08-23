@@ -276,58 +276,93 @@ def _statements(groups: dict, field: str) -> list[str]:
     return [item["statement"] for item in groups.get(field, []) if isinstance(item, dict) and item.get("statement")]
 
 
-def build_signal_export(result: dict[str, Any], generated_at: str | None = None) -> dict[str, Any]:
-    """同意済みの派生情報を、境界が受け取る1件の記録として書き出す。
+def _group_of(signal: dict[str, Any]) -> str:
+    """境界の欄のうち、この記録が属するもの。build_research_signals の振り分けと同じ規則。"""
+    if signal.get("kind") == "pattern":
+        return "recurring_patterns"
+    return {
+        "motivation": "seeks",
+        "behavioral-principle": "protects",
+        "tension": "tensions",
+    }.get(signal.get("layer"), "traits")
 
-    受け取る側は記録1件ごとに出所と確度を求める。このKBは属性をまとめて持って
-    いるので、subject 1件を記録1件に対応させ、まとめて持っている値を記録の欄へ移す。
-    値を新しく作らず、置き場所だけを変える。
+
+def build_signal_export(result: dict[str, Any], generated_at: str | None = None) -> dict[str, Any]:
+    """同意済みの派生情報を、記録1件ごとに書き出す。
+
+    以前は subject 1件を記録1件に畳んでいた。受け取る側は記録ごとに出所と確度を
+    求めるのに、畳むと3件の主張が1つの出所と1つの確度になり、**候補空間では自己像が
+    常に同じ1本**になっていた。畳まずに、主張・パターンの単位で出す。
+
+    値は新しく作らない。置き場所を変えるだけなのは以前と同じ。
     """
     grouped = build_research_signals(result)
+    if "research_signals" not in grouped:
+        # Consent was refused. The refusal is the answer; do not shape it into
+        # an export that merely happens to be empty.
+        return {
+            "contract_version": EXPORT_CONTRACT,
+            "source_repository": EXPORT_REPOSITORY,
+            "source_commit": result.get("source_commit"),
+            "purpose": result.get("purpose"),
+            "generated_at": generated_at or datetime.now(timezone(timedelta(hours=9))).replace(microsecond=0).isoformat(),
+            "signal_count": 0,
+            "signals": [],
+        }
     groups = grouped["research_signals"]
     subject = grouped["subject"]
-    slug = subject.split("/")[-1]
     as_of = grouped.get("as_of")
     stamp = generated_at or datetime.now(timezone(timedelta(hours=9))).replace(microsecond=0).isoformat()
     checked = f"{as_of}T00:00:00+09:00" if as_of else stamp
-    revalidate = (
-        datetime.fromisoformat(checked) + timedelta(days=REVALIDATE_DAYS)
-    ).isoformat()
+    revalidate = (datetime.fromisoformat(checked) + timedelta(days=REVALIDATE_DAYS)).isoformat()
 
-    filled = {field: _statements(groups, field) for field in GROUP_FIELDS}
-    empty = sorted(field for field, values in filled.items() if not values)
-    unknowns = [f"{field} はまだ取得していない" for field in empty]
-    if not groups.get("raw_voice_refs"):
-        unknowns.append("本人の生の発話は記録されていない（この書き出しには元から含めない）")
+    by_ref = {}
+    for field in GROUP_FIELDS:
+        for item in groups.get(field, []) or []:
+            if isinstance(item, dict) and item.get("entity_ref"):
+                by_ref[item["entity_ref"]] = (field, item)
 
-    record = {
-        "signal_id": f"self:{slug}",
-        "commit": grouped["source_commit"],
-        "entity_id": subject,
-        "source_locator": f"entities/{subject}.md",
-        "evidence_locator": f"entities/{subject}.md#evidence",
-        "evidence_kind": "derived",
-        "statement": f"{subject} の自己モデルから、同意の範囲内で書き出した派生情報。"
-                     f"内訳は " + "、".join(f"{field} {len(values)}件" for field, values in filled.items() if values) + "。",
-        "certainty": {
-            "level": CERTAINTY_LEVEL.get(groups.get("certainty"), "unknown"),
-            "basis": f"このKBの確度は {groups.get('certainty')!r}。記録ごとの確度と出所は entities 側に残す",
-        },
-        "unknowns": unknowns or ["この subject の未取得事項は entities 側にある"],
-        "constraints": [
-            f"{grouped['purpose']} の目的内でのみ利用する",
-            "同意の範囲を超えて再利用しない",
-            "生の発話を復元しない",
-        ],
-        "validity": {"status": "valid", "checked_at": checked},
-        "freshness": {"status": "current", "retrieved_at": checked, "revalidate_at": revalidate},
-        "generated_at": stamp,
-        "adapter_version": ADAPTER_VERSION,
-        "consent_scope": f"{grouped['purpose']}/{result['operation']}",
-        "export_permitted": True,
-        "raw_voice_locator": f"self-model://{subject}/raw-voice",
-        **filled,
-    }
+    records: list[dict[str, Any]] = []
+    for signal in sorted(result.get("signals", []), key=lambda item: str(item.get("entity_ref"))):
+        entity_ref = str(signal.get("entity_ref"))
+        field, item = by_ref.get(entity_ref, (_group_of(signal), None))
+        statement = (item or signal).get("statement")
+        if not statement:
+            continue
+        certainty = (item or signal).get("certainty", "unknown")
+        evidence_refs = list((item or signal).get("evidence_refs") or [])
+        unknowns = []
+        if not evidence_refs:
+            unknowns.append("この記録を支える証拠は entities 側に記録されていない")
+        if not groups.get("raw_voice_refs"):
+            unknowns.append("本人の生の発話は記録されていない（この書き出しには元から含めない）")
+        records.append({
+            "signal_id": f"self:{entity_ref}",
+            "commit": grouped["source_commit"],
+            "entity_id": entity_ref,
+            "source_locator": f"entities/{entity_ref}.md",
+            "evidence_locator": f"entities/{entity_ref}.md#evidence",
+            "evidence_kind": "derived",
+            "statement": statement,
+            "certainty": {
+                "level": CERTAINTY_LEVEL.get(certainty, "unknown"),
+                "basis": f"このKBの確度は {certainty!r}。記録ごとの出所は entities 側に残す",
+            },
+            "unknowns": unknowns or ["この記録の未取得事項は entities 側にある"],
+            "constraints": [
+                f"{grouped['purpose']} の目的内でのみ利用する",
+                "同意の範囲を超えて再利用しない",
+                "生の発話を復元しない",
+            ],
+            "validity": {"status": "valid", "checked_at": checked},
+            "freshness": {"status": "current", "retrieved_at": checked, "revalidate_at": revalidate},
+            "generated_at": stamp,
+            "adapter_version": ADAPTER_VERSION,
+            "consent_scope": f"{grouped['purpose']}/{result['operation']}",
+            "export_permitted": True,
+            "raw_voice_locator": f"self-model://{subject}/raw-voice",
+            **{group: ([statement] if group == field else []) for group in GROUP_FIELDS},
+        })
 
     return {
         "contract_version": EXPORT_CONTRACT,
@@ -335,8 +370,8 @@ def build_signal_export(result: dict[str, Any], generated_at: str | None = None)
         "source_commit": grouped["source_commit"],
         "purpose": grouped["purpose"],
         "generated_at": stamp,
-        "signal_count": 1,
-        "signals": [record],
+        "signal_count": len(records),
+        "signals": records,
     }
 
 
