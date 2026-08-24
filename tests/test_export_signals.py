@@ -66,6 +66,16 @@ class ExportSignalsContractTests(unittest.TestCase):
             self.assertTrue(signal["entity_id"])
             self.assertIn(signal["entity_id"], signal["source_locator"])
 
+    def test_each_id_is_shaped_the_way_the_consumer_requires(self):
+        """The orchestration normalizes ids against ^[a-z0-9]+(?:[._:-][a-z0-9]+)*$ — a slash never reaches it."""
+        import re
+
+        allowed = re.compile(r"^[a-z0-9]+(?:[._:-][a-z0-9]+)*$")
+        export = build_signal_export(self.approved_result(), generated_at="2026-08-11T00:00:00+09:00")
+
+        for signal in export["signals"]:
+            self.assertRegex(signal["signal_id"], allowed)
+
     def test_a_record_carries_its_own_statement_not_a_summary_of_all(self):
         export = build_signal_export(self.approved_result(), generated_at="2026-08-11T00:00:00+09:00")
 

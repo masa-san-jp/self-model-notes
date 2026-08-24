@@ -337,7 +337,8 @@ def build_signal_export(result: dict[str, Any], generated_at: str | None = None)
         if not groups.get("raw_voice_refs"):
             unknowns.append("本人の生の発話は記録されていない（この書き出しには元から含めない）")
         records.append({
-            "signal_id": f"self:{entity_ref}",
+            # The entity reference is a path (claim/<slug>); the consumer's id shape has no slash.
+            "signal_id": f"self:{entity_ref.replace('/', ':')}",
             "commit": grouped["source_commit"],
             "entity_id": entity_ref,
             "source_locator": f"entities/{entity_ref}.md",
