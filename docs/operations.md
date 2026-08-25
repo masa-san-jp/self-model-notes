@@ -55,6 +55,16 @@ python3 trusted-base/tools/task_harness.py verify-pr \
 
 このgateはcandidateの`verify-pr`実装を信頼しない。candidate queueのbaseがtrusted queueと一致すること、task contract・dependencies・stop conditions・checks・allowed pathsが変更されていないことを先に確認し、許可外path、evidence削除、claim置換、rollback、check失敗を拒否する。旧baseにCLIがない最初のbootstrap PRだけは、workflowがその事実をログへ出して通過させる。
 
+### E2E lifecycle and recovery
+
+E2Eまたは手動復旧では、次の順序と終了コードを維持する。
+
+`validate`/Git・queue・claim不正は2、ready候補なしは3、許可外pathは4、宣言check失敗は5である。claim後に競合lockが見えた場合は同じtaskを再claimせず、`CLAIM_SAME_TASK_LOCK`またはshared/path conflictを記録して停止する。dirty worktree、stale base、unsafe checkは原因を直してから再実行し、queue・lock・evidenceを手編集で迂回しない。
+
+completeが成功したら、対象branch上でevidenceをcommitしてからmainへmergeする。merge conflict時はlockをreleaseせず、mainの最新化とbranch上の検証をやり直す。releaseはremote mainのdone/evidence、evidence commitの祖先性、actor、branch、lock payloadを確認するため、premature releaseやactor mismatchではlockを残す。
+
+E2E fixtureは実在の人物、直接識別情報、raw voice、credential、token、環境値を含めず、失敗時にも絶対pathをJSON/errorへ出力しない。SM-025完了後のnextはSM-026だが、Issue #60のowner判断によるrequired merge gate有効化まではfull self-enforcing状態ではない。
+
 1. 作業開始前にbranch、対象Issue、許可パス、未コミット差分を確認する。
 
    ```bash
