@@ -80,3 +80,8 @@ claimは固定ref `refs/heads/harness-lock/sm-NNN` をnon-force pushで取得し
 
     python3 tools/task_harness.py verify-paths SM-NNN --base SHA --json
     python3 tools/task_harness.py verify-paths SM-NNN --base SHA --committed-only --json
+
+active claimのtaskを完了するときは、宣言されたchecksを順序どおり検証した同じ実行で、次のcompleteを使う。completeはPR番号と現在HEADのcommitを要求し、成功した場合だけstatus、claim、evidenceを同一task block内で更新する。
+
+    python3 tools/task_harness.py verify SM-NNN --json
+    python3 tools/task_harness.py complete SM-NNN --pr NUMBER --commit SHA --json
