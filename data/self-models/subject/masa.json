@@ -1,0 +1,247 @@
+{
+  "as_of": "2026-08-13",
+  "avoidance_targets": [],
+  "behavioral_principles": [],
+  "claim_history": [
+    {
+      "alternative_explanations": [
+        "一般論として述べただけで、本人の行動原理を表していない",
+        "相手の挑戦を擁護するために、その場で組み立てた説明である",
+        "合理と非合理の線引きを本人が別の意味で使っており、語の一致にすぎない"
+      ],
+      "conditions": [
+        "結果の見通しが立たない試みについて語るとき"
+      ],
+      "confidence": "low",
+      "counterevidence_refs": [],
+      "entity_ref": "claim/challenge-is-inherently-irrational",
+      "evidence_refs": [
+        "event/watching-a-struggle-20260813"
+      ],
+      "layer": "other",
+      "motivation_direction": null,
+      "scope": "context-bound",
+      "statement": "挑戦とは本質的に非合理なものだと本人が捉えている可能性がある",
+      "status": "hypothesis",
+      "superseded_by": null,
+      "supersedes": null
+    },
+    {
+      "alternative_explanations": [
+        "介入の手段は在るが、本人が選択として控えている（できないのではなく、していない）",
+        "介入が不要な状況であり、緊張は本人の側だけに存在する",
+        "そもそも介入という枠組みで捉えていないため、緊張として体験されていない"
+      ],
+      "conditions": [
+        "身近な人が、結果の見通しが立たない試みの途中にあるとき"
+      ],
+      "confidence": "low",
+      "counterevidence_refs": [],
+      "entity_ref": "claim/close-but-cannot-reach",
+      "evidence_refs": [
+        "event/watching-a-struggle-20260813"
+      ],
+      "layer": "tension",
+      "motivation_direction": null,
+      "scope": "state",
+      "statement": "距離が近いために目を離せない一方で、その近さが介入を可能にはしていない",
+      "status": "hypothesis",
+      "superseded_by": null,
+      "supersedes": null
+    },
+    {
+      "alternative_explanations": [
+        "距離ではなく、その挑戦の内容が本人自身の関心と重なっていた",
+        "距離ではなく、相手の状態が悪化していく途中だったために目を離せなかった",
+        "そもそも他の挑戦者を観測していないだけで、比較が成立していない"
+      ],
+      "conditions": [
+        "同種の挑戦をしている人が他にも存在する状況で"
+      ],
+      "confidence": "low",
+      "counterevidence_refs": [],
+      "entity_ref": "claim/proximity-drives-attention",
+      "evidence_refs": [
+        "event/watching-a-struggle-20260813"
+      ],
+      "layer": "motivation",
+      "motivation_direction": "unknown",
+      "scope": "state",
+      "statement": "注意を捕らえているのは挑戦の非合理さではなく、対象との距離の近さである可能性がある",
+      "status": "hypothesis",
+      "superseded_by": null,
+      "supersedes": null
+    }
+  ],
+  "context_dependencies": [
+    {
+      "confidence": "low",
+      "counterevidence_refs": [],
+      "entity_ref": "claim/challenge-is-inherently-irrational",
+      "evidence_refs": [
+        "event/watching-a-struggle-20260813"
+      ],
+      "source_field": "conditions",
+      "statement": "結果の見通しが立たない試みについて語るとき",
+      "status": "hypothesis"
+    }
+  ],
+  "derived_from": [
+    "claim/challenge-is-inherently-irrational",
+    "claim/close-but-cannot-reach",
+    "claim/proximity-drives-attention",
+    "event/watching-a-struggle-20260813",
+    "source/consent-20260813",
+    "source/interview-20260813",
+    "subject/masa"
+  ],
+  "dominant_rewards": [],
+  "dominant_triggers": [],
+  "emotions": [],
+  "evidence_coverage": {
+    "claim_count": 3,
+    "event_refs": [
+      "event/watching-a-struggle-20260813"
+    ],
+    "pattern_count": 0,
+    "source_refs": [
+      "source/interview-20260813"
+    ]
+  },
+  "measurements": [],
+  "motivations": [
+    {
+      "alternative_explanations": [
+        "距離ではなく、その挑戦の内容が本人自身の関心と重なっていた",
+        "距離ではなく、相手の状態が悪化していく途中だったために目を離せなかった",
+        "そもそも他の挑戦者を観測していないだけで、比較が成立していない"
+      ],
+      "conditions": [
+        "同種の挑戦をしている人が他にも存在する状況で"
+      ],
+      "confidence": "low",
+      "counterevidence_refs": [],
+      "entity_ref": "claim/proximity-drives-attention",
+      "evidence_refs": [
+        "event/watching-a-struggle-20260813"
+      ],
+      "layer": "motivation",
+      "motivation_direction": "unknown",
+      "scope": "state",
+      "statement": "注意を捕らえているのは挑戦の非合理さではなく、対象との距離の近さである可能性がある",
+      "status": "hypothesis",
+      "superseded_by": null,
+      "supersedes": null
+    }
+  ],
+  "observations": [
+    {
+      "actions": [
+        "見続けている"
+      ],
+      "appraisal": null,
+      "body": null,
+      "cognition": null,
+      "context": {
+        "control": "externally-directed",
+        "domains": [
+          "other"
+        ],
+        "social": [
+          "other"
+        ],
+        "uncertainty": "high"
+      },
+      "delayed_outcomes": null,
+      "emotion": null,
+      "entity_ref": "event/watching-a-struggle-20260813",
+      "immediate_outcomes": null,
+      "observed_facts": [
+        "本人が、もがいている人から目が離せないと述べた",
+        "本人が、その相手を身近な人だと述べた",
+        "本人が、相手の挑戦を叶うかどうかわからないものだと述べた",
+        "本人が、手を出せないと現在形で述べた"
+      ],
+      "raw_voice_refs": [
+        "source/interview-20260813"
+      ],
+      "source_refs": [
+        "source/interview-20260813"
+      ],
+      "state": {
+        "fatigue": null,
+        "stress": "unknown"
+      },
+      "trigger": "身近な人が、叶うかどうかわからない挑戦の途中にある"
+    }
+  ],
+  "patterns": [],
+  "protective_factors": [],
+  "schema_version": 2,
+  "source_commit": "c6275f3ae9a93fe8ac925ab1e0886a8f8bdde683",
+  "subject": "subject/masa",
+  "tensions": [
+    {
+      "alternative_explanations": [
+        "介入の手段は在るが、本人が選択として控えている（できないのではなく、していない）",
+        "介入が不要な状況であり、緊張は本人の側だけに存在する",
+        "そもそも介入という枠組みで捉えていないため、緊張として体験されていない"
+      ],
+      "conditions": [
+        "身近な人が、結果の見通しが立たない試みの途中にあるとき"
+      ],
+      "confidence": "low",
+      "counterevidence_refs": [],
+      "entity_ref": "claim/close-but-cannot-reach",
+      "evidence_refs": [
+        "event/watching-a-struggle-20260813"
+      ],
+      "layer": "tension",
+      "motivation_direction": null,
+      "scope": "state",
+      "statement": "距離が近いために目を離せない一方で、その近さが介入を可能にはしていない",
+      "status": "hypothesis",
+      "superseded_by": null,
+      "supersedes": null
+    }
+  ],
+  "unknowns": [
+    {
+      "entity_ref": null,
+      "evidence_refs": [],
+      "field": "avoidance_targets",
+      "kind": "field-unobserved",
+      "reason": "no current Claim has explicit motivation_direction: avoid"
+    },
+    {
+      "entity_ref": null,
+      "evidence_refs": [],
+      "field": "dominant_rewards",
+      "kind": "field-unobserved",
+      "reason": "no current Pattern provides explicit reinforcement"
+    },
+    {
+      "entity_ref": null,
+      "evidence_refs": [],
+      "field": "dominant_triggers",
+      "kind": "field-unobserved",
+      "reason": "no current Pattern provides explicit evidence"
+    },
+    {
+      "entity_ref": null,
+      "evidence_refs": [],
+      "field": "protective_factors",
+      "kind": "field-unobserved",
+      "reason": "no current Claim has explicit motivation_direction: protect"
+    },
+    {
+      "entity_ref": "claim/proximity-drives-attention",
+      "evidence_refs": [
+        "event/watching-a-struggle-20260813"
+      ],
+      "field": null,
+      "kind": "motivation-direction-unresolved",
+      "reason": "motivation_direction is unknown"
+    }
+  ]
+}
