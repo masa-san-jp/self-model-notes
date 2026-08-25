@@ -99,6 +99,21 @@ def _render_statement(statement: dict[str, Any], *, pattern: bool = False) -> li
     return lines
 
 
+def _render_derived(statement: dict[str, Any]) -> list[str]:
+    lines = [
+        f"### `{statement['entity_ref']}`",
+        f"- Statement: {_display(statement['statement'])}",
+        f"- Confidence: {_display(statement['confidence'])}",
+        f"- Status: {_display(statement['status'])}",
+        f"- Evidence refs: {_refs(statement['evidence_refs'])}",
+        f"- Counterevidence refs: {_refs(statement['counterevidence_refs'])}",
+    ]
+    if "source_field" in statement:
+        lines.append(f"- Source field: `{statement['source_field']}`")
+    lines.append("")
+    return lines
+
+
 def render_bundle(model: dict[str, Any]) -> str:
     lines = [
         f"# Self Model Bundle: `{model['subject']}`",
@@ -147,6 +162,20 @@ def render_bundle(model: dict[str, Any]) -> str:
         lines += ["### Patterns", ""]
         for pattern in model["patterns"]:
             lines.extend(_render_statement(pattern, pattern=True))
+    for section, title in (
+        ("dominant_triggers", "Dominant triggers"),
+        ("dominant_rewards", "Dominant rewards"),
+        ("avoidance_targets", "Avoidance targets"),
+        ("protective_factors", "Protective factors"),
+        ("context_dependencies", "Context dependencies"),
+    ):
+        lines += [f"### {title}", ""]
+        statements = model.get(section, [])
+        if statements:
+            for statement in statements:
+                lines.extend(_render_derived(statement))
+        else:
+            lines += ["No explicit evidence recorded.", ""]
     if not rendered_claims:
         lines += ["No inferences recorded.", ""]
 
@@ -162,8 +191,10 @@ def render_bundle(model: dict[str, Any]) -> str:
     unknowns = model.get("unknowns", [])
     if unknowns:
         for unknown in unknowns:
+            field = unknown["field"] or "claim"
+            entity_ref = unknown["entity_ref"] or "none"
             lines.append(
-                f"- `{unknown['entity_ref']}`: {unknown['reason']}; evidence refs: {_refs(unknown['evidence_refs'])}"
+                f"- `{unknown['kind']}` field `{field}` entity `{entity_ref}`: {unknown['reason']}; evidence refs: {_refs(unknown['evidence_refs'])}"
             )
     else:
         lines.append("None recorded.")

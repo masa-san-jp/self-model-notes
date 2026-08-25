@@ -1,0 +1,241 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:self-model-notes:self-model:v2",
+  "title": "Derived Self Model v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "subject",
+    "as_of",
+    "source_commit",
+    "derived_from",
+    "observations",
+    "measurements",
+    "emotions",
+    "motivations",
+    "behavioral_principles",
+    "tensions",
+    "patterns",
+    "dominant_triggers",
+    "dominant_rewards",
+    "avoidance_targets",
+    "protective_factors",
+    "context_dependencies",
+    "claim_history",
+    "unknowns",
+    "evidence_coverage"
+  ],
+  "properties": {
+    "schema_version": {"const": 2},
+    "subject": {"type": "string", "pattern": "^subject/[a-z0-9]+(?:-[a-z0-9]+)*$"},
+    "as_of": {"type": ["string", "null"]},
+    "source_commit": {"type": "string", "minLength": 1},
+    "derived_from": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "observations": {"type": "array", "items": {"$ref": "#/$defs/observation"}},
+    "measurements": {"type": "array", "items": {"$ref": "#/$defs/measurement"}},
+    "emotions": {"type": "array", "items": {"$ref": "#/$defs/claimRecord"}},
+    "motivations": {"type": "array", "items": {"$ref": "#/$defs/claimRecord"}},
+    "behavioral_principles": {"type": "array", "items": {"$ref": "#/$defs/claimRecord"}},
+    "tensions": {"type": "array", "items": {"$ref": "#/$defs/claimRecord"}},
+    "patterns": {"type": "array", "items": {"$ref": "#/$defs/patternRecord"}},
+    "dominant_triggers": {"type": "array", "items": {"$ref": "#/$defs/derivedRecord"}},
+    "dominant_rewards": {"type": "array", "items": {"$ref": "#/$defs/derivedRecord"}},
+    "avoidance_targets": {"type": "array", "items": {"$ref": "#/$defs/derivedRecord"}},
+    "protective_factors": {"type": "array", "items": {"$ref": "#/$defs/derivedRecord"}},
+    "context_dependencies": {"type": "array", "items": {"$ref": "#/$defs/contextDependency"}},
+    "claim_history": {"type": "array", "items": {"$ref": "#/$defs/claimRecord"}},
+    "unknowns": {"type": "array", "items": {"$ref": "#/$defs/unknown"}},
+    "evidence_coverage": {"$ref": "#/$defs/evidenceCoverage"}
+  },
+  "$defs": {
+    "confidence": {"enum": ["unknown", "low", "medium", "high"]},
+    "status": {"enum": ["hypothesis", "supported", "revised", "rejected"]},
+    "refs": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "claimRecord": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "entity_ref",
+        "statement",
+        "confidence",
+        "status",
+        "evidence_refs",
+        "counterevidence_refs",
+        "layer",
+        "motivation_direction",
+        "scope",
+        "conditions",
+        "alternative_explanations",
+        "supersedes",
+        "superseded_by"
+      ],
+      "properties": {
+        "entity_ref": {"type": "string"},
+        "statement": {"type": ["string", "null"]},
+        "confidence": {"$ref": "#/$defs/confidence"},
+        "status": {"$ref": "#/$defs/status"},
+        "evidence_refs": {"$ref": "#/$defs/refs"},
+        "counterevidence_refs": {"$ref": "#/$defs/refs"},
+        "layer": {"type": "string"},
+        "motivation_direction": {"type": ["string", "null"]},
+        "scope": {"type": "string"},
+        "conditions": {"type": "array", "items": {}},
+        "alternative_explanations": {"type": "array", "items": {}},
+        "supersedes": {"type": ["string", "null"]},
+        "superseded_by": {"type": ["string", "null"]}
+      }
+    },
+    "patternRecord": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "entity_ref",
+        "statement",
+        "confidence",
+        "status",
+        "evidence_refs",
+        "counterevidence_refs",
+        "claim_refs",
+        "contexts_seen",
+        "recurring_actions",
+        "recurring_drives",
+        "reinforcement"
+      ],
+      "properties": {
+        "entity_ref": {"type": "string"},
+        "statement": {"type": ["string", "null"]},
+        "confidence": {"$ref": "#/$defs/confidence"},
+        "status": {"$ref": "#/$defs/status"},
+        "evidence_refs": {"$ref": "#/$defs/refs"},
+        "counterevidence_refs": {"$ref": "#/$defs/refs"},
+        "claim_refs": {"$ref": "#/$defs/refs"},
+        "contexts_seen": {"type": "array", "items": {}},
+        "recurring_actions": {"type": "array", "items": {}},
+        "recurring_drives": {"type": "array", "items": {}},
+        "reinforcement": {"type": "array", "items": {}}
+      }
+    },
+    "derivedRecord": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "entity_ref",
+        "statement",
+        "confidence",
+        "status",
+        "evidence_refs",
+        "counterevidence_refs"
+      ],
+      "properties": {
+        "entity_ref": {"type": "string"},
+        "statement": {"type": ["string", "null"]},
+        "confidence": {"$ref": "#/$defs/confidence"},
+        "status": {"$ref": "#/$defs/status"},
+        "evidence_refs": {"$ref": "#/$defs/refs"},
+        "counterevidence_refs": {"$ref": "#/$defs/refs"},
+        "source_field": {"enum": ["conditions", "contexts_seen"]}
+      }
+    },
+    "contextDependency": {
+      "allOf": [
+        {"$ref": "#/$defs/derivedRecord"},
+        {
+          "type": "object",
+          "required": ["source_field"],
+          "properties": {"source_field": {"enum": ["conditions", "contexts_seen"]}}
+        }
+      ]
+    },
+    "observation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "entity_ref",
+        "trigger",
+        "observed_facts",
+        "appraisal",
+        "emotion",
+        "body",
+        "cognition",
+        "actions",
+        "immediate_outcomes",
+        "delayed_outcomes",
+        "context",
+        "state",
+        "source_refs",
+        "raw_voice_refs"
+      ],
+      "properties": {
+        "entity_ref": {"type": "string"},
+        "trigger": {"type": ["string", "null"]},
+        "observed_facts": {"type": ["array", "null"], "items": {}},
+        "appraisal": {"type": ["array", "null"], "items": {}},
+        "emotion": {"type": ["array", "null"], "items": {}},
+        "body": {"type": ["array", "null"], "items": {}},
+        "cognition": {"type": ["array", "null"], "items": {}},
+        "actions": {"type": ["array", "null"], "items": {}},
+        "immediate_outcomes": {"type": ["array", "null"], "items": {}},
+        "delayed_outcomes": {"type": ["array", "null"], "items": {}},
+        "context": {"$ref": "#/$defs/context"},
+        "state": {"$ref": "#/$defs/state"},
+        "source_refs": {"$ref": "#/$defs/refs"},
+        "raw_voice_refs": {"$ref": "#/$defs/refs"}
+      }
+    },
+    "context": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "properties": {
+        "domains": {"type": "array", "items": {}},
+        "social": {"type": "array", "items": {}},
+        "uncertainty": {"type": ["string", "null"]},
+        "control": {"type": ["string", "null"]}
+      }
+    },
+    "state": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "properties": {
+        "fatigue": {},
+        "stress": {}
+      }
+    },
+    "measurement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["entity_ref", "instrument", "administered_at", "source_refs", "scores", "interpretation_claim_refs"],
+      "properties": {
+        "entity_ref": {"type": "string"},
+        "instrument": {"type": "object"},
+        "administered_at": {"type": ["string", "null"]},
+        "source_refs": {"$ref": "#/$defs/refs"},
+        "scores": {"type": ["object", "null"]},
+        "interpretation_claim_refs": {"$ref": "#/$defs/refs"}
+      }
+    },
+    "unknown": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "field", "entity_ref", "reason", "evidence_refs"],
+      "properties": {
+        "kind": {"enum": ["field-unobserved", "confidence-unknown", "motivation-direction-unresolved"]},
+        "field": {"type": ["string", "null"]},
+        "entity_ref": {"type": ["string", "null"]},
+        "reason": {"type": "string"},
+        "evidence_refs": {"$ref": "#/$defs/refs"}
+      }
+    },
+    "evidenceCoverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["claim_count", "pattern_count", "event_refs", "source_refs"],
+      "properties": {
+        "claim_count": {"type": "integer", "minimum": 0},
+        "pattern_count": {"type": "integer", "minimum": 0},
+        "event_refs": {"$ref": "#/$defs/refs"},
+        "source_refs": {"$ref": "#/$defs/refs"}
+      }
+    }
+  }
+}

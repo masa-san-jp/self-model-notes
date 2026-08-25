@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+from copy import deepcopy
 import subprocess
 import sys
 from pathlib import Path
@@ -22,6 +23,8 @@ MODEL_FIELDS = (
     "tensions",
     "patterns",
 )
+
+MODEL_SCHEMA_VERSION = 2
 
 
 def _iso(value: Any) -> str | None:
@@ -43,6 +46,19 @@ def _list_value(meta: dict[str, Any], field: str) -> list[Any]:
 
 def _refs(meta: dict[str, Any], field: str) -> list[str]:
     return sorted({value for value in _list_value(meta, field) if isinstance(value, str)})
+
+
+def _raw_voice_refs(meta: dict[str, Any]) -> list[str]:
+    raw_voice = meta.get("raw_voice")
+    if not isinstance(raw_voice, list):
+        return []
+    return sorted(
+        {
+            item["source_ref"]
+            for item in raw_voice
+            if isinstance(item, dict) and isinstance(item.get("source_ref"), str)
+        }
+    )
 
 
 def current_source_commit(root: Path = ROOT) -> str:
@@ -75,7 +91,9 @@ def _claim_record(entity: Entity) -> dict[str, Any]:
         "entity_ref": entity.id,
         "statement": meta.get("statement"),
         "layer": meta.get("layer"),
+        "motivation_direction": meta.get("motivation_direction"),
         "scope": meta.get("scope"),
+        "conditions": _list_value(meta, "conditions"),
         "confidence": meta.get("confidence"),
         "status": meta.get("status"),
         "evidence_refs": _refs(meta, "supporting_evidence"),
@@ -99,25 +117,28 @@ def _pattern_record(entity: Entity) -> dict[str, Any]:
         "contexts_seen": _list_value(meta, "contexts_seen"),
         "recurring_actions": _list_value(meta, "recurring_action"),
         "recurring_drives": _list_value(meta, "recurring_drive"),
+        "reinforcement": _list_value(meta, "reinforcement"),
     }
 
 
 def _observation_record(entity: Entity) -> dict[str, Any]:
     meta = entity.meta
-    context = meta.get("context") if isinstance(meta.get("context"), dict) else {}
+    context = meta.get("context")
     return {
         "entity_ref": entity.id,
-        "observed_facts": _list_value(meta, "observed_facts"),
-        "actions": _list_value(meta, "action"),
-        "immediate_outcomes": _list_value(meta, "immediate_outcome"),
-        "delayed_outcomes": _list_value(meta, "delayed_outcome"),
-        "context": {
-            "domains": _list_value(context, "domains"),
-            "social": _list_value(context, "social"),
-            "uncertainty": context.get("uncertainty"),
-            "control": context.get("control"),
-        },
+        "trigger": deepcopy(meta.get("trigger")),
+        "observed_facts": deepcopy(meta.get("observed_facts")),
+        "appraisal": deepcopy(meta.get("appraisal")),
+        "emotion": deepcopy(meta.get("emotion")),
+        "body": deepcopy(meta.get("body")),
+        "cognition": deepcopy(meta.get("cognition")),
+        "actions": deepcopy(meta.get("action")),
+        "immediate_outcomes": deepcopy(meta.get("immediate_outcome")),
+        "delayed_outcomes": deepcopy(meta.get("delayed_outcome")),
+        "context": deepcopy(context),
+        "state": deepcopy(meta.get("state")),
         "source_refs": _refs(meta, "source_refs"),
+        "raw_voice_refs": _raw_voice_refs(meta),
     }
 
 
@@ -136,6 +157,133 @@ def _measurement_record(entity: Entity) -> dict[str, Any]:
         "scores": meta.get("scores"),
         "interpretation_claim_refs": _refs(meta, "interpretation_claim_refs"),
     }
+
+
+def _current_claims(claims: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [
+        claim
+        for claim in claims
+        if claim["status"] != "rejected" and claim["superseded_by"] is None
+    ]
+
+
+def _current_patterns(patterns: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [pattern for pattern in patterns if pattern["status"] != "rejected"]
+
+
+def _derived_record(statement: dict[str, Any], value: Any) -> dict[str, Any]:
+    return {
+        "entity_ref": statement["entity_ref"],
+        "statement": deepcopy(value),
+        "confidence": statement["confidence"],
+        "status": statement["status"],
+        "evidence_refs": list(statement["evidence_refs"]),
+        "counterevidence_refs": list(statement["counterevidence_refs"]),
+    }
+
+
+def _record_sort_key(record: dict[str, Any]) -> tuple[str, str]:
+    return record["entity_ref"], canonical_json(record["statement"])
+
+
+def _dominant_triggers(patterns: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [_derived_record(pattern, pattern["statement"]) for pattern in patterns]
+
+
+def _dominant_rewards(patterns: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    records: dict[tuple[str, str], dict[str, Any]] = {}
+    for pattern in patterns:
+        for reward in pattern["reinforcement"]:
+            record = _derived_record(pattern, reward)
+            records[(record["entity_ref"], canonical_json(record["statement"]))] = record
+    return sorted(records.values(), key=_record_sort_key)
+
+
+def _context_dependencies(
+    claims: list[dict[str, Any]], patterns: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
+    records: list[dict[str, Any]] = []
+    for claim in claims:
+        if claim["scope"] == "context-bound":
+            for condition in claim["conditions"]:
+                record = _derived_record(claim, condition)
+                record["source_field"] = "conditions"
+                records.append(record)
+    for pattern in patterns:
+        for context in pattern["contexts_seen"]:
+            record = _derived_record(pattern, context)
+            record["source_field"] = "contexts_seen"
+            records.append(record)
+    return sorted(records, key=lambda record: (record["entity_ref"], record["source_field"], canonical_json(record["statement"])))
+
+
+def _direction_records(
+    claims: list[dict[str, Any]], direction: str
+) -> list[dict[str, Any]]:
+    return [
+        _derived_record(claim, claim["statement"])
+        for claim in claims
+        if claim["layer"] == "motivation" and claim["motivation_direction"] == direction
+    ]
+
+
+def _field_unknown(field: str, reason: str) -> dict[str, Any]:
+    return {
+        "kind": "field-unobserved",
+        "field": field,
+        "entity_ref": None,
+        "reason": reason,
+        "evidence_refs": [],
+    }
+
+
+def _unknowns(
+    claims: list[dict[str, Any]],
+    patterns: list[dict[str, Any]],
+    dominant_triggers: list[dict[str, Any]],
+    dominant_rewards: list[dict[str, Any]],
+    avoidance_targets: list[dict[str, Any]],
+    protective_factors: list[dict[str, Any]],
+    context_dependencies: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    unknowns: list[dict[str, Any]] = []
+    for statement in [*claims, *patterns]:
+        if statement["confidence"] == "unknown":
+            unknowns.append(
+                {
+                    "kind": "confidence-unknown",
+                    "field": None,
+                    "entity_ref": statement["entity_ref"],
+                    "reason": "confidence is unknown",
+                    "evidence_refs": list(statement["evidence_refs"]),
+                }
+            )
+    for claim in claims:
+        direction = claim.get("motivation_direction")
+        if claim["layer"] == "motivation" and direction in {"mixed", "unknown"}:
+            unknowns.append(
+                {
+                    "kind": "motivation-direction-unresolved",
+                    "field": None,
+                    "entity_ref": claim["entity_ref"],
+                    "reason": f"motivation_direction is {direction}",
+                    "evidence_refs": list(claim["evidence_refs"]),
+                }
+            )
+    if not dominant_triggers:
+        unknowns.append(_field_unknown("dominant_triggers", "no current Pattern provides explicit evidence"))
+    if not dominant_rewards:
+        unknowns.append(_field_unknown("dominant_rewards", "no current Pattern provides explicit reinforcement"))
+    if not avoidance_targets:
+        unknowns.append(_field_unknown("avoidance_targets", "no current Claim has explicit motivation_direction: avoid"))
+    if not protective_factors:
+        unknowns.append(_field_unknown("protective_factors", "no current Claim has explicit motivation_direction: protect"))
+    if not context_dependencies:
+        unknowns.append(_field_unknown("context_dependencies", "no current Claim or Pattern provides explicit context dependency"))
+    return sorted(
+        unknowns,
+        key=lambda item: (item["kind"], item["field"] or "", item["entity_ref"] or ""),
+    )
 
 
 def _evidence_coverage(claims: list[dict[str, Any]], patterns: list[dict[str, Any]], observations: list[dict[str, Any]]) -> dict[str, Any]:
@@ -171,6 +319,8 @@ def build_model(
     observations.sort(key=lambda item: item["entity_ref"])
     measurements.sort(key=lambda item: item["entity_ref"])
 
+    current_claims = _current_claims(claims)
+    current_patterns = _current_patterns(patterns)
     grouped = {field: [] for field in MODEL_FIELDS}
     layer_to_field = {
         "emotion": "emotions",
@@ -178,25 +328,29 @@ def build_model(
         "behavioral-principle": "behavioral_principles",
         "tension": "tensions",
     }
-    for claim in claims:
+    for claim in current_claims:
         field = layer_to_field.get(claim["layer"])
         if field:
             grouped[field].append(claim)
-    grouped["patterns"] = patterns
+    grouped["patterns"] = current_patterns
 
-    unknowns = [
-        {
-            "entity_ref": statement["entity_ref"],
-            "reason": "confidence is unknown",
-            "evidence_refs": statement["evidence_refs"],
-        }
-        for statement in [*claims, *patterns]
-        if statement["confidence"] == "unknown"
-    ]
-    unknowns.sort(key=lambda item: item["entity_ref"])
+    dominant_triggers = _dominant_triggers(current_patterns)
+    dominant_rewards = _dominant_rewards(current_patterns)
+    avoidance_targets = _direction_records(current_claims, "avoid")
+    protective_factors = _direction_records(current_claims, "protect")
+    context_dependencies = _context_dependencies(current_claims, current_patterns)
+    unknowns = _unknowns(
+        current_claims,
+        current_patterns,
+        dominant_triggers,
+        dominant_rewards,
+        avoidance_targets,
+        protective_factors,
+        context_dependencies,
+    )
 
     return {
-        "schema_version": 1,
+        "schema_version": MODEL_SCHEMA_VERSION,
         "subject": subject_id,
         "as_of": _as_of(selected),
         "source_commit": source_commit if source_commit is not None else current_source_commit(),
@@ -204,6 +358,11 @@ def build_model(
         "observations": observations,
         "measurements": measurements,
         **grouped,
+        "dominant_triggers": dominant_triggers,
+        "dominant_rewards": dominant_rewards,
+        "avoidance_targets": avoidance_targets,
+        "protective_factors": protective_factors,
+        "context_dependencies": context_dependencies,
         "claim_history": claims,
         "unknowns": unknowns,
         "evidence_coverage": _evidence_coverage(claims, patterns, observations),
