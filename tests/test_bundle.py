@@ -56,6 +56,22 @@ class BundleTests(unittest.TestCase):
         self.assertIn("## Unknowns", bundle)
         self.assertIn("confidence is unknown", bundle)
 
+    def test_bundle_renders_v2_sections_and_field_level_unknowns(self):
+        model = build_model(valid_entities(), "subject/example", source_commit="abc123")
+
+        bundle = render_bundle(model)
+
+        for title in (
+            "Dominant triggers",
+            "Dominant rewards",
+            "Avoidance targets",
+            "Protective factors",
+            "Context dependencies",
+        ):
+            self.assertIn(f"### {title}", bundle)
+        self.assertIn("field `avoidance_targets`", bundle)
+        self.assertIn("Source field: `contexts_seen`", bundle)
+
 
 if __name__ == "__main__":
     unittest.main()
