@@ -4,6 +4,26 @@
 
 ## 通常の実行
 
+### Harness task lifecycle
+
+Phase 10のtaskは、queueを直接編集して開始せず、まずselectorとcontextで対象を確認する。
+
+```bash
+python3 tools/task_harness.py next --json
+python3 tools/task_harness.py context SM-NNN --json
+python3 tools/task_harness.py claim SM-NNN --actor agent-slug --remote origin --base $(git rev-parse HEAD) --json
+```
+
+claim成功後は表示されたagent branchで作業する。同じtaskやshared-lock、重複pathのlockがある場合は開始せず、エラーコードを記録する。queueにentity本文、raw voice、秘密、認証情報を入れない。
+
+完了PRがremote mainへ反映された後、同じactorとbranchでreleaseする。
+
+```bash
+python3 tools/task_harness.py release SM-NNN --actor agent-slug --remote origin --json
+```
+
+releaseはremote mainのdone/evidence、lock payload、actor、branchを検証する。検証に失敗した場合はlockを削除せず、原因を修正して再実行する。
+
 1. 作業開始前にbranch、対象Issue、許可パス、未コミット差分を確認する。
 
    ```bash

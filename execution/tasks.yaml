@@ -803,7 +803,7 @@ tasks:
   - id: SM-021
     title: Add atomic remote task claims and lifecycle state
     phase: 10
-    status: ready
+    status: done
     depends_on: [SM-020]
     issue: https://github.com/masa-san-jp/self-model-notes/issues/55
     allowed_paths:
@@ -837,7 +837,22 @@ tasks:
       - Path conflict semantics are ambiguous after applying the conservative rule
       - Existing schema, consent, privacy, or export behavior must change
       - A path outside the issue allowance is required
-    evidence: []
+    evidence:
+      - pr: 63
+        commit: b0a83b5
+        checks:
+          - ".venv/bin/python -m unittest tests.test_task_harness tests.test_execution_tasks — 24 passed"
+          - ".venv/bin/python -m unittest discover -s tests -p 'test_*.py' — 107 passed"
+          - ".venv/bin/python tools/task_harness.py validate — passed"
+          - ".venv/bin/python tools/task_harness.py next --json — selected SM-022"
+          - ".venv/bin/python tools/build_graph.py --check — passed"
+          - ".venv/bin/python tools/audit.py --check — passed"
+          - "temporary bare remote concurrent claims — exactly one winner"
+          - "temporary bare remote failure and release cases — passed"
+          - "git diff --check — passed"
+          - "git diff --exit-code -- data/ overviews/coverage.md — passed"
+          - "GitHub Actions validate for PR #63 — passed"
+        next_ready: SM-022
 
   - id: SM-022
     title: Enforce allowed paths against the complete Git change set
