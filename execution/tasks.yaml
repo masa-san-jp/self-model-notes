@@ -1018,7 +1018,7 @@ tasks:
   - id: SM-025
     title: Prove the full harness lifecycle and publish the operator contract
     phase: 10
-    status: in-progress
+    status: done
     depends_on: [SM-024]
     issue: https://github.com/masa-san-jp/self-model-notes/issues/59
     allowed_paths:
@@ -1033,13 +1033,7 @@ tasks:
       - docs/operations.md
       - .github/ISSUE_TEMPLATE/implementation-task.yml
       - execution/tasks.yaml
-    claim:
-      actor: alice
-      base: ccc420dafad7f614a86c08c906af3c0eee415ff3
-      branch: agent/sm-025-alice
-      remote: origin
-      lock_ref: refs/heads/harness-lock/sm-025
-      claimed_at: '2026-08-25T20:00:00.000000000Z'
+    claim: null
     acceptance:
       - Temporary Git repository and bare remote E2E covers selection, claim, context, path guard, failed check, completion, merge, release, and next task
       - Unit and E2E tests cover no-ready, malformed queue, competing claim, dirty worktree, stale base, disallowed path, unsafe check, duplicate completion, premature release, and successful release
@@ -1064,7 +1058,24 @@ tasks:
       - One task cannot complete in one PR without inventing evidence
       - A core entity type, ID rule, vocabulary, or sibling schema must change
       - A path outside the issue allowance is required
-    evidence: []
+    evidence:
+      - pr: 68
+        commit: 6ca74418b7af1eb675bea3f5fcc38016f0a4a014
+        checks:
+          - ".venv/bin/python -m unittest tests.test_task_harness tests.test_harness_e2e tests.test_cli — 46 passed"
+          - ".venv/bin/python -m unittest discover -s tests -p 'test_*.py' — 129 passed"
+          - ".venv/bin/python tools/task_harness.py validate — passed"
+          - ".venv/bin/python tools/task_harness.py next --json — selected SM-025 before completion"
+          - ".venv/bin/python tools/build_graph.py --check — passed"
+          - ".venv/bin/python tools/audit.py --check — passed"
+          - ".venv/bin/python tools/bundle.py --all --check — passed"
+          - ".venv/bin/python tools/export_signals.py --purpose artistic-research --limit 0 — passed"
+          - "git diff --check — passed"
+          - "git diff --exit-code -- data/ overviews/coverage.md — passed"
+          - "real temporary Git/bare-origin lifecycle E2E — passed"
+          - "no SM-025 harness lock ref after release — passed"
+          - "next selects SM-026 after completion — passed"
+          - "GitHub Actions harness-policy and validate for PR #68 — passed"
 
   - id: SM-026
     title: Enable an enforceable main-branch merge gate
