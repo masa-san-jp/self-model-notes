@@ -1080,7 +1080,7 @@ tasks:
   - id: SM-026
     title: Record agent-only merge-gate decision
     phase: 10
-    status: ready
+    status: in-progress
     depends_on: [SM-025]
     issue: https://github.com/masa-san-jp/self-model-notes/issues/60
     allowed_paths:
@@ -1091,7 +1091,14 @@ tasks:
       - docs/operations.md
       - tests/test_task_harness.py
       - tests/test_execution_tasks.py
-    claim: null
+    claim:
+      actor: charlie
+      base: d59f5f4761a0f27db136a51241e9d5478f2a4b5f
+      branch: agent/sm-026-charlie
+      remote: origin
+      lock_ref: refs/heads/harness-lock/sm-026
+      claimed_at: '2026-08-25T20:32:08.711209000Z'
+
     acceptance:
       - Issue #60 records the repository-owner decision that execution agents are the only users in scope
       - Issue #60 records advisory CI as sufficient for this threat model and rejects unapproved billing or visibility changes
