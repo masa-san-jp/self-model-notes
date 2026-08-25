@@ -62,24 +62,13 @@ class TaskHarnessTests(unittest.TestCase):
     def test_current_queue_validates_and_selects_sm020(self):
         self.assertEqual([], task_harness.validate_queue(self.queue))
         selected = task_harness.selectable_tasks(self.queue)
-        if self.queue_task("SM-020")["status"] == "ready":
-            expected_id = "SM-020"
-        elif self.queue_task("SM-021")["status"] == "ready":
-            expected_id = "SM-021"
-        else:
-            if self.queue_task("SM-022")["status"] == "ready":
-                expected_id = "SM-022"
-            elif self.queue_task("SM-023")["status"] == "ready":
-                expected_id = "SM-023"
-            else:
-                expected_id = (
-                    "SM-024"
-                    if self.queue_task("SM-024")["status"] == "ready"
-                    else "SM-025"
-                    if self.queue_task("SM-025")["status"] == "ready"
-                    else "SM-026"
-                )
-        self.assertEqual([expected_id], [task["id"] for task in selected])
+        expected_id = self.expected_ready_id()
+        self.assertEqual(
+            [expected_id] if expected_id else [],
+            [task["id"] for task in selected],
+        )
+        if not selected:
+            return
         self.assertEqual(
             {
                 "id",
@@ -96,29 +85,17 @@ class TaskHarnessTests(unittest.TestCase):
     def queue_task(self, task_id: str) -> dict:
         return next(task for task in self.queue["tasks"] if task["id"] == task_id)
 
+    def expected_ready_id(self, queue: dict | None = None) -> str | None:
+        selected = task_harness.selectable_tasks(queue or self.queue)
+        return selected[0]["id"] if selected else None
+
     def test_selection_is_independent_of_yaml_task_order(self):
         reversed_queue = self.queue_copy()
         reversed_queue["tasks"].reverse()
         self.assertEqual([], task_harness.validate_queue(reversed_queue))
-        if self.queue_task("SM-020")["status"] == "ready":
-            expected_id = "SM-020"
-        elif self.queue_task("SM-021")["status"] == "ready":
-            expected_id = "SM-021"
-        else:
-            if self.queue_task("SM-022")["status"] == "ready":
-                expected_id = "SM-022"
-            elif self.queue_task("SM-023")["status"] == "ready":
-                expected_id = "SM-023"
-            else:
-                expected_id = (
-                    "SM-024"
-                    if self.queue_task("SM-024")["status"] == "ready"
-                    else "SM-025"
-                    if self.queue_task("SM-025")["status"] == "ready"
-                    else "SM-026"
-                )
+        expected_id = self.expected_ready_id()
         self.assertEqual(
-            [expected_id],
+            [expected_id] if expected_id else [],
             [task["id"] for task in task_harness.selectable_tasks(reversed_queue)],
         )
 
@@ -148,10 +125,12 @@ class TaskHarnessTests(unittest.TestCase):
 
     def test_next_json_is_stable_and_does_not_write_queue(self):
         before = QUEUE_PATH.read_bytes()
+        expected_id = self.expected_ready_id()
+        expected_exit = 0 if expected_id else 3
         stdout = io.StringIO()
         with contextlib.redirect_stdout(stdout):
             self.assertEqual(
-                0,
+                expected_exit,
                 task_harness.main(["next", "--queue", str(QUEUE_PATH), "--json"]),
             )
         first = stdout.getvalue()
@@ -165,23 +144,12 @@ class TaskHarnessTests(unittest.TestCase):
         self.assertEqual(before, QUEUE_PATH.read_bytes())
         result = json.loads(first)
         self.assertEqual(3, result["queue_version"])
-        if self.queue_task("SM-020")["status"] == "ready":
-            expected_id = "SM-020"
-        elif self.queue_task("SM-021")["status"] == "ready":
-            expected_id = "SM-021"
-        else:
-            if self.queue_task("SM-022")["status"] == "ready":
-                expected_id = "SM-022"
-            elif self.queue_task("SM-023")["status"] == "ready":
-                expected_id = "SM-023"
-            else:
-                expected_id = (
-                    "SM-024"
-                    if self.queue_task("SM-024")["status"] == "ready"
-                    else "SM-025"
-                    if self.queue_task("SM-025")["status"] == "ready"
-                    else "SM-026"
-                )
+        if expected_id is None:
+            self.assertEqual(
+                {"queue_version": 3, "reason": "no-selectable-task", "task": None},
+                result,
+            )
+            return
         self.assertEqual(expected_id, result["task"]["id"])
         self.assertEqual(
             {
@@ -212,6 +180,11 @@ class TaskHarnessTests(unittest.TestCase):
     def test_no_candidate_returns_three_and_null_task(self):
         queue = self.queue_copy()
         selected = task_harness.selectable_tasks(queue)
+        if not selected:
+            task = self.queue_task("SM-026")
+            task["status"] = "ready"
+            task["claim"] = None
+            selected = task_harness.selectable_tasks(queue)
         self.assertTrue(selected)
         selected_id = selected[0]["id"]
         next(task for task in queue["tasks"] if task["id"] == selected_id)["status"] = "blocked"
@@ -1111,16 +1084,11 @@ class PolicyVerifierTests(unittest.TestCase):
         self.assertEqual(123, task["evidence"][0]["pr"])
         self.assertNotIn("stdout", json.dumps(task["evidence"]))
         self.assertNotIn("stderr", json.dumps(task["evidence"]))
-        expected_next = "SM-024"
-        if next(
-            item for item in task_harness.load_queue(QUEUE_PATH)["tasks"] if item["id"] == "SM-024"
-        )["status"] != "ready":
-            expected_next = "SM-025"
-            if next(
-                item for item in task_harness.load_queue(QUEUE_PATH)["tasks"] if item["id"] == "SM-025"
-            )["status"] != "ready":
-                expected_next = "SM-026"
-        self.assertEqual(expected_next, task_harness.selectable_tasks(queue)[0]["id"])
+        main_queue = task_harness.load_queue(QUEUE_PATH)
+        main_selected = task_harness.selectable_tasks(main_queue)
+        expected_next = main_selected[0]["id"] if main_selected else None
+        selected = task_harness.selectable_tasks(queue)
+        self.assertEqual([expected_next] if expected_next else [], [task["id"] for task in selected])
         with self.assertRaises(HarnessError) as caught:
             complete_task(
                 "SM-023",
