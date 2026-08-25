@@ -151,18 +151,42 @@ def audit_report(entities, subject=None) -> dict[str, Any]:
     }
 
 
+def audit_json(entities, subject=None) -> str:
+    """Render the canonical audit artifact without writing it."""
+    return canonical_json(audit_report(entities, subject))
+
+
+def audit_artifact_is_current(path: Path, expected: str) -> bool:
+    """Return whether an audit artifact exists and exactly matches expected JSON."""
+    return path.is_file() and path.read_text(encoding="utf-8") == expected
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--subject")
-    parser.add_argument("--dry-run", action="store_true")
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument("--dry-run", action="store_true")
+    mode.add_argument("--check", action="store_true")
     args = parser.parse_args()
-    report = audit_report(discover_entities(), args.subject)
+    entities = discover_entities()
+    report = audit_report(entities, args.subject)
     if args.dry_run:
         print(canonical_json(report), end="")
         return 0
     path = ROOT / "data" / "audit.json"
+    if args.check:
+        expected = canonical_json(report)
+        if not audit_artifact_is_current(path, expected):
+            print(
+                "data/audit.json is stale; run .venv/bin/python tools/audit.py",
+                file=sys.stderr,
+            )
+            print("stale generated file: data/audit.json", file=sys.stderr)
+            return 1
+        print("OK: data/audit.json is current")
+        return 0
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(canonical_json(report), encoding="utf-8")
+    path.write_text(audit_json(entities, args.subject), encoding="utf-8")
     print(f"built {path.relative_to(ROOT)}")
     return 0
 

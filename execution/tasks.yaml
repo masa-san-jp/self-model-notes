@@ -424,7 +424,7 @@ tasks:
   - id: SM-014
     title: Detect stale audit artifacts and enforce synchronization
     phase: 7
-    status: ready
+    status: done
     depends_on: [SM-013]
     issue: https://github.com/masa-san-jp/self-model-notes/issues/36
     allowed_paths:
@@ -461,7 +461,16 @@ tasks:
       - Latest main cannot be used without importing the obsolete PR #29 branch
       - Issue #35 or SM-013 is incomplete
       - Another agent has unfinished conflicting changes
-    evidence: []
+    evidence:
+      - pr: 44
+        commit: 8254ed4
+        checks:
+          - ".venv/bin/python -m unittest tests.test_audit tests.test_cli — 11 passed"
+          - ".venv/bin/python -m unittest discover -s tests -p 'test_*.py' — 69 passed"
+          - ".venv/bin/python tools/audit.py --check — passed"
+          - ".venv/bin/python tools/audit.py --dry-run — 3 soft review findings, no failure"
+          - ".venv/bin/python tools/build_graph.py --check — passed"
+          - "git diff --check — passed"
 
   - id: SM-015
     title: Add explicit motivation direction to Claims

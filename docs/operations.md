@@ -16,12 +16,13 @@
    python3 tools/new_entity.py event <slug> --subject subject/<id>
    ```
 
-3. loader、validator、graph、全テスト、soft auditを順に確認する。
+3. loader、validator、graph、全テスト、soft audit、audit生成物のstalenessを順に確認する。
 
    ```bash
    python3 tools/build_graph.py --check
    python3 -m unittest discover -s tests -p "test_*.py"
    python3 tools/audit.py --dry-run
+   python3 tools/audit.py --check
    ```
 
 4. entityを追加・改訂した場合だけ、生成物を再生成して差分を確認する。
@@ -44,6 +45,7 @@
 ## 失敗時の復旧
 
 - `build_graph.py --check`がstaleを報告したら、`data/`や`overviews/`を手編集せず、正本entityを確認して`python3 tools/build_graph.py`を再実行する。
+- `audit.py --check`がstaleを報告したら、`data/audit.json`を手編集せず、正本entityを確認して`python3 tools/audit.py`を再実行する。`--check`自体はファイルを書き換えない。
 - Self Modelやbundleが古い場合も、生成JSON/Markdownを直接直さず、対象Subjectのbuildコマンドを再実行する。
 - exportがdenyされたら、deny JSONの`source`と`rule`だけを確認する。同意条件を迂回したり、raw voiceを手でコピーしたりしない。
 - テスト失敗時は失敗ログと差分を保持し、skip、削除、生成物の手編集で緑にしない。

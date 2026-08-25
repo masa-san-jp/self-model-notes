@@ -44,6 +44,18 @@ class CLITests(unittest.TestCase):
             "soft review; findings propose observations and do not make diagnostic conclusions",
         )
 
+    def test_audit_check_accepts_current_artifact(self):
+        result = self.run_cli("tools/audit.py", "--check")
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("data/audit.json is current", result.stdout)
+
+    def test_audit_check_and_dry_run_are_mutually_exclusive(self):
+        result = self.run_cli("tools/audit.py", "--check", "--dry-run")
+
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("not allowed with argument", result.stderr)
+
     def test_model_bundle_and_export_fail_closed_for_unknown_subject(self):
         model = self.run_cli("tools/build_self_model.py", "--subject", "subject/missing")
         bundle = self.run_cli("tools/bundle.py", "--subject", "subject/missing")
