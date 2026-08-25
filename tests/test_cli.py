@@ -117,5 +117,6 @@ class CLITests(unittest.TestCase):
         self.assertIn("Bootstrap policy verifier", workflow)
         self.assertIn("PR_REF", workflow)
 
+
 if __name__ == "__main__":
     unittest.main()
