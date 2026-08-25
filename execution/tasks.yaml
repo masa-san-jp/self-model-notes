@@ -1117,6 +1117,7 @@ tasks:
     evidence:
       - pr: 70
         commit: 1fa9874b940f63c00bb5007c6b7021e2bffea2be
+        merge_commit: 4eab01b105805923ab1c6614ceeef63805958766
         checks:
           - "python3 tools/task_harness.py verify-paths SM-026 --json — passed"
           - "python3 -m unittest tests.test_task_harness tests.test_harness_e2e tests.test_cli — passed"
