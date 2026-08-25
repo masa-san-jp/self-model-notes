@@ -24,6 +24,15 @@ python3 tools/task_harness.py release SM-NNN --actor agent-slug --remote origin 
 
 releaseはremote mainのdone/evidence、lock payload、actor、branchを検証する。検証に失敗した場合はlockを削除せず、原因を修正して再実行する。
 
+作業中の変更は、PR作成前にallowed path guardで確認する。CIではcommitted-onlyを使い、ローカルでは未stage・stage済み・untrackedも含める。
+
+```bash
+python3 tools/task_harness.py verify-paths SM-NNN --base <claim-base> --json
+python3 tools/task_harness.py verify-paths SM-NNN --base <claim-base> --committed-only --json
+```
+
+終了コード4は許可外pathの検出、終了コード2はqueue・claim・Git状態の不正を表す。出力にfile内容、entity本文、raw voice、秘密、認証情報、絶対pathを含めない。
+
 1. 作業開始前にbranch、対象Issue、許可パス、未コミット差分を確認する。
 
    ```bash
