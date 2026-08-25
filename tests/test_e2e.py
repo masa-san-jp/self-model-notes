@@ -11,7 +11,9 @@ from tools.build_self_model import build_model
 from tools.bundle import render_bundle
 from tools.export_signals import (
     build_research_signals,
+    build_signal_export,
     export_signals,
+    validate_signal_export,
     validate_research_signals,
 )
 from tools.kb import ROOT, discover_entities, validate_entities
@@ -69,10 +71,14 @@ class EndToEndTests(unittest.TestCase):
         self.assertTrue(consented["allowed"])
         contract = build_research_signals(consented)
         self.assertEqual(validate_research_signals(contract), [])
-        self.assertTrue(contract["research_signals"]["seeks"])
+        self.assertFalse(contract["research_signals"]["seeks"])
         self.assertTrue(contract["research_signals"]["recurring_patterns"])
 
-        rendered = json.dumps({"graph": graph, "model": model, "bundle": bundle, "export": contract}, ensure_ascii=False)
+        export = build_signal_export(consented, generated_at="2026-08-11T00:00:00+09:00")
+        self.assertEqual(validate_signal_export(export), [])
+        self.assertEqual(export["signal_count"], 2)
+
+        rendered = json.dumps({"graph": graph, "model": model, "bundle": bundle, "export": {"legacy": contract, "dto": export}}, ensure_ascii=False)
         self.assertNotIn("synthetic voice one", rendered)
         self.assertNotIn("synthetic voice two", rendered)
 
