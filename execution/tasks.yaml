@@ -965,7 +965,7 @@ tasks:
   - id: SM-024
     title: Enforce one-task PR policy in GitHub Actions
     phase: 10
-    status: ready
+    status: done
     depends_on: [SM-023]
     issue: https://github.com/masa-san-jp/self-model-notes/issues/58
     allowed_paths:
@@ -1000,7 +1000,20 @@ tasks:
       - Branch protection settings must change during this code task
       - Existing schema, consent, privacy, or export behavior must change
       - A path outside the issue allowance is required
-    evidence: []
+    evidence:
+      - pr: 66
+        commit: e7ddfd5fea5910338ee228349cd0793f80909cfc
+        checks:
+          - ".venv/bin/python -m unittest tests.test_task_harness tests.test_execution_tasks tests.test_cli — 53 passed"
+          - ".venv/bin/python -m unittest discover -s tests -p 'test_*.py' — 127 passed"
+          - ".venv/bin/python tools/task_harness.py validate — passed"
+          - "verify-pr positive and negative lifecycle/path/contract/evidence/check fixtures — passed"
+          - ".venv/bin/python tools/build_graph.py --check — passed"
+          - ".venv/bin/python tools/audit.py --check — passed"
+          - "git diff --check — passed"
+          - "git diff --exit-code -- data/ overviews/coverage.md — passed"
+          - "GitHub Actions harness-policy for PR #66 — passed"
+          - "GitHub Actions validate for PR #66 — passed"
 
   - id: SM-025
     title: Prove the full harness lifecycle and publish the operator contract

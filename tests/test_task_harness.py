@@ -829,6 +829,18 @@ class PolicyCandidate:
             self.repo,
             ignore=shutil.ignore_patterns(".git", ".venv", "__pycache__", ".DS_Store"),
         )
+        queue_path = self.repo / "execution/tasks.yaml"
+        queue = task_harness.load_queue(queue_path)
+        task = next(item for item in queue["tasks"] if item["id"] == "SM-024")
+        task["status"] = "ready"
+        task["claim"] = None
+        task["evidence"] = []
+        queue_path.write_text(
+            yaml.safe_dump(queue, sort_keys=False, allow_unicode=True),
+            encoding="utf-8",
+        )
+        self.trusted_queue = self.root / "trusted-tasks.yaml"
+        self.trusted_queue.write_bytes(queue_path.read_bytes())
         self.git("init", "-b", "main")
         self.git("config", "user.name", "Harness Test")
         self.git("config", "user.email", "harness@example.invalid")
@@ -920,7 +932,8 @@ class PolicyCandidate:
             "title": "[SM-024] Enforce one-task PR policy",
         }
         values.update(overrides)
-        return verify_pr(**values)
+        with mock.patch.object(task_harness, "DEFAULT_QUEUE", self.trusted_queue):
+            return verify_pr(**values)
 
 
 class PolicyVerifierTests(unittest.TestCase):
@@ -1035,7 +1048,9 @@ class PolicyVerifierTests(unittest.TestCase):
         head = fixture.complete(extra_path="README.md")
         stdout = io.StringIO()
         stderr = io.StringIO()
-        with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+        with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr), mock.patch.object(
+            task_harness, "DEFAULT_QUEUE", fixture.trusted_queue
+        ):
             result = task_harness.main(
                 [
                     "verify-pr",
@@ -1078,7 +1093,10 @@ class PolicyVerifierTests(unittest.TestCase):
         self.assertEqual(123, task["evidence"][0]["pr"])
         self.assertNotIn("stdout", json.dumps(task["evidence"]))
         self.assertNotIn("stderr", json.dumps(task["evidence"]))
-        self.assertEqual("SM-024", task_harness.selectable_tasks(queue)[0]["id"])
+        expected_next = "SM-024" if next(
+            item for item in task_harness.load_queue(QUEUE_PATH)["tasks"] if item["id"] == "SM-024"
+        )["status"] == "ready" else "SM-025"
+        self.assertEqual(expected_next, task_harness.selectable_tasks(queue)[0]["id"])
         with self.assertRaises(HarnessError) as caught:
             complete_task(
                 "SM-023",
