@@ -1080,7 +1080,7 @@ tasks:
   - id: SM-026
     title: Record agent-only merge-gate decision
     phase: 10
-    status: ready
+    status: done
     depends_on: [SM-025]
     issue: https://github.com/masa-san-jp/self-model-notes/issues/60
     allowed_paths:
@@ -1092,6 +1092,7 @@ tasks:
       - tests/test_task_harness.py
       - tests/test_execution_tasks.py
     claim: null
+
     acceptance:
       - Issue #60 records the repository-owner decision that execution agents are the only users in scope
       - Issue #60 records advisory CI as sufficient for this threat model and rejects unapproved billing or visibility changes
@@ -1113,4 +1114,16 @@ tasks:
       - Trusted-base policy or validate does not exist and pass
       - The decision requires changing billing, repository visibility, consent, privacy, or the core schema
       - Any repository path outside the task allowance must change
-    evidence: []
+    evidence:
+      - pr: 70
+        commit: 1fa9874b940f63c00bb5007c6b7021e2bffea2be
+        checks:
+          - "python3 tools/task_harness.py verify-paths SM-026 --json — passed"
+          - "python3 -m unittest tests.test_task_harness tests.test_harness_e2e tests.test_cli — passed"
+          - "python3 -m unittest discover -s tests -p \"test_*.py\" — passed"
+          - "python3 tools/task_harness.py validate — passed"
+          - "python3 tools/build_graph.py --check — passed"
+          - "python3 tools/audit.py --check — passed"
+          - "python3 tools/bundle.py --all --check — passed"
+          - "git diff --check — passed"
+          - "git diff --exit-code -- data/ overviews/coverage.md — passed"
