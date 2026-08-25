@@ -1,5 +1,5 @@
-version: 2
-updated_at: "2026-08-13"
+version: 3
+updated_at: "2026-08-25"
 policy:
   selection: lowest-ready-id
   unit: one-task-one-agent-one-pr
@@ -703,3 +703,309 @@ tasks:
           - "git diff --check — passed"
           - "git diff --exit-code -- data/ overviews/coverage.md — passed"
           - "GitHub Actions validate for PR #50 — passed"
+
+  - id: SM-019
+    title: Register the self-enforcing harness task queue
+    phase: 10
+    status: in-progress
+    depends_on: [SM-018]
+    issue: https://github.com/masa-san-jp/self-model-notes/issues/53
+    allowed_paths:
+      - execution/tasks.yaml
+      - tests/test_execution_tasks.py
+    claim: null
+    acceptance:
+      - SM-019 through SM-026 are registered with fixed issue links, phases, and dependencies
+      - SM-019 is completed with commit, PR, and check evidence
+      - SM-020 through SM-026 are ready with empty evidence after SM-019 completion
+      - Every task mirrors its issue allowed paths, acceptance, checks, and stop conditions
+      - The shared execution/tasks.yaml lock is serialized by task dependencies
+      - SM-020 is the only next selectable task after SM-019 is done
+      - Existing SM-001 through SM-018 content, status, dependencies, and evidence are unchanged
+      - Queue validation passes without network access
+      - No feature code, entity, or generated output changes
+    checks:
+      - python3 -m unittest tests.test_execution_tasks
+      - python3 -m unittest discover -s tests -p "test_*.py"
+      - python3 tools/build_graph.py --check
+      - python3 tools/audit.py --dry-run
+      - git diff --check
+    stop_if:
+      - A child Issue from SM-020 through SM-026 is missing or contradicts the parent harness contract
+      - Queue version 3 requires changing the core entity schema
+      - Existing SM-001 through SM-018 must be changed to pass validation
+      - A path outside the issue allowance is required
+      - Another agent is changing execution/tasks.yaml
+    evidence: []
+
+  - id: SM-020
+    title: Implement queue contract validation and deterministic selection
+    phase: 10
+    status: ready
+    depends_on: [SM-019]
+    issue: https://github.com/masa-san-jp/self-model-notes/issues/54
+    allowed_paths:
+      - tools/task_harness.py
+      - tests/test_task_harness.py
+      - tests/test_execution_tasks.py
+      - docs/execution-plan.md
+      - execution/tasks.yaml
+    claim: null
+    acceptance:
+      - validate rejects malformed queue, unknown status, duplicate ID, missing dependency, cycle, invalid path, and done without evidence
+      - next --json returns the numerically smallest dependency-satisfied ready task
+      - No candidate returns a stable exit code and no task payload
+      - Validation errors are stable, sorted, and contain no entity content or command output
+      - CLI performs no writes, Git operations, or network operations
+      - Identical queue bytes produce byte-identical JSON
+      - Current queue validates and selects SM-021 after SM-020 completion
+    checks:
+      - python3 -m unittest tests.test_task_harness tests.test_execution_tasks
+      - python3 -m unittest discover -s tests -p "test_*.py"
+      - python3 tools/task_harness.py validate
+      - python3 tools/task_harness.py next --json
+      - python3 tools/build_graph.py --check
+      - python3 tools/audit.py --check
+      - git diff --check
+    stop_if:
+      - Queue semantics cannot be determined from Issue #1, #52, #53, AGENTS.md, and docs/execution-plan.md
+      - GitHub API or repository writes are required for read-only selection
+      - A core entity type, ID rule, vocabulary, consent, or privacy rule must change
+      - A third-party dependency beyond existing PyYAML is required
+      - A path outside the issue allowance is required
+    evidence: []
+
+  - id: SM-021
+    title: Add atomic remote task claims and lifecycle state
+    phase: 10
+    status: ready
+    depends_on: [SM-020]
+    issue: https://github.com/masa-san-jp/self-model-notes/issues/55
+    allowed_paths:
+      - tools/task_harness.py
+      - tests/test_task_harness.py
+      - tests/fixtures/harness/**
+      - docs/execution-plan.md
+      - docs/operations.md
+      - execution/tasks.yaml
+    claim: null
+    acceptance:
+      - A fixed harness-lock/sm-NNN remote ref gives exactly one winner for concurrent claims
+      - Claim validates actor, base, clean worktree, current selection, branch, and remote
+      - Shared-lock and overlapping-path conflicts fail closed
+      - Successful claim creates the agent branch, transitions ready to in-progress, and records claim metadata
+      - Failed post-lock mutation removes only the new lock and preserves queue bytes
+      - Release requires matching actor and a merged done task with evidence
+      - Release before merge, by another actor, or without evidence fails
+      - Tests use temporary repositories and bare remotes without network
+    checks:
+      - python3 -m unittest tests.test_task_harness
+      - python3 -m unittest discover -s tests -p "test_*.py"
+      - python3 tools/task_harness.py validate
+      - python3 tools/task_harness.py next --json
+      - python3 tools/build_graph.py --check
+      - python3 tools/audit.py --check
+      - git diff --check
+    stop_if:
+      - Atomic exclusion requires force push, destructive branch rewriting, or administrator privileges
+      - Credentials, tokens, entity data, or raw voice must be stored in Git refs
+      - Path conflict semantics are ambiguous after applying the conservative rule
+      - Existing schema, consent, privacy, or export behavior must change
+      - A path outside the issue allowance is required
+    evidence: []
+
+  - id: SM-022
+    title: Enforce allowed paths against the complete Git change set
+    phase: 10
+    status: ready
+    depends_on: [SM-021]
+    issue: https://github.com/masa-san-jp/self-model-notes/issues/56
+    allowed_paths:
+      - tools/task_harness.py
+      - tests/test_task_harness.py
+      - tests/fixtures/harness/**
+      - docs/execution-plan.md
+      - docs/operations.md
+      - execution/tasks.yaml
+    claim: null
+    acceptance:
+      - verify-paths detects committed, staged, unstaged, untracked, deleted, renamed, copied, and conflicted paths
+      - A single disallowed path fails even when all other paths are allowed
+      - Literal, star, question-mark, and double-star patterns are table-tested
+      - Base is a 40-character ancestor of head and invalid base fails closed
+      - Rename and copy source and destination are both checked
+      - JSON contains only task, rule, relative paths, base, and head
+      - Repeated runs over identical Git state are byte-identical
+    checks:
+      - python3 -m unittest tests.test_task_harness
+      - python3 -m unittest discover -s tests -p "test_*.py"
+      - python3 tools/task_harness.py verify-paths SM-022 --json
+      - python3 tools/build_graph.py --check
+      - python3 tools/audit.py --check
+      - git diff --check
+    stop_if:
+      - Correct matching requires following symlinks or reading file contents
+      - Harness, generated, or documentation paths would be silently exempted
+      - Git cannot provide an unambiguous status for a tested change kind
+      - Existing schema, consent, privacy, or export behavior must change
+      - A path outside the issue allowance is required
+    evidence: []
+
+  - id: SM-023
+    title: Run task checks safely and write completion evidence atomically
+    phase: 10
+    status: ready
+    depends_on: [SM-022]
+    issue: https://github.com/masa-san-jp/self-model-notes/issues/57
+    allowed_paths:
+      - tools/task_harness.py
+      - tests/test_task_harness.py
+      - tests/fixtures/harness/**
+      - docs/execution-plan.md
+      - docs/operations.md
+      - execution/tasks.yaml
+    claim: null
+    acceptance:
+      - verify runs checks in YAML order with shell=False and stops at the first failure
+      - Shell control syntax, missing executable, and timeout fail safely
+      - Completion requires active claim, matching branch, clean worktree, HEAD commit, PR number, and successful verify
+      - Completion changes only the selected task to done, clears claim, and appends one evidence record
+      - Completion writes through same-directory temp file, fsync, atomic replace, and revalidation
+      - Any failure leaves queue byte-identical and keeps the lock
+      - Evidence contains no command output, secrets, entity content, or raw voice
+      - Duplicate completion is rejected
+    checks:
+      - python3 -m unittest tests.test_task_harness
+      - python3 -m unittest discover -s tests -p "test_*.py"
+      - python3 tools/task_harness.py validate
+      - python3 tools/task_harness.py verify SM-023 --json
+      - python3 tools/build_graph.py --check
+      - python3 tools/audit.py --check
+      - git diff --check
+    stop_if:
+      - An existing check requires shell syntax that cannot be represented as argv without changing meaning
+      - A PR number or commit must be guessed
+      - Atomic mutation cannot preserve unrelated queue bytes
+      - Check output must be persisted to satisfy another requirement
+      - Existing schema, consent, privacy, or export semantics must change
+      - A path outside the issue allowance is required
+    evidence: []
+
+  - id: SM-024
+    title: Enforce one-task PR policy in GitHub Actions
+    phase: 10
+    status: ready
+    depends_on: [SM-023]
+    issue: https://github.com/masa-san-jp/self-model-notes/issues/58
+    allowed_paths:
+      - .github/workflows/validate.yml
+      - tools/task_harness.py
+      - tests/test_task_harness.py
+      - tests/test_cli.py
+      - docs/execution-plan.md
+      - docs/operations.md
+      - execution/tasks.yaml
+    claim: null
+    acceptance:
+      - verify-pr enforces branch, title, task identity, base/head, lifecycle, and one-task mutation
+      - Policy uses trusted base harness and base task contract against a separate candidate checkout
+      - Candidate cannot weaken verifier, allowed paths, dependencies, stop conditions, or checks
+      - Disallowed path, contract weakening, evidence deletion, invalid transition, and failed check fail CI
+      - Workflow uses read-only permissions and no secrets in candidate commands
+      - Existing validate job meaning and main push checks remain intact
+      - Current queue selects SM-025 after completion
+    checks:
+      - python3 -m unittest tests.test_task_harness tests.test_cli
+      - python3 -m unittest discover -s tests -p "test_*.py"
+      - python3 tools/task_harness.py validate
+      - python3 tools/task_harness.py verify-pr --repo . --task SM-024 --base <claim-base> --head HEAD --ref <task-branch> --title "[SM-024] Enforce one-task PR policy" --json
+      - python3 tools/build_graph.py --check
+      - python3 tools/audit.py --check
+      - git diff --check
+    stop_if:
+      - Enforcement requires write-scoped Actions permissions, secrets, or untrusted shell execution
+      - GitHub event identity cannot be established without a write API
+      - A valid check requires unavailable network credentials
+      - Branch protection settings must change during this code task
+      - Existing schema, consent, privacy, or export behavior must change
+      - A path outside the issue allowance is required
+    evidence: []
+
+  - id: SM-025
+    title: Prove the full harness lifecycle and publish the operator contract
+    phase: 10
+    status: ready
+    depends_on: [SM-024]
+    issue: https://github.com/masa-san-jp/self-model-notes/issues/59
+    allowed_paths:
+      - tools/task_harness.py
+      - tests/test_task_harness.py
+      - tests/test_harness_e2e.py
+      - tests/fixtures/harness/**
+      - AGENTS.md
+      - README.md
+      - docs/execution-plan.md
+      - docs/operations.md
+      - .github/ISSUE_TEMPLATE/implementation-task.yml
+      - execution/tasks.yaml
+    claim: null
+    acceptance:
+      - Temporary Git repository and bare remote E2E covers selection, claim, context, path guard, failed check, completion, merge, release, and next task
+      - Unit and E2E tests cover no-ready, malformed queue, competing claim, dirty worktree, stale base, disallowed path, unsafe check, duplicate completion, premature release, and successful release
+      - AGENTS, README, execution plan, operations runbook, and Issue template agree on CLI, transitions, branch/ref names, exit codes, evidence, and privacy
+      - Fresh clone with Python 3.11+, Git, and existing PyYAML is sufficient
+      - Harness output never includes entity bodies, raw voice, credentials, environment values, or absolute paths
+      - SM-025 completion selects SM-026 and documents that full self-enforcement remains blocked until the merge gate decision
+    checks:
+      - python3 -m unittest tests.test_task_harness tests.test_harness_e2e tests.test_cli
+      - python3 -m unittest discover -s tests -p "test_*.py"
+      - python3 tools/task_harness.py validate
+      - python3 tools/task_harness.py next --json
+      - python3 tools/build_graph.py --check
+      - python3 tools/audit.py --check
+      - python3 tools/bundle.py --all --check
+      - python3 tools/export_signals.py --purpose artistic-research --limit 0
+      - git diff --check
+      - git diff --exit-code -- data/ overviews/coverage.md
+    stop_if:
+      - E2E requires a live GitHub token or destructive operation outside temp repositories
+      - Documentation would weaken consent, privacy, epistemic, or destructive-action rules
+      - One task cannot complete in one PR without inventing evidence
+      - A core entity type, ID rule, vocabulary, or sibling schema must change
+      - A path outside the issue allowance is required
+    evidence: []
+
+  - id: SM-026
+    title: Enable an enforceable main-branch merge gate
+    phase: 10
+    status: ready
+    depends_on: [SM-025]
+    issue: https://github.com/masa-san-jp/self-model-notes/issues/60
+    allowed_paths:
+      - execution/tasks.yaml
+    claim: null
+    acceptance:
+      - Repository owner explicitly chooses private-plus-upgrade or public-plus-protection in Issue #60
+      - Main requires pull requests, up-to-date branches, and successful validate plus harness-policy checks
+      - Force push, branch deletion, and unsupported bypass are blocked
+      - Disposable disallowed-path and failing-check PRs cannot merge
+      - A compliant SM-026 evidence PR can merge
+      - Read-only settings evidence is linked without credentials
+      - SM-026 is recorded done with PR, commit, gate evidence, and required checks
+      - After merge and release, next returns the stable no-task result with exit 3 and no harness lock refs
+    checks:
+      - python3 -m unittest tests.test_task_harness tests.test_harness_e2e tests.test_cli
+      - python3 -m unittest discover -s tests -p "test_*.py"
+      - python3 tools/task_harness.py validate
+      - python3 tools/build_graph.py --check
+      - python3 tools/audit.py --check
+      - python3 tools/bundle.py --all --check
+      - git diff --check
+      - git diff --exit-code -- data/ overviews/coverage.md
+    stop_if:
+      - No owner choice between private-plus-upgrade and public-plus-protection
+      - Billing, organization, administrator, or visibility authority is unavailable
+      - Required checks do not exist and pass on main
+      - Effective settings allow failed checks, force push, deletion, or bypass
+      - Any repository path other than execution/tasks.yaml must change
+    evidence: []
