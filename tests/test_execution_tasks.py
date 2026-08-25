@@ -18,6 +18,19 @@ EXPECTED_DEPENDENCIES = {
     "SM-016": ["SM-015"],
     "SM-017": ["SM-016"],
     "SM-018": ["SM-017"],
+    "SM-019": ["SM-018"],
+    "SM-020": ["SM-019"],
+    "SM-021": ["SM-020"],
+    "SM-022": ["SM-021"],
+    "SM-023": ["SM-022"],
+    "SM-024": ["SM-023"],
+    "SM-025": ["SM-024"],
+    "SM-026": ["SM-025"],
+}
+
+HARNESS_ISSUES = {
+    f"SM-{index:03d}": f"https://github.com/masa-san-jp/self-model-notes/issues/{number}"
+    for index, number in zip(range(19, 27), range(53, 61))
 }
 
 
@@ -47,10 +60,10 @@ class ExecutionTaskQueueTests(unittest.TestCase):
         cls.by_id = {task["id"]: task for task in cls.tasks}
 
     def test_queue_version_and_unique_contiguous_ids(self):
-        self.assertEqual(2, self.queue["version"])
+        self.assertEqual(3, self.queue["version"])
         ids = [task["id"] for task in self.tasks]
         self.assertEqual(len(ids), len(set(ids)))
-        self.assertEqual([f"SM-{index:03d}" for index in range(1, 19)], ids)
+        self.assertEqual([f"SM-{index:03d}" for index in range(1, 27)], ids)
 
     def test_dependencies_are_existing_and_acyclic_by_id(self):
         for task in self.tasks:
@@ -78,6 +91,19 @@ class ExecutionTaskQueueTests(unittest.TestCase):
                 self.assertTrue(task["stop_if"])
                 self.assertIn("evidence", task)
 
+    def test_harness_tasks_have_fixed_issue_links_and_claim_shape(self):
+        for task_id, issue in HARNESS_ISSUES.items():
+            task = self.by_id[task_id]
+            with self.subTest(task=task_id):
+                self.assertEqual(issue, task["issue"])
+                self.assertIn("claim", task)
+                self.assertIsNone(task["claim"])
+                self.assertTrue(task["allowed_paths"])
+                self.assertTrue(task["acceptance"])
+                self.assertTrue(task["checks"])
+                self.assertTrue(task["stop_if"])
+                self.assertIn("execution/tasks.yaml", task["allowed_paths"])
+
     def test_selection_is_empty_while_bootstrap_is_in_progress(self):
         if self.by_id["SM-012"]["status"] == "in-progress":
             self.assertEqual([], selectable_tasks(self.queue))
@@ -94,6 +120,14 @@ class ExecutionTaskQueueTests(unittest.TestCase):
             ]
             expected = [min(eligible)] if eligible else []
             self.assertEqual(expected, selectable_tasks(self.queue))
+
+    def test_harness_bootstrap_has_only_one_next_task_after_sm019(self):
+        if self.by_id["SM-019"]["status"] == "in-progress":
+            self.assertEqual([], selectable_tasks(self.queue))
+        elif self.by_id["SM-019"]["status"] == "done":
+            self.assertEqual(["SM-020"], selectable_tasks(self.queue))
+        else:
+            self.fail("SM-019 must be in-progress during bootstrap or done after completion")
 
     def test_existing_tasks_are_unchanged_in_status_and_evidence_shape(self):
         for task in self.tasks:
