@@ -356,23 +356,33 @@ Derivedは手書きentityにしない。Subject、Claim、Patternから決定論
 
 ```yaml
 self_model:
+  schema_version: 2
   subject: subject/example
   as_of: 2026-08-11
   source_commit: <sha>
+  derived_from: []
+  observations: []
+  measurements: []
   emotions: []
   motivations: []
   behavioral_principles: []
   tensions: []
+  patterns: []
   dominant_triggers: []
   dominant_rewards: []
   avoidance_targets: []
   protective_factors: []
   context_dependencies: []
+  claim_history: []
   unknowns: []
   evidence_coverage: {}
 ```
 
 `as_of`単位でスナップショットを比較できること。モデルの変化と観測増加による理解の変化を区別するため、根拠entity IDを各項目に残す。
+
+Derived Self Model v2のcurrent sectionには`rejected`または`superseded_by`が設定されたClaimを入れず、履歴は`claim_history`へ残す。`dominant_triggers`はcurrent Patternの`condition`、`dominant_rewards`は`reinforcement`からだけ生成する。`avoidance_targets`と`protective_factors`は、それぞれ`motivation_direction: avoid`と`protect`のClaimだけを対応付け、`seek`・`mixed`・`unknown`は推測で分類しない。Context依存はcontext-bound Claimの`conditions`またはPatternの`contexts_seen`から生成し、recordに元fieldを残す。
+
+未定義の追加sectionは空配列とし、`unknowns`に`field-unobserved`を記録する。判定不能な方向は`motivation-direction-unresolved`、confidence不明は`confidence-unknown`としてClaim/Patternの根拠とともに保持する。Observationは`trigger`、`observed_facts`、`appraisal`、`emotion`、`body`、`cognition`、`actions`、`immediate_outcomes`、`delayed_outcomes`、`context`、`state`、`source_refs`、`raw_voice_refs`を保持するが、raw voice本文は含めない。
 
 ## 参照制約
 

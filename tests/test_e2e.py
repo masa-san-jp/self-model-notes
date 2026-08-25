@@ -80,9 +80,13 @@ class EndToEndTests(unittest.TestCase):
         entities = e2e_entities()
         first_graph, first_coverage = build(entities)
         second_graph, second_coverage = build(list(reversed(entities)))
+        first_model = build_model(entities, "subject/fixture", source_commit="b" * 40)
+        second_model = build_model(list(reversed(entities)), "subject/fixture", source_commit="b" * 40)
 
         self.assertEqual(first_graph, second_graph)
         self.assertEqual(first_coverage, second_coverage)
+        self.assertEqual(first_model, second_model)
+        self.assertEqual(render_bundle(first_model), render_bundle(second_model))
         result = subprocess.run(
             [sys.executable, "tools/build_graph.py", "--check"],
             cwd=ROOT,
