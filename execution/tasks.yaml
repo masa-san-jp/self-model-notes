@@ -1090,6 +1090,7 @@ tasks:
       - docs/execution-plan.md
       - docs/operations.md
       - tests/test_task_harness.py
+      - tests/test_execution_tasks.py
     claim: null
     acceptance:
       - Issue #60 records the repository-owner decision that execution agents are the only users in scope
