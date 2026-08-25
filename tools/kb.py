@@ -263,6 +263,17 @@ def _validate_entity_fields(entity: Entity, vocab: dict[str, Any]) -> list[Valid
         errors += _validate_enum(entity, "scope", vocab["scopes"])
         errors += _validate_enum(entity, "confidence", vocab["confidence"])
         errors += _validate_enum(entity, "status", vocab["claim_statuses"])
+        if entity.meta.get("layer") == "motivation":
+            errors += _validate_enum(entity, "motivation_direction", vocab["motivation_directions"])
+        elif entity.meta.get("motivation_direction") is not None:
+            errors.append(
+                _error(
+                    entity,
+                    "motivation_direction",
+                    "must be null for non-motivation Claims",
+                    "set `motivation_direction: null` outside the motivation layer",
+                )
+            )
         errors += _validate_list(entity, "conditions")
         errors += _validate_list(entity, "counterevidence")
         errors += _validate_list(entity, "alternative_explanations")
@@ -334,7 +345,7 @@ def validate_entities(entities: list[Entity]) -> list[ValidationError]:
             "subject": ["pseudonym", "direct_identifiers_stored", "consent_refs", "allowed_purposes", "prohibited_purposes", "status"],
             "source": ["subject", "source_kind", "captured_at", "locator", "raw_content_stored", "consent", "reliability_notes"],
             "event": ["subject", "time", "context", "state", "trigger", "observed_facts", "raw_voice", "appraisal", "emotion", "body", "cognition", "action", "immediate_outcome", "delayed_outcome", "source_refs"],
-            "claim": ["subject", "layer", "scope", "statement", "conditions", "supporting_evidence", "counterevidence", "alternative_explanations", "confidence", "status", "supersedes", "superseded_by"],
+            "claim": ["subject", "layer", "scope", "statement", "conditions", "supporting_evidence", "counterevidence", "alternative_explanations", "confidence", "status", "supersedes", "superseded_by", "motivation_direction"],
             "pattern": ["subject", "condition", "recurring_appraisal", "recurring_drive", "recurring_action", "reinforcement", "contexts_seen", "evidence", "claim_refs", "counterevidence", "confidence", "status"],
             "measurement": ["subject", "instrument", "administered_at", "source_ref", "scores", "interpretation_claim_refs"],
         }

@@ -3,6 +3,7 @@ id: claim/tension
 type: claim
 subject: subject/fixture
 layer: tension
+motivation_direction: null
 scope: state
 statement: synthetic second derived statement
 conditions: [synthetic second condition]

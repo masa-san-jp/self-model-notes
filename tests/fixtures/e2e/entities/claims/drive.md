@@ -3,6 +3,7 @@ id: claim/drive
 type: claim
 subject: subject/fixture
 layer: motivation
+motivation_direction: unknown
 scope: context-bound
 statement: synthetic claim statement
 conditions: [synthetic condition]

@@ -25,8 +25,9 @@ TRACE_FIELDS = {
 }
 
 # Coverage is intentionally field-based. A missing key means that a field was
-# not observed at all; null/unknown preserve an explicitly unknown observation;
-# [] and {} preserve a checked-but-empty observation.
+# not observed at all; null preserves an unobserved value, while the literal
+# unknown preserves an attempted-but-indeterminate observation; [] and {}
+# preserve a checked-but-empty observation.
 COVERAGE_FIELDS = {
     "subject": ("consent_refs",),
     "source": (
@@ -63,6 +64,7 @@ COVERAGE_FIELDS = {
     ),
     "claim": (
         "layer",
+        "motivation_direction",
         "scope",
         "statement",
         "conditions",
@@ -99,7 +101,7 @@ COVERAGE_FIELDS = {
     ),
 }
 
-COVERAGE_STATES = ("unobserved", "unknown", "confirmed-empty", "observed")
+COVERAGE_STATES = ("unobserved", "null", "unknown", "confirmed-empty", "observed")
 _MISSING = object()
 
 
@@ -161,7 +163,9 @@ def _value_at(meta: dict[str, Any], field_path: str) -> Any:
 def _coverage_state(value: Any) -> str:
     if value is _MISSING:
         return "unobserved"
-    if value is None or value == "unknown":
+    if value is None:
+        return "null"
+    if value == "unknown":
         return "unknown"
     if isinstance(value, (list, dict)) and not value:
         return "confirmed-empty"
@@ -202,9 +206,10 @@ def build(entities):
 def coverage_markdown(coverage):
     count_rows = "\n".join(f"| {kind} | {count} |" for kind, count in coverage["counts"].items())
     field_rows = "\n".join(
-        "| {field} | {unobserved} | {unknown} | {confirmed_empty} | {observed} |".format(
+        "| {field} | {unobserved} | {null} | {unknown} | {confirmed_empty} | {observed} |".format(
             field=field,
             unobserved=states["unobserved"],
+            null=states["null"],
             unknown=states["unknown"],
             confirmed_empty=states["confirmed-empty"],
             observed=states["observed"],
@@ -218,8 +223,8 @@ def coverage_markdown(coverage):
         "| Entity | Count |\n|---|---:|\n"
         f"{count_rows}\n\n"
         "## Field coverage\n\n"
-        "| Field | Unobserved | Unknown | Confirmed empty | Observed |\n"
-        "|---|---:|---:|---:|---:|\n"
+        "| Field | Unobserved | Null | Unknown | Confirmed empty | Observed |\n"
+        "|---|---:|---:|---:|---:|---:|\n"
         f"{field_rows}\n"
     )
 

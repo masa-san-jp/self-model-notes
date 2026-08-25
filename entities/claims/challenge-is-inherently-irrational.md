@@ -3,6 +3,7 @@ id: claim/challenge-is-inherently-irrational
 type: claim
 subject: subject/masa
 layer: other
+motivation_direction: null
 scope: context-bound
 statement: "挑戦とは本質的に非合理なものだと本人が捉えている可能性がある"
 conditions: ["結果の見通しが立たない試みについて語るとき"]
