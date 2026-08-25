@@ -61,7 +61,7 @@ class TaskHarnessTests(unittest.TestCase):
         elif self.queue_task("SM-021")["status"] == "ready":
             expected_id = "SM-021"
         else:
-            expected_id = "SM-022"
+            expected_id = "SM-022" if self.queue_task("SM-022")["status"] == "ready" else "SM-023"
         self.assertEqual([expected_id], [task["id"] for task in selected])
         self.assertEqual(
             {
@@ -88,7 +88,7 @@ class TaskHarnessTests(unittest.TestCase):
         elif self.queue_task("SM-021")["status"] == "ready":
             expected_id = "SM-021"
         else:
-            expected_id = "SM-022"
+            expected_id = "SM-022" if self.queue_task("SM-022")["status"] == "ready" else "SM-023"
         self.assertEqual(
             [expected_id],
             [task["id"] for task in task_harness.selectable_tasks(reversed_queue)],
@@ -142,7 +142,7 @@ class TaskHarnessTests(unittest.TestCase):
         elif self.queue_task("SM-021")["status"] == "ready":
             expected_id = "SM-021"
         else:
-            expected_id = "SM-022"
+            expected_id = "SM-022" if self.queue_task("SM-022")["status"] == "ready" else "SM-023"
         self.assertEqual(expected_id, result["task"]["id"])
         self.assertEqual(
             {
@@ -318,6 +318,10 @@ class TaskHarnessLifecycleTests(unittest.TestCase):
         queue["policy"]["shared_locks"] = []
         by_id["SM-021"]["allowed_paths"] = ["alpha/**"]
         by_id["SM-022"]["allowed_paths"] = ["beta/**"]
+        by_id["SM-021"]["status"] = "ready"
+        by_id["SM-021"]["evidence"] = []
+        by_id["SM-022"]["status"] = "ready"
+        by_id["SM-022"]["evidence"] = []
         by_id["SM-022"]["depends_on"] = []
         self.assertIsNone(task_harness._lock_conflict(queue, by_id["SM-022"], {"SM-021"}))
         self.assertEqual(
