@@ -89,7 +89,21 @@ class ExecutionTaskQueueTests(unittest.TestCase):
             with self.subTest(task=task_id):
                 self.assertEqual(issue, task["issue"])
                 self.assertIn("claim", task)
-                self.assertIsNone(task["claim"])
+                if task["status"] == "in-progress":
+                    self.assertIsInstance(task["claim"], dict)
+                    self.assertEqual(
+                        {
+                            "actor",
+                            "base",
+                            "branch",
+                            "remote",
+                            "lock_ref",
+                            "claimed_at",
+                        },
+                        set(task["claim"]),
+                    )
+                else:
+                    self.assertIsNone(task["claim"])
                 self.assertTrue(task["allowed_paths"])
                 self.assertTrue(task["acceptance"])
                 self.assertTrue(task["checks"])
@@ -129,8 +143,10 @@ class ExecutionTaskQueueTests(unittest.TestCase):
                 self.assertEqual(["SM-024"], [task["id"] for task in selectable_tasks(self.queue)])
             elif self.by_id["SM-025"]["status"] == "ready":
                 self.assertEqual(["SM-025"], [task["id"] for task in selectable_tasks(self.queue)])
-            else:
+            elif self.by_id["SM-026"]["status"] == "ready":
                 self.assertEqual(["SM-026"], [task["id"] for task in selectable_tasks(self.queue)])
+            else:
+                self.assertEqual([], [task["id"] for task in selectable_tasks(self.queue)])
         else:
             self.fail("harness queue must expose exactly one lifecycle task")
 
