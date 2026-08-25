@@ -102,3 +102,14 @@ python3 trusted-base/tools/task_harness.py verify-pr \
 ```
 
 `verify-pr`は、PR branchとtitleのtask ID一致、full SHAとancestor、1 taskだけのqueue lifecycle、readyからin-progressを経たdone遷移、base contractとの差分、committed-only path guard、base側checksの順序実行を検証する。候補がharness、queue contract、testを変更しても、policy判定の実体はtrusted-baseから実行される。旧baseにこのCLIがないbootstrap PRだけはpolicy jobを明示的に通過し、次のPRから強制される。
+
+## Full harness lifecycle proof
+
+SM-025のE2E fixtureは、service processやGitHub tokenを使わず、一時working repositoryとbare `origin`で次を検証する。
+
+1. 依存taskを含むqueueをvalidateし、最低IDのready taskをselectする。
+2. claimで固定lockとagent branchを取得し、競合actor、context JSON、dirty worktree、stale/不許可pathを検査する。
+3. 宣言checkの失敗を記録せずに停止し、成功後にverify、complete、evidence commitを行う。
+4. 一時mainへmergeし、main上のdone/evidenceを確認してlockをreleaseし、依存taskをnextでselectする。
+
+fixtureの失敗経路は一時ディレクトリ内だけを変更し、実repoのqueue/refには触れない。完了後のnext taskはSM-026であり、Issue #60のrequired merge gate判断前にfull self-enforcingが有効化されたとは扱わない。

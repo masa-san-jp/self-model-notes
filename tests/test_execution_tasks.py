@@ -127,8 +127,10 @@ class ExecutionTaskQueueTests(unittest.TestCase):
                 self.assertEqual(["SM-023"], [task["id"] for task in selectable_tasks(self.queue)])
             elif self.by_id["SM-024"]["status"] == "ready":
                 self.assertEqual(["SM-024"], [task["id"] for task in selectable_tasks(self.queue)])
-            else:
+            elif self.by_id["SM-025"]["status"] == "ready":
                 self.assertEqual(["SM-025"], [task["id"] for task in selectable_tasks(self.queue)])
+            else:
+                self.assertEqual(["SM-026"], [task["id"] for task in selectable_tasks(self.queue)])
         else:
             self.fail("harness queue must expose exactly one lifecycle task")
 

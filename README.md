@@ -56,6 +56,25 @@ python3 tools/build_graph.py
 python3 tools/audit.py
 ```
 
+## Agent harness
+
+Phase 10の実装taskは、次のライフサイクルを正規経路として実行する。
+
+```bash
+python3 tools/task_harness.py validate
+python3 tools/task_harness.py next --json
+python3 tools/task_harness.py claim SM-NNN --actor <actor> --remote origin --base <sha> --json
+python3 tools/task_harness.py context SM-NNN --json
+python3 tools/task_harness.py verify SM-NNN --json
+python3 tools/task_harness.py complete SM-NNN --pr <number> --commit <sha> --json
+python3 tools/task_harness.py release SM-NNN --actor <actor> --remote origin --json
+```
+
+`execution/tasks.yaml`が機械可読のtask SSOTで、Issueに登録されていないtaskは実行対象になりません。selectorは最低IDのready taskだけを返します。claimは`refs/heads/harness-lock/sm-nnn`と`agent/sm-nnn-<actor>`を取得し、verifyは許可pathとchecksを検査します。completeはPR番号・HEAD・evidenceを対象taskだけへ記録し、releaseはremote mainへのmerge確認後に該当lockだけを削除します。
+
+PRの`harness-policy`はbase SHAのtrusted-baseを実行系の正本としてcandidateを検査します。候補側のharness、queue contract、依存、stop condition、check、evidence、許可外pathの改変でtrusted policyを弱めることはできません。出力は本文、raw voice、credentials、環境値、絶対pathを含みません。Issue #60のrequired merge gateがowner判断で有効化されるまでは、full self-enforcing claimは未有効です。
+SM-025完了後の次のdispatchable taskはSM-026です。
+
 ## 原則
 
 - 原文・観測事実・解釈を混ぜない。
