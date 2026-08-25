@@ -72,8 +72,8 @@ python3 tools/task_harness.py release SM-NNN --actor <actor> --remote origin --j
 
 `execution/tasks.yaml`が機械可読のtask SSOTで、Issueに登録されていないtaskは実行対象になりません。selectorは最低IDのready taskだけを返します。claimは`refs/heads/harness-lock/sm-nnn`と`agent/sm-nnn-<actor>`を取得し、verifyは許可pathとchecksを検査します。completeはPR番号・HEAD・evidenceを対象taskだけへ記録し、releaseはremote mainへのmerge確認後に該当lockだけを削除します。
 
-PRの`harness-policy`はbase SHAのtrusted-baseを実行系の正本としてcandidateを検査します。候補側のharness、queue contract、依存、stop condition、check、evidence、許可外pathの改変でtrusted policyを弱めることはできません。出力は本文、raw voice、credentials、環境値、絶対pathを含みません。Issue #60のrequired merge gateがowner判断で有効化されるまでは、full self-enforcing claimは未有効です。
-SM-025完了後の次のdispatchable taskはSM-026です。
+PRの`harness-policy`はbase SHAのtrusted-baseを実行系の正本としてcandidateを検査します。候補側のharness、queue contract、依存、stop condition、check、evidence、許可外pathの改変でtrusted policyを弱めることはできません。出力は本文、raw voice、credentials、環境値、絶対pathを含みません。利用者を実行エージェントに限定する脅威モデルでは、このtrusted-base CI検証を必須境界とし、GitHubのrequired merge gateは任意の運用強化とします。Issue #60にこの判断を記録します。
+SM-026完了後は、依存済みのready taskがないためdispatchは終了します。
 
 ## 原則
 

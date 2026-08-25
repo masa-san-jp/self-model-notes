@@ -112,4 +112,4 @@ SM-025のE2E fixtureは、service processやGitHub tokenを使わず、一時wor
 3. 宣言checkの失敗を記録せずに停止し、成功後にverify、complete、evidence commitを行う。
 4. 一時mainへmergeし、main上のdone/evidenceを確認してlockをreleaseし、依存taskをnextでselectする。
 
-fixtureの失敗経路は一時ディレクトリ内だけを変更し、実repoのqueue/refには触れない。完了後のnext taskはSM-026であり、Issue #60のrequired merge gate判断前にfull self-enforcingが有効化されたとは扱わない。
+fixtureの失敗経路は一時ディレクトリ内だけを変更し、実repoのqueue/refには触れない。SM-026では、Issue #60に記録したagent-only脅威モデルに基づき、trusted-base CI検証を必須境界、GitHubのrequired merge gateを任意の運用強化として記録する。SM-026完了後は依存済みのready taskがないため、`next --json`は安定したno-task結果を返す。
