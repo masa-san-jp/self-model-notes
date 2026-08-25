@@ -115,6 +115,21 @@ class CheckFailure(HarnessError):
         self.results = results
 
 
+class PolicyError(HarnessError):
+    """A trusted PR-policy error with safe path details."""
+
+    def __init__(
+        self,
+        code: str,
+        message: str,
+        *,
+        paths: list[str] | None = None,
+        exit_code: int = 2,
+    ):
+        super().__init__(code, message, exit_code)
+        self.paths = sorted(set(paths or []))
+
+
 CLAIM_INVALID = 2
 CLAIM_SAME_TASK_LOCK = "CLAIM_SAME_TASK_LOCK"
 CLAIM_SHARED_LOCK = "CLAIM_SHARED_LOCK"
@@ -1061,12 +1076,16 @@ def verify_paths(
     committed_only: bool = False,
     repo: Path = ROOT,
     queue_path: Path | None = None,
+    policy_queue: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     queue_path = queue_path or repo / "execution" / "tasks.yaml"
-    try:
-        queue = _validated_queue(queue_path)
-    except HarnessError as error:
-        raise PathGuardError(error.code, error.message) from error
+    if policy_queue is None:
+        try:
+            queue = _validated_queue(queue_path)
+        except HarnessError as error:
+            raise PathGuardError(error.code, error.message) from error
+    else:
+        queue = policy_queue
     try:
         task = _task_for_id(queue, task_id)
     except HarnessError as error:
@@ -1167,11 +1186,16 @@ def _is_nested_verify(argv: list[str], task_id: str) -> bool:
     )
 
 
+def _is_policy_command(argv: list[str]) -> bool:
+    return "verify-pr" in argv
+
+
 def _run_declared_checks(
     task_id: str,
     checks: list[str],
     *,
     repo: Path,
+    argv_transform: Callable[[list[str]], list[str]] | None = None,
 ) -> list[dict[str, Any]]:
     results: list[dict[str, Any]] = []
     for command in checks:
@@ -1180,10 +1204,15 @@ def _run_declared_checks(
         except HarnessError as error:
             results.append({"command": command, "exit_code": None, "status": "failed"})
             raise CheckFailure(error.code, error.message, results) from error
+        if argv_transform is not None:
+            argv = argv_transform(argv)
         environment = None
-        if _is_nested_verify(argv, task_id):
+        if _is_nested_verify(argv, task_id) or _is_policy_command(argv):
             environment = os.environ.copy()
-            environment["TASK_HARNESS_NESTED_VERIFY"] = "1"
+            if _is_nested_verify(argv, task_id):
+                environment["TASK_HARNESS_NESTED_VERIFY"] = "1"
+            if _is_policy_command(argv):
+                environment["TASK_HARNESS_NESTED_VERIFY_PR"] = "1"
         failure_code = "CHECK_FAILED"
         try:
             completed = subprocess.run(
@@ -1361,6 +1390,262 @@ def complete_task(
     }
 
 
+AGENT_BRANCH_RE = re.compile(r"^agent/sm-[0-9]{3}-[a-z0-9]+(?:-[a-z0-9]+)*$")
+POLICY_IMMUTABLE_TASK_FIELDS = TASK_FIELDS - {"status", "claim", "evidence"}
+
+
+def _queue_at_commit(repo: Path, commit: str) -> dict[str, Any]:
+    result = _run_git(repo, ["show", f"{commit}:execution/tasks.yaml"])
+    if result.returncode != 0:
+        raise PolicyError("QUEUE_MISSING", "queue is missing at commit")
+    try:
+        queue = yaml.safe_load(result.stdout)
+    except yaml.YAMLError as exc:
+        raise PolicyError("QUEUE_INVALID", "queue is invalid at commit") from exc
+    if not isinstance(queue, dict) or validate_queue(queue):
+        raise PolicyError("QUEUE_INVALID", "queue is invalid at commit")
+    return queue
+
+
+def _policy_claim_matches(
+    task: dict[str, Any],
+    *,
+    base: str,
+    ref: str,
+) -> bool:
+    claim = task.get("claim")
+    return (
+        task["status"] == "in-progress"
+        and isinstance(claim, dict)
+        and claim.get("base") == base
+        and claim.get("branch") == ref
+        and claim.get("lock_ref") == f"refs/heads/harness-lock/{task['id'].lower()}"
+    )
+
+
+def _trusted_policy_argv(argv: list[str]) -> list[str]:
+    if "verify-pr" not in argv:
+        return argv
+    transformed = list(argv)
+    trusted_script = str(ROOT / "tools" / "task_harness.py")
+    for index, token in enumerate(transformed):
+        if token.replace("\\", "/").endswith("tools/task_harness.py"):
+            transformed[index] = trusted_script
+            break
+    return transformed
+
+
+def _policy_queue_contract(
+    queue: dict[str, Any],
+    trusted_queue: dict[str, Any],
+    *,
+    task_id: str,
+) -> None:
+    for field in ROOT_FIELDS - {"tasks"}:
+        if queue.get(field) != trusted_queue.get(field):
+            raise PolicyError("QUEUE_METADATA_CHANGED", "queue metadata changed")
+    trusted_tasks = {task["id"]: task for task in trusted_queue["tasks"]}
+    current_tasks = {task["id"]: task for task in queue["tasks"]}
+    if set(trusted_tasks) != set(current_tasks):
+        raise PolicyError("TASK_SET_CHANGED", "task set changed")
+    for current_id in sorted(trusted_tasks):
+        before = trusted_tasks[current_id]
+        after = current_tasks[current_id]
+        if current_id == task_id:
+            continue
+        if any(before.get(field) != after.get(field) for field in POLICY_IMMUTABLE_TASK_FIELDS):
+            raise PolicyError("TASK_CONTRACT_CHANGED", "task contract changed")
+        if before != after:
+            raise PolicyError("LIFECYCLE_SCOPE_INVALID", "exactly one task lifecycle must change")
+
+
+def _valid_completion_record(
+    repo: Path,
+    evidence: list[Any],
+    head: str,
+) -> bool:
+    if not evidence or not isinstance(evidence[-1], dict):
+        return False
+    record = evidence[-1]
+    if set(record) != {"pr", "commit", "checks"}:
+        return False
+    if not isinstance(record["pr"], int) or isinstance(record["pr"], bool) or record["pr"] <= 0:
+        return False
+    commit = record["commit"]
+    if not isinstance(commit, str) or not SHA_RE.fullmatch(commit):
+        return False
+    if _run_git(repo, ["cat-file", "-e", f"{commit}^{{commit}}"]).returncode != 0:
+        return False
+    if _run_git(repo, ["merge-base", "--is-ancestor", commit, head]).returncode != 0:
+        return False
+    return (
+        isinstance(record["checks"], list)
+        and bool(record["checks"])
+        and all(isinstance(check, str) and bool(check) for check in record["checks"])
+    )
+
+
+def _policy_history(
+    repo: Path,
+    *,
+    base: str,
+    head: str,
+    task_id: str,
+    trusted_queue: dict[str, Any],
+    ref: str,
+) -> tuple[dict[str, Any], dict[str, Any], bool]:
+    base_task = _task_for_id(trusted_queue, task_id)
+    commits = _run_git(repo, ["rev-list", "--reverse", f"{base}..{head}"])
+    if commits.returncode != 0:
+        raise PolicyError("HISTORY_INVALID", "commit history cannot be inspected")
+    snapshots = [base] + commits.stdout.split()
+    seen_in_progress = base_task["status"] == "in-progress"
+    seen_done = base_task["status"] == "done"
+    previous_task = base_task
+    final_queue = trusted_queue
+    for commit_id in snapshots[1:]:
+        queue = _queue_at_commit(repo, commit_id)
+        _policy_queue_contract(queue, trusted_queue, task_id=task_id)
+        task = _task_for_id(queue, task_id)
+        trusted_task = _task_for_id(trusted_queue, task_id)
+        if any(
+            trusted_task.get(field) != task.get(field)
+            for field in POLICY_IMMUTABLE_TASK_FIELDS
+        ):
+            raise PolicyError("TASK_CONTRACT_CHANGED", "task contract changed")
+        if task["status"] == "ready":
+            if seen_in_progress or seen_done or task != base_task:
+                raise PolicyError("TRANSITION_INVALID", "lifecycle transition is not allowed")
+        elif task["status"] == "in-progress":
+            if seen_done or not _policy_claim_matches(task, base=base, ref=ref):
+                raise PolicyError("CLAIM_INVALID", "head claim does not match branch and base")
+            if task["evidence"] != base_task["evidence"]:
+                raise PolicyError("EVIDENCE_INVALID", "in-progress task cannot add evidence")
+            seen_in_progress = True
+        elif task["status"] == "done":
+            if not seen_in_progress or task["claim"] is not None:
+                raise PolicyError("TRANSITION_INVALID", "lifecycle transition is not allowed")
+            if not _valid_completion_record(repo, task["evidence"], commit_id):
+                raise PolicyError("COMPLETION_INVALID", "done transition lacks valid evidence")
+            seen_done = True
+        else:
+            raise PolicyError("TRANSITION_INVALID", "lifecycle transition is not allowed")
+        if previous_task["status"] == "done" and task != previous_task:
+            raise PolicyError("TRANSITION_INVALID", "done task lifecycle was changed")
+        previous_task = task
+        final_queue = queue
+    return base_task, _task_for_id(final_queue, task_id), seen_in_progress
+
+
+def verify_pr(
+    *,
+    repo: Path,
+    task_id: str,
+    base: str,
+    head: str,
+    ref: str,
+    title: str,
+) -> dict[str, Any]:
+    try:
+        trusted_queue = _validated_queue(DEFAULT_QUEUE)
+    except HarnessError as error:
+        raise PolicyError(error.code, error.message) from error
+    if not TASK_ID_RE.fullmatch(task_id):
+        raise PolicyError("TASK_ID_INVALID", "task ID is invalid")
+    if not AGENT_BRANCH_RE.fullmatch(ref):
+        raise PolicyError("BRANCH_INVALID", "agent branch is invalid")
+    if not ref.startswith(f"agent/{task_id.lower()}-"):
+        raise PolicyError("TASK_BRANCH_MISMATCH", "branch task ID does not match task")
+    if not isinstance(title, str) or not title.startswith(f"[{task_id}]"):
+        raise PolicyError("TITLE_MISMATCH", "PR title does not match task")
+    base_commit = _guard_commit(repo, base, "base")
+    head_commit = _guard_commit(repo, head, "head")
+    candidate_head = _run_git(repo, ["rev-parse", "HEAD"])
+    if candidate_head.returncode != 0 or candidate_head.stdout.strip() != head_commit:
+        raise PolicyError("HEAD_MISMATCH", "candidate HEAD does not match head")
+    if _run_git(repo, ["merge-base", "--is-ancestor", base_commit, head_commit]).returncode != 0:
+        raise PolicyError("BASE_NOT_ANCESTOR", "base is not an ancestor of head")
+    base_queue = _queue_at_commit(repo, base_commit)
+    if base_queue != trusted_queue:
+        raise PolicyError("TRUSTED_BASE_MISMATCH", "candidate base queue differs from trusted queue")
+    head_queue = _queue_at_commit(repo, head_commit)
+    base_task = _task_for_id(trusted_queue, task_id)
+    head_task = _task_for_id(head_queue, task_id)
+    if base_task["phase"] < 10:
+        raise PolicyError("TASK_NOT_PHASE10", "task is not a Phase 10 task")
+
+    lifecycle_changes: list[str] = []
+    base_tasks = {task["id"]: task for task in trusted_queue["tasks"]}
+    head_tasks = {task["id"]: task for task in head_queue["tasks"]}
+    if set(base_tasks) != set(head_tasks):
+        raise PolicyError("TASK_SET_CHANGED", "task set changed")
+    for current_id in sorted(base_tasks):
+        before = base_tasks[current_id]
+        after = head_tasks[current_id]
+        if any(before.get(field) != after.get(field) for field in POLICY_IMMUTABLE_TASK_FIELDS):
+            raise PolicyError("TASK_CONTRACT_CHANGED", "task contract changed")
+        if any(before.get(field) != after.get(field) for field in ("status", "claim", "evidence")):
+            lifecycle_changes.append(current_id)
+    if lifecycle_changes != [task_id]:
+        raise PolicyError("LIFECYCLE_SCOPE_INVALID", "exactly one task lifecycle must change")
+
+    _policy_queue_contract(head_queue, trusted_queue, task_id=task_id)
+    history_base_task, history_head_task, seen_in_progress = _policy_history(
+        repo,
+        base=base_commit,
+        head=head_commit,
+        task_id=task_id,
+        trusted_queue=trusted_queue,
+        ref=ref,
+    )
+    if history_base_task != base_task or history_head_task != head_task:
+        raise PolicyError("HISTORY_INVALID", "commit history does not match the PR queue")
+    if base_task["status"] == "ready" and head_task["status"] == "in-progress":
+        if not seen_in_progress:
+            raise PolicyError("TRANSITION_INVALID", "lifecycle transition is not allowed")
+    elif base_task["status"] == "in-progress" and head_task["status"] == "done":
+        if not _policy_claim_matches(base_task, base=base_commit, ref=ref):
+            raise PolicyError("CLAIM_INVALID", "base claim does not match branch and base")
+    elif base_task["status"] == "ready" and head_task["status"] == "done":
+        if not seen_in_progress:
+            raise PolicyError("TRANSITION_INVALID", "ready to done requires an intermediate in-progress commit")
+    else:
+        raise PolicyError("TRANSITION_INVALID", "lifecycle transition is not allowed")
+
+    try:
+        path_result = verify_paths(
+            task_id,
+            base=base_commit,
+            head=head_commit,
+            committed_only=True,
+            repo=repo,
+            queue_path=repo / "execution/tasks.yaml",
+            policy_queue=trusted_queue,
+        )
+    except PathGuardError as error:
+        raise PolicyError(error.code, error.message, paths=error.paths, exit_code=error.exit_code) from error
+
+    expanded_checks = [
+        command.replace("<claim-base>", base_commit).replace("<task-branch>", ref)
+        for command in base_task["checks"]
+    ]
+    check_results = _run_declared_checks(
+        task_id,
+        expanded_checks,
+        repo=repo,
+        argv_transform=_trusted_policy_argv,
+    )
+    return {
+        "task": task_id,
+        "status": "passed",
+        "base": base_commit,
+        "head": head_commit,
+        "ref": ref,
+        "paths": path_result["paths"],
+        "checks": check_results,
+    }
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="task_harness")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -1402,6 +1687,14 @@ def _parser() -> argparse.ArgumentParser:
     complete.add_argument("--commit", required=True)
     complete.add_argument("--queue", type=Path, default=DEFAULT_QUEUE)
     complete.add_argument("--json", action="store_true")
+    policy = subparsers.add_parser("verify-pr")
+    policy.add_argument("--repo", type=Path, required=True)
+    policy.add_argument("--task", dest="task_id", required=True)
+    policy.add_argument("--base", required=True)
+    policy.add_argument("--head", required=True)
+    policy.add_argument("--ref", required=True)
+    policy.add_argument("--title", required=True)
+    policy.add_argument("--json", action="store_true")
     return parser
 
 
@@ -1461,6 +1754,22 @@ def _write_check_failure(task_id: str, error: CheckFailure, *, as_json: bool) ->
         sys.stderr.write(f"{error.code}: {error.message}\n")
 
 
+def _write_policy_error(task_id: str, error: PolicyError, *, as_json: bool) -> None:
+    if as_json:
+        sys.stderr.write(
+            canonical_json(
+                {
+                    "task": task_id,
+                    "rule": error.code,
+                    "paths": sorted(error.paths),
+                }
+            )
+            + "\n"
+        )
+    else:
+        sys.stderr.write(f"{error.code}: {error.message}\n")
+
+
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     if args.command == "verify-paths":
@@ -1480,6 +1789,53 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         except PathGuardError as error:
             _write_path_guard_error(args.task_id, error, as_json=args.json)
+            return error.exit_code
+    if args.command == "verify-pr":
+        try:
+            if os.environ.get("TASK_HARNESS_NESTED_VERIFY_PR") == "1":
+                result = {"task": args.task_id, "status": "passed", "checks": []}
+            else:
+                result = verify_pr(
+                    repo=args.repo,
+                    task_id=args.task_id,
+                    base=args.base,
+                    head=args.head,
+                    ref=args.ref,
+                    title=args.title,
+                )
+            if args.json:
+                sys.stdout.write(canonical_json(result) + "\n")
+            else:
+                sys.stdout.write(f"{args.task_id}: policy passed\n")
+            return 0
+        except CheckFailure as error:
+            _write_policy_error(
+                args.task_id,
+                PolicyError(error.code, error.message, exit_code=error.exit_code),
+                as_json=args.json,
+            )
+            return error.exit_code
+        except PathGuardError as error:
+            _write_policy_error(
+                args.task_id,
+                PolicyError(
+                    error.code,
+                    error.message,
+                    paths=error.paths,
+                    exit_code=error.exit_code,
+                ),
+                as_json=args.json,
+            )
+            return error.exit_code
+        except PolicyError as error:
+            _write_policy_error(args.task_id, error, as_json=args.json)
+            return error.exit_code
+        except HarnessError as error:
+            _write_policy_error(
+                args.task_id,
+                PolicyError(error.code, error.message, exit_code=error.exit_code),
+                as_json=args.json,
+            )
             return error.exit_code
     if args.command == "verify":
         try:
