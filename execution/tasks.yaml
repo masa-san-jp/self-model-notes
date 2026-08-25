@@ -329,3 +329,313 @@ tasks:
           - ".venv/bin/python tools/build_graph.py --check — passed"
           - ".venv/bin/python tools/audit.py — no findings"
           - "External consumer PR #4 and its GitHub Actions run passed"
+
+  - id: SM-012
+    title: Register the gap-closure task queue
+    phase: 7
+    status: done
+    depends_on: [SM-011]
+    issue: https://github.com/masa-san-jp/self-model-notes/issues/41
+    allowed_paths:
+      - execution/tasks.yaml
+      - tests/test_execution_tasks.py
+    acceptance:
+      - SM-012 through SM-018 are registered with fixed issue links, phases, and dependencies
+      - SM-012 is completed with commit, PR, and check evidence
+      - SM-013 through SM-018 are ready with empty evidence
+      - Every task mirrors its issue allowed paths, acceptance, checks, and stop conditions
+      - The shared execution/tasks.yaml lock is serialized by task dependencies
+      - SM-013 is the only next selectable task after SM-012 is done
+      - Existing SM-001 through SM-011 content, status, and evidence are unchanged
+      - Queue validation passes without network access
+      - No feature code, entity, or generated output changes
+    checks:
+      - .venv/bin/python -m unittest tests.test_execution_tasks
+      - .venv/bin/python -m unittest discover -s tests -p "test_*.py"
+      - .venv/bin/python tools/build_graph.py --check
+      - .venv/bin/python tools/audit.py --dry-run
+      - git diff --check
+    stop_if:
+      - execution/tasks.yaml already contains SM-012 or later
+      - Issue #35 through #40 is missing a task ID, allowed paths, completion criteria, checks, or stop conditions
+      - The fixed serial dependency graph makes the requirements unexecutable
+      - Existing SM-001 through SM-011 must be changed to pass validation
+      - A path outside the issue allowance is required
+      - Another agent is changing execution/tasks.yaml
+    evidence:
+      - pr: 42
+        commit: 820f367
+        checks:
+          - ".venv/bin/python -m unittest tests.test_execution_tasks — 7 passed"
+          - ".venv/bin/python -m unittest discover -s tests -p 'test_*.py' — 65 passed"
+          - ".venv/bin/python tools/build_graph.py --check — passed"
+          - ".venv/bin/python tools/audit.py --dry-run — 3 soft review findings, no failure"
+          - "git diff --check — passed"
+
+  - id: SM-013
+    title: Preserve unobserved Event fields as null
+    phase: 7
+    status: ready
+    depends_on: [SM-012]
+    issue: https://github.com/masa-san-jp/self-model-notes/issues/35
+    allowed_paths:
+      - entities/events/watching-a-struggle-20260813.md
+      - docs/acquisition-protocol.md
+      - docs/investigation-task.md
+      - tests/test_build_graph.py
+      - data/graph.json
+      - data/coverage.json
+      - overviews/coverage.md
+      - execution/tasks.yaml
+    acceptance:
+      - The six unobserved Event fields are explicitly null
+      - The Event prose and frontmatter agree that those fields are unobserved
+      - Coverage reports unknown 1 and confirmed-empty 0 for each target field
+      - The overview reports the same counts
+      - A regression test fails for the old empty-list representation
+      - Existing entity references and Claim content are unchanged
+      - No identifiers, secrets, or raw transcript are added
+    checks:
+      - .venv/bin/python -m unittest tests.test_build_graph
+      - .venv/bin/python -m unittest discover -s tests -p "test_*.py"
+      - .venv/bin/python tools/build_graph.py
+      - .venv/bin/python tools/build_graph.py --check
+      - .venv/bin/python tools/audit.py --dry-run
+      - git diff --check
+    stop_if:
+      - null cannot be stored without changing the schema
+      - A new closed vocabulary value is required
+      - Personal or third-party information is required
+      - A path outside the issue allowance is required
+      - Another agent has unfinished conflicting changes
+    evidence: []
+
+  - id: SM-014
+    title: Detect stale audit artifacts and enforce synchronization
+    phase: 7
+    status: ready
+    depends_on: [SM-013]
+    issue: https://github.com/masa-san-jp/self-model-notes/issues/36
+    allowed_paths:
+      - tools/audit.py
+      - tests/test_audit.py
+      - tests/test_cli.py
+      - data/audit.json
+      - docs/operations.md
+      - .github/workflows/validate.yml
+      - .githooks/pre-commit
+      - execution/tasks.yaml
+    acceptance:
+      - data/audit.json is byte-identical to live audit and contains three NO_COUNTEREVIDENCE findings
+      - audit --check returns zero for current output
+      - stale and missing output return one without writing files
+      - stale stderr includes the path and repair command but no sensitive text
+      - dry-run output and exit behavior remain unchanged
+      - check and dry-run together are rejected
+      - CI and pre-commit run audit --check
+      - Finding logic and ordering have no unintended change
+    checks:
+      - .venv/bin/python -m unittest tests.test_audit tests.test_cli
+      - .venv/bin/python -m unittest discover -s tests -p "test_*.py"
+      - .venv/bin/python tools/audit.py
+      - .venv/bin/python tools/audit.py --check
+      - .venv/bin/python tools/audit.py --dry-run
+      - .venv/bin/python tools/build_graph.py --check
+      - git diff --check
+    stop_if:
+      - Audit cannot be generated deterministically
+      - Finding logic must change
+      - docs/schema.md, tools/kb.py, or a closed vocabulary must change
+      - A path outside the issue allowance is required
+      - Latest main cannot be used without importing the obsolete PR #29 branch
+      - Issue #35 or SM-013 is incomplete
+      - Another agent has unfinished conflicting changes
+    evidence: []
+
+  - id: SM-015
+    title: Add explicit motivation direction to Claims
+    phase: 8
+    status: ready
+    depends_on: [SM-014]
+    issue: https://github.com/masa-san-jp/self-model-notes/issues/39
+    allowed_paths:
+      - docs/schema.md
+      - config/vocabularies.yaml
+      - entities/claims/*.md
+      - tools/kb.py
+      - tools/new_entity.py
+      - tools/build_graph.py
+      - tests/test_schema.py
+      - tests/test_validation.py
+      - tests/test_epistemic_rules.py
+      - tests/test_build_graph.py
+      - tests/fixtures/**/entities/claims/*.md
+      - data/graph.json
+      - data/coverage.json
+      - overviews/coverage.md
+      - execution/tasks.yaml
+    acceptance:
+      - docs/schema.md defines motivation_direction and valid and invalid examples
+      - Vocabulary contains exactly seek, protect, avoid, mixed, and unknown
+      - Every Claim and fixture has motivation_direction
+      - Existing Claim values exactly match the fixed migration table
+      - Validator rejects missing, out-of-vocabulary, and layer-inconsistent values
+      - new_entity claim emits motivation_direction null
+      - Coverage distinguishes null, unknown, and observed values
+      - Tests cover seek, protect, avoid, mixed, and unknown
+      - No automatic direction, confidence, or Pattern promotion is added
+      - No identifiers, secrets, or raw transcript is added
+    checks:
+      - .venv/bin/python -m unittest tests.test_schema tests.test_validation tests.test_epistemic_rules tests.test_build_graph
+      - .venv/bin/python -m unittest discover -s tests -p "test_*.py"
+      - .venv/bin/python tools/build_graph.py
+      - .venv/bin/python tools/build_graph.py --check
+      - .venv/bin/python tools/audit.py --dry-run
+      - git diff --check
+    stop_if:
+      - A value outside the five fixed values is required
+      - Direction must be applied to a non-motivation layer
+      - Direction cannot be migrated without interpreting Claim prose
+      - Issue #36 or SM-014 is incomplete
+      - A path outside the issue allowance is required
+      - Another agent has unfinished conflicting changes
+    evidence: []
+
+  - id: SM-016
+    title: Implement the Derived Self Model v2 contract
+    phase: 8
+    status: ready
+    depends_on: [SM-015]
+    issue: https://github.com/masa-san-jp/self-model-notes/issues/37
+    allowed_paths:
+      - docs/schema.md
+      - tools/build_self_model.py
+      - tools/bundle.py
+      - tests/contracts/self-model-v2.schema.json
+      - tests/test_self_model.py
+      - tests/test_bundle.py
+      - tests/test_e2e.py
+      - execution/tasks.yaml
+    acceptance:
+      - self-model/v2 schema validates generated output
+      - All Issue #1 minimum sections are present
+      - Pattern data produces evidence-backed dominant triggers and rewards
+      - Context-bound Claims and Patterns produce the fixed context mapping
+      - Avoidance and protective sections use only explicit matching directions
+      - seek, mixed, and unknown Claims are not misclassified
+      - Current unknown direction leaves specialized sections empty with Unknowns
+      - Rejected and superseded Claims are excluded from current and retained in history
+      - Observation preserves fields and does not normalize null or empty lists
+      - Raw voice body is absent from JSON, bundle, and test output
+      - Every derived record traces to entity and evidence
+      - Identical input order produces byte-identical model and bundle
+      - Bundle renders the added sections and field-level Unknowns
+    checks:
+      - .venv/bin/python -m unittest tests.test_self_model tests.test_bundle tests.test_e2e
+      - .venv/bin/python -m unittest discover -s tests -p "test_*.py"
+      - .venv/bin/python tools/build_graph.py --check
+      - .venv/bin/python tools/audit.py --dry-run
+      - git diff --check
+    stop_if:
+      - A core field or closed vocabulary must be added
+      - Direction must be inferred from anything other than motivation_direction
+      - A promotion or dominance threshold must be invented
+      - Consent or privacy must be weakened
+      - A path outside the issue allowance is required
+      - Issue #39 or SM-015 is incomplete
+      - Another agent has unfinished conflicting changes
+    evidence: []
+
+  - id: SM-017
+    title: Track Derived Self Model snapshots and detect staleness
+    phase: 8
+    status: ready
+    depends_on: [SM-016]
+    issue: https://github.com/masa-san-jp/self-model-notes/issues/38
+    allowed_paths:
+      - README.md
+      - docs/operations.md
+      - docs/for-other-personas.md
+      - tools/build_self_model.py
+      - tools/bundle.py
+      - tests/test_self_model.py
+      - tests/test_bundle.py
+      - tests/test_cli.py
+      - .github/workflows/validate.yml
+      - .githooks/pre-commit
+      - data/self-models/**
+      - execution/tasks.yaml
+    acceptance:
+      - Current subject JSON and Markdown are generated and Git-tracked
+      - JSON satisfies self-model/v2
+      - source_commit is a deterministic 40-character entity commit and not the artifact commit
+      - Derived statements trace to entity and evidence
+      - No raw voice, direct identifiers, third-party identifiers, or Source locator is newly exposed
+      - Current JSON and JSON plus Markdown checks return zero
+      - Stale, missing, and dirty entity checks return one without writing
+      - all check validates every active Subject in ID order
+      - CI and pre-commit reject stale artifacts
+      - Repeated generation is byte-identical
+      - Git history documents snapshot comparison
+    checks:
+      - .venv/bin/python -m unittest tests.test_self_model tests.test_bundle tests.test_cli
+      - .venv/bin/python -m unittest discover -s tests -p "test_*.py"
+      - .venv/bin/python tools/build_graph.py --check
+      - .venv/bin/python tools/audit.py --check
+      - .venv/bin/python tools/bundle.py --all
+      - .venv/bin/python tools/bundle.py --all --check
+      - .venv/bin/python tools/audit.py --dry-run
+      - git diff --check
+    stop_if:
+      - Issue #36 or #37 is incomplete
+      - A deterministic latest entity commit cannot be obtained
+      - Raw voice, direct identifiers, or Source locator must be output
+      - Core schema, vocabulary, or consent must change
+      - A path outside the issue allowance is required
+      - Another agent has unfinished conflicting changes
+    evidence: []
+
+  - id: SM-018
+    title: Export an orchestration-compatible semantic DTO
+    phase: 9
+    status: ready
+    depends_on: [SM-017]
+    issue: https://github.com/masa-san-jp/self-model-notes/issues/40
+    allowed_paths:
+      - docs/interop-mapping.md
+      - tools/export_signals.py
+      - tests/contracts/research-signals-v1.schema.json
+      - tests/contracts/agentic-art-research-consumer-v1.fixture.json
+      - tests/test_export_signals.py
+      - tests/test_e2e.py
+      - execution/tasks.yaml
+    acceptance:
+      - Every current Claim and Pattern exports exactly one unique record
+      - Every record has the fixed 26 fields and no unknown fields
+      - seek, protect, avoid, mixed, unknown, tension, and Pattern mappings are tested
+      - trait, state, and context mappings do not auto-promote
+      - rejected and superseded entities are excluded
+      - Consent denial and dirty worktree fail closed without partial output
+      - Certainty, Unknowns, constraints, and freshness follow the fixed mapping
+      - Raw voice, external Source locators, and direct identifiers are absent
+      - Envelope, signal_count, and existing CLI options remain compatible
+      - Consumer fixture satisfies the pinned adapter input contract
+      - Identical commit, generated_at, and entities produce byte-identical JSON
+    checks:
+      - .venv/bin/python -m unittest tests.test_export_signals tests.test_e2e
+      - .venv/bin/python -m unittest discover -s tests -p "test_*.py"
+      - .venv/bin/python tools/build_graph.py --check
+      - .venv/bin/python tools/audit.py --check
+      - .venv/bin/python tools/export_signals.py --purpose artistic-research --limit 0
+      - .venv/bin/python tools/audit.py --dry-run
+      - git diff --check
+    stop_if:
+      - Issue #38 or SM-017 is incomplete
+      - Latest main cannot be used
+      - A pinned consumer requires fields outside the fixed 26
+      - Core schema or closed vocabulary must change
+      - Raw voice, external locator, or unconsented data is required
+      - A sibling schema must change
+      - A path outside the issue allowance is required
+      - Another agent has unfinished conflicting changes
+    evidence: []

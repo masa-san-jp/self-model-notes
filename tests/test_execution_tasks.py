@@ -1,0 +1,98 @@
+from __future__ import annotations
+
+import unittest
+from pathlib import Path
+
+import yaml
+
+
+ROOT = Path(__file__).resolve().parents[1]
+QUEUE = ROOT / "execution" / "tasks.yaml"
+
+
+EXPECTED_DEPENDENCIES = {
+    "SM-012": ["SM-011"],
+    "SM-013": ["SM-012"],
+    "SM-014": ["SM-013"],
+    "SM-015": ["SM-014"],
+    "SM-016": ["SM-015"],
+    "SM-017": ["SM-016"],
+    "SM-018": ["SM-017"],
+}
+
+
+def load_queue() -> dict:
+    with QUEUE.open(encoding="utf-8") as handle:
+        value = yaml.safe_load(handle)
+    if not isinstance(value, dict):
+        raise AssertionError("execution/tasks.yaml must contain a mapping")
+    return value
+
+
+def selectable_tasks(queue: dict) -> list[str]:
+    tasks = queue["tasks"]
+    done = {task["id"] for task in tasks if task["status"] == "done"}
+    return [
+        task["id"]
+        for task in tasks
+        if task["status"] == "ready" and set(task["depends_on"]).issubset(done)
+    ]
+
+
+class ExecutionTaskQueueTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.queue = load_queue()
+        cls.tasks = cls.queue["tasks"]
+        cls.by_id = {task["id"]: task for task in cls.tasks}
+
+    def test_queue_version_and_unique_contiguous_ids(self):
+        self.assertEqual(2, self.queue["version"])
+        ids = [task["id"] for task in self.tasks]
+        self.assertEqual(len(ids), len(set(ids)))
+        self.assertEqual([f"SM-{index:03d}" for index in range(1, 19)], ids)
+
+    def test_dependencies_are_existing_and_acyclic_by_id(self):
+        for task in self.tasks:
+            with self.subTest(task=task["id"]):
+                self.assertNotIn(task["id"], task["depends_on"])
+                for dependency in task["depends_on"]:
+                    self.assertIn(dependency, self.by_id)
+                    self.assertLess(int(dependency.split("-")[1]), int(task["id"].split("-")[1]))
+
+    def test_gap_closure_dependency_matrix_is_fixed(self):
+        for task_id, dependencies in EXPECTED_DEPENDENCIES.items():
+            with self.subTest(task=task_id):
+                self.assertEqual(dependencies, self.by_id[task_id]["depends_on"])
+
+    def test_gap_tasks_are_dispatchable_and_have_contract_fields(self):
+        allowed_statuses = set(self.queue["policy"]["status_values"])
+        for task_id in EXPECTED_DEPENDENCIES:
+            task = self.by_id[task_id]
+            with self.subTest(task=task_id):
+                self.assertIn(task["status"], allowed_statuses)
+                self.assertTrue(task["issue"].startswith("https://github.com/"))
+                self.assertIn("execution/tasks.yaml", task["allowed_paths"])
+                self.assertTrue(task["acceptance"])
+                self.assertTrue(task["checks"])
+                self.assertTrue(task["stop_if"])
+                self.assertIn("evidence", task)
+
+    def test_selection_is_empty_while_bootstrap_is_in_progress(self):
+        if self.by_id["SM-012"]["status"] == "in-progress":
+            self.assertEqual([], selectable_tasks(self.queue))
+
+    def test_selection_is_sm013_after_bootstrap_is_done(self):
+        if self.by_id["SM-012"]["status"] == "done":
+            self.assertEqual(["SM-013"], selectable_tasks(self.queue))
+
+    def test_existing_tasks_are_unchanged_in_status_and_evidence_shape(self):
+        for task in self.tasks:
+            if int(task["id"].split("-")[1]) <= 11:
+                with self.subTest(task=task["id"]):
+                    self.assertEqual("done", task["status"])
+                    self.assertTrue(task["evidence"])
+
+
+if __name__ == "__main__":
+    unittest.main()
