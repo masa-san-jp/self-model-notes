@@ -63,7 +63,7 @@ E2Eまたは手動復旧では、次の順序と終了コードを維持する�
 
 completeが成功したら、対象branch上でevidenceをcommitしてからmainへmergeする。merge conflict時はlockをreleaseせず、mainの最新化とbranch上の検証をやり直す。releaseはremote mainのdone/evidence、evidence commitの祖先性、actor、branch、lock payloadを確認するため、premature releaseやactor mismatchではlockを残す。
 
-E2E fixtureは実在の人物、直接識別情報、raw voice、credential、token、環境値を含めず、失敗時にも絶対pathをJSON/errorへ出力しない。SM-025完了後のnextはSM-026だが、Issue #60のowner判断によるrequired merge gate有効化まではfull self-enforcing状態ではない。
+E2E fixtureは実在の人物、直接識別情報、raw voice、credential、token、環境値を含めず、失敗時にも絶対pathをJSON/errorへ出力しない。SM-026では、Issue #60に記録したagent-only脅威モデルに基づき、trusted-base CI検証を必須境界、GitHubのrequired merge gateを任意の運用強化として記録する。完了後の`next --json`はno-taskを返す。
 
 1. 作業開始前にbranch、対象Issue、許可パス、未コミット差分を確認する。
 

@@ -117,4 +117,4 @@ python3 tools/task_harness.py release SM-NNN --actor <actor> --remote origin --j
 
 PRでは`pull_request`のbase SHAをtrusted-base、head SHAをcandidateとして別checkoutし、trusted-baseの`verify-pr`でbranch/title/task ID、base/head、contract、lifecycle、evidence、allowed paths、checksを検証する。旧baseにverify-prがないbootstrap PRだけはworkflowが明示的に通過させる。手動でqueueを直す操作は通常経路ではなく、災害復旧時に観測事実と影響を記録する場合に限る。Issueに登録されていないtaskはdispatchableではない。
 
-SM-026まではこのCLIとtrusted-base policyを実装対象とするが、required merge gateの有効化はIssue #60のowner判断後に行う。SM-025完了後も、完全な自己強制が有効になったとは扱わない。
+SM-026では、利用者が実行エージェントだけである脅威モデルにおいて、trusted-base policyとCI検証を正規の実行境界とし、GitHubのrequired merge gateは任意の運用強化として扱う。この判断はIssue #60に記録し、費用や公開範囲を伴う設定変更を実行エージェントが選択・実施してはならない。
