@@ -1,7 +1,9 @@
+import tempfile
 import unittest
+from pathlib import Path
 
 from tests.test_validation import make_entity
-from tools.audit import audit_report, findings
+from tools.audit import audit_artifact_is_current, audit_json, audit_report, findings
 from tools.kb import validate_entities
 
 
@@ -61,6 +63,21 @@ class AuditTests(unittest.TestCase):
                 "findings": [],
             },
         )
+
+    def test_audit_artifact_check_distinguishes_current_stale_and_missing(self):
+        expected = audit_json([], None)
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "audit.json"
+
+            path.write_text(expected, encoding="utf-8")
+            self.assertTrue(audit_artifact_is_current(path, expected))
+
+            path.write_text("stale\n", encoding="utf-8")
+            self.assertFalse(audit_artifact_is_current(path, expected))
+            self.assertEqual("stale\n", path.read_text(encoding="utf-8"))
+
+            path.unlink()
+            self.assertFalse(audit_artifact_is_current(path, expected))
 
 
 if __name__ == "__main__":

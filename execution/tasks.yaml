@@ -424,7 +424,7 @@ tasks:
   - id: SM-014
     title: Detect stale audit artifacts and enforce synchronization
     phase: 7
-    status: ready
+    status: in-progress
     depends_on: [SM-013]
     issue: https://github.com/masa-san-jp/self-model-notes/issues/36
     allowed_paths:
