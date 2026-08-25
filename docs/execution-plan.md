@@ -67,3 +67,11 @@ Phase 10以降の実行taskは、execution/tasks.yamlを直接解釈せず、次
 validateが失敗したqueueは実行対象にしてはならない。nextは依存がdoneであるready taskのうち、IDの数値が最小の1件だけを返す。選択可能なtaskがない場合は、taskをnullにしたJSONを返し、終了コード3で終了する。検証エラーは終了コード2とし、ソート済みで機械的に比較可能なエラーだけをstderrへ出力する。
 
 CLIはqueueを読み取るだけで、Git、ネットワーク、queueファイルへの書き込みを行わない。JSONは固定キーを持つcanonical形式とし、entity本文、raw voice、秘密、認証情報、絶対パスを出力しない。
+
+SM-021以降のライフサイクル操作は、選択したtaskだけを対象に次のCLIを使う。
+
+    python3 tools/task_harness.py claim SM-NNN --actor ACTOR --remote REMOTE --base SHA --json
+    python3 tools/task_harness.py context SM-NNN --json
+    python3 tools/task_harness.py release SM-NNN --actor ACTOR --remote REMOTE --json
+
+claimは固定ref `refs/heads/harness-lock/sm-NNN` をnon-force pushで取得し、成功時だけ `agent/sm-NNN-actor` branchとqueueの `in-progress` claimを作る。失敗時はqueue bytes、開始branch、既存lockを保持する。releaseはremote main上のdone taskと証拠、actor、branch、lock payloadの一致を確認してから、該当lockだけを削除する。
