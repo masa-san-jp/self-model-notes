@@ -132,6 +132,24 @@ class HarnessRemote:
 
 
 class HarnessEndToEndTests(unittest.TestCase):
+    def test_operator_contract_docs_agree_on_lifecycle_privacy_and_merge_gate(self):
+        agents = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        plan = (ROOT / "docs" / "execution-plan.md").read_text(encoding="utf-8")
+        runbook = (ROOT / "docs" / "operations.md").read_text(encoding="utf-8")
+        issue_template = (ROOT / ".github" / "ISSUE_TEMPLATE" / "implementation-task.yml").read_text(encoding="utf-8")
+
+        for document in (agents, readme, plan, runbook):
+            with self.subTest(document=document[:20]):
+                self.assertIn("tools/task_harness.py", document)
+                self.assertIn("SM-026", document)
+                self.assertIn("Issue #60", document)
+        self.assertIn("id: parent", issue_template)
+        self.assertIn("id: task_dependencies", issue_template)
+        self.assertIn("id: lifecycle_commands", issue_template)
+        self.assertIn("id: privacy_impact", issue_template)
+        self.assertIn("not dispatchable", issue_template)
+
     def test_full_claim_to_release_lifecycle_uses_only_temporary_git_state(self):
         outside_queue = ROOT_QUEUE.read_bytes()
         outside_refs = subprocess.run(
