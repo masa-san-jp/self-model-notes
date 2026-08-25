@@ -909,7 +909,7 @@ tasks:
   - id: SM-023
     title: Run task checks safely and write completion evidence atomically
     phase: 10
-    status: ready
+    status: done
     depends_on: [SM-022]
     issue: https://github.com/masa-san-jp/self-model-notes/issues/57
     allowed_paths:
@@ -944,7 +944,23 @@ tasks:
       - Check output must be persisted to satisfy another requirement
       - Existing schema, consent, privacy, or export semantics must change
       - A path outside the issue allowance is required
-    evidence: []
+    evidence:
+      - pr: 65
+        commit: f59b3de
+        checks:
+          - ".venv/bin/python -m unittest tests.test_task_harness tests.test_execution_tasks — 36 passed"
+          - ".venv/bin/python -m unittest discover -s tests -p 'test_*.py' — 119 passed"
+          - ".venv/bin/python tools/task_harness.py validate — passed"
+          - ".venv/bin/python tools/task_harness.py verify SM-023 --json — passed in active-claim fixture"
+          - ".venv/bin/python tools/task_harness.py next --json — selected SM-024"
+          - "unsafe shell/missing executable/timeout/ordered-stop tests — passed"
+          - "atomic completion and duplicate completion tests — passed"
+          - ".venv/bin/python tools/build_graph.py --check — passed"
+          - ".venv/bin/python tools/audit.py --check — passed"
+          - "git diff --check — passed"
+          - "git diff --exit-code -- data/ overviews/coverage.md — passed"
+          - "GitHub Actions validate for PR #65 — passed"
+        next_ready: SM-024
 
   - id: SM-024
     title: Enforce one-task PR policy in GitHub Actions

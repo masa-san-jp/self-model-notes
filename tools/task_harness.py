@@ -7,6 +7,7 @@ import datetime as dt
 import json
 import os
 import re
+import shlex
 import subprocess
 import sys
 import tempfile
@@ -101,6 +102,19 @@ class PathGuardError(HarnessError):
         self.paths = sorted(set(paths or []))
 
 
+class CheckFailure(HarnessError):
+    """A safe check failure with a non-persistent summary."""
+
+    def __init__(
+        self,
+        code: str,
+        message: str,
+        results: list[dict[str, Any]],
+    ):
+        super().__init__(code, message, CHECK_FAILED)
+        self.results = results
+
+
 CLAIM_INVALID = 2
 CLAIM_SAME_TASK_LOCK = "CLAIM_SAME_TASK_LOCK"
 CLAIM_SHARED_LOCK = "CLAIM_SHARED_LOCK"
@@ -114,6 +128,8 @@ RELEASE_ACTOR = "RELEASE_ACTOR"
 RELEASE_LOCK = "RELEASE_LOCK"
 PATH_INVALID = 2
 PATH_DISALLOWED = 4
+CHECK_FAILED = 5
+CHECK_TIMEOUT_SECONDS = 60
 
 
 def canonical_json(value: Any) -> str:
@@ -452,7 +468,8 @@ def _validate_actor(actor: str) -> None:
 
 def _validate_sha(value: str, field: str) -> None:
     if not isinstance(value, str) or not SHA_RE.fullmatch(value):
-        raise HarnessError("INVALID_BASE", f"{field} must be a 40-character commit", CLAIM_INVALID)
+        code = "INVALID_COMMIT" if field == "commit" else "INVALID_BASE"
+        raise HarnessError(code, f"{field} must be a 40-character commit", CLAIM_INVALID)
 
 
 def _require_clean_main(repo: Path, remote: str, base: str) -> str:
@@ -1097,6 +1114,253 @@ def verify_paths(
     }
 
 
+def _active_task_for_verification(
+    task_id: str,
+    *,
+    repo: Path,
+    queue_path: Path,
+) -> tuple[dict[str, Any], dict[str, str]]:
+    queue = _validated_queue(queue_path)
+    task = _task_for_id(queue, task_id)
+    claim = task.get("claim")
+    if task["status"] != "in-progress" or not isinstance(claim, dict):
+        raise HarnessError("CLAIM_REQUIRED", "task must have an active claim", CLAIM_INVALID)
+    branch = _git_output(
+        repo,
+        ["branch", "--show-current"],
+        code="CLAIM_BRANCH_MISMATCH",
+        message="current branch cannot be read",
+    )
+    if branch == "main" or branch != claim.get("branch"):
+        raise HarnessError("CLAIM_BRANCH_MISMATCH", "current branch does not match active claim", CLAIM_INVALID)
+    return task, claim
+
+
+def _safe_check_argv(command: str) -> list[str]:
+    if not isinstance(command, str) or not command.strip() or "\x00" in command:
+        raise HarnessError("UNSAFE_CHECK", "check command is empty or invalid", CHECK_FAILED)
+    if "\n" in command or "\r" in command:
+        raise HarnessError("UNSAFE_CHECK", "check command contains a newline", CHECK_FAILED)
+    if any(character in command for character in ";|&<>") or chr(96) in command:
+        raise HarnessError("UNSAFE_CHECK", "check command contains shell control syntax", CHECK_FAILED)
+    if "$(" in command or "$" + "{" in command:
+        raise HarnessError("UNSAFE_CHECK", "check command contains command substitution", CHECK_FAILED)
+    try:
+        argv = shlex.split(command, posix=True)
+    except ValueError as exc:
+        raise HarnessError("UNSAFE_CHECK", "check command cannot be parsed", CHECK_FAILED) from exc
+    if not argv or argv[0] == "env":
+        raise HarnessError("UNSAFE_CHECK", "check command has no safe executable", CHECK_FAILED)
+    control_tokens = {";", "&&", "||", "|", ">", ">>", "<", "<<", "&", "(", ")"}
+    if any(token in control_tokens for token in argv):
+        raise HarnessError("UNSAFE_CHECK", "check command contains shell control token", CHECK_FAILED)
+    if any(re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*=.*", token) for token in argv):
+        raise HarnessError("UNSAFE_CHECK", "check command has an environment assignment", CHECK_FAILED)
+    return argv
+
+
+def _is_nested_verify(argv: list[str], task_id: str) -> bool:
+    if len(argv) < 4 or argv[2] != "verify" or argv[3] != task_id:
+        return False
+    return argv[0] in {"python", "python3"} and argv[1].replace("\\", "/").endswith(
+        "tools/task_harness.py"
+    )
+
+
+def _run_declared_checks(
+    task_id: str,
+    checks: list[str],
+    *,
+    repo: Path,
+) -> list[dict[str, Any]]:
+    results: list[dict[str, Any]] = []
+    for command in checks:
+        try:
+            argv = _safe_check_argv(command)
+        except HarnessError as error:
+            results.append({"command": command, "exit_code": None, "status": "failed"})
+            raise CheckFailure(error.code, error.message, results) from error
+        environment = None
+        if _is_nested_verify(argv, task_id):
+            environment = os.environ.copy()
+            environment["TASK_HARNESS_NESTED_VERIFY"] = "1"
+        failure_code = "CHECK_FAILED"
+        try:
+            completed = subprocess.run(
+                argv,
+                cwd=repo,
+                shell=False,
+                timeout=CHECK_TIMEOUT_SECONDS,
+                env=environment,
+                stdout=sys.stderr,
+                stderr=sys.stderr,
+            )
+            exit_code: int | None = completed.returncode
+            status = "passed" if completed.returncode == 0 else "failed"
+        except FileNotFoundError:
+            exit_code = None
+            status = "failed"
+            failure_code = "MISSING_EXECUTABLE"
+        except subprocess.TimeoutExpired:
+            exit_code = None
+            status = "failed"
+            failure_code = "CHECK_TIMEOUT"
+        result = {"command": command, "exit_code": exit_code, "status": status}
+        results.append(result)
+        if status == "failed":
+            raise CheckFailure(failure_code, "declared check failed", results)
+    return results
+
+
+def verify_task(
+    task_id: str,
+    *,
+    repo: Path = ROOT,
+    queue_path: Path | None = None,
+) -> dict[str, Any]:
+    queue_path = queue_path or repo / "execution" / "tasks.yaml"
+    task, claim = _active_task_for_verification(
+        task_id,
+        repo=repo,
+        queue_path=queue_path,
+    )
+    path_result = verify_paths(
+        task_id,
+        base=claim["base"],
+        repo=repo,
+        queue_path=queue_path,
+    )
+    check_results = _run_declared_checks(task_id, task["checks"], repo=repo)
+    return {
+        "task": task_id,
+        "status": "passed",
+        "path_guard": {"status": "passed", "paths": path_result["paths"]},
+        "checks": check_results,
+    }
+
+
+def _completion_mutation(
+    queue_path: Path,
+    before_queue: dict[str, Any],
+    task_id: str,
+    pr: int,
+    commit: str,
+    evidence_checks: list[str],
+) -> None:
+    try:
+        original = queue_path.read_bytes()
+        text = original.decode("utf-8")
+    except (OSError, UnicodeError) as exc:
+        raise HarnessError("COMPLETION_MUTATION_FAILED", "queue cannot be read", CLAIM_INVALID) from exc
+    block_pattern = re.compile(
+        rf"(?ms)^(?P<indent> *)- id: {re.escape(task_id)}\n"
+        rf".*?(?=^(?P=indent)- id: |\Z)"
+    )
+    match = block_pattern.search(text)
+    if match is None:
+        raise HarnessError("COMPLETION_MUTATION_FAILED", "selected task block is missing", CLAIM_INVALID)
+    block = match.group(0)
+    field_indent = match.group("indent") + "  "
+    nested_indent = field_indent + "  "
+    status_pattern = re.compile(
+        rf"^{re.escape(field_indent)}status: in-progress$", re.MULTILINE
+    )
+    if len(status_pattern.findall(block)) != 1:
+        raise HarnessError("COMPLETION_MUTATION_FAILED", "task is not in progress", CLAIM_INVALID)
+    claim_pattern = re.compile(
+        rf"^{re.escape(field_indent)}claim:\n"
+        rf"(?:^{re.escape(nested_indent)}.*\n)*",
+        re.MULTILINE,
+    )
+    if claim_pattern.search(block) is None:
+        raise HarnessError("COMPLETION_MUTATION_FAILED", "active claim mapping is missing", CLAIM_INVALID)
+    evidence_line = f"{field_indent}evidence: []"
+    if block.count(evidence_line) != 1:
+        raise HarnessError("COMPLETION_MUTATION_FAILED", "evidence is not empty", CLAIM_INVALID)
+    updated = status_pattern.sub(f"{field_indent}status: done", block, count=1)
+    updated = claim_pattern.sub(f"{field_indent}claim: null\n", updated, count=1)
+    evidence_text = (
+        f"{field_indent}evidence:\n"
+        f"{nested_indent}- pr: {pr}\n"
+        f"{nested_indent}  commit: {commit}\n"
+        f"{nested_indent}  checks:\n"
+    )
+    evidence_text += "".join(
+        f"{nested_indent}    - {json.dumps(check, ensure_ascii=False)}\n"
+        for check in evidence_checks
+    )
+    updated = updated.replace(evidence_line, evidence_text, 1)
+    new_text = text[: match.start()] + updated + text[match.end() :]
+    try:
+        new_queue = yaml.safe_load(new_text)
+    except yaml.YAMLError as exc:
+        raise HarnessError("COMPLETION_MUTATION_FAILED", "resulting queue is invalid", CLAIM_INVALID) from exc
+    if not isinstance(new_queue, dict) or validate_queue(new_queue):
+        raise HarnessError("COMPLETION_MUTATION_FAILED", "resulting queue is invalid", CLAIM_INVALID)
+    before_tasks = {task["id"]: task for task in before_queue["tasks"]}
+    after_tasks = {task["id"]: task for task in new_queue["tasks"]}
+    if set(before_tasks) != set(after_tasks):
+        raise HarnessError("COMPLETION_MUTATION_FAILED", "unrelated tasks changed", CLAIM_INVALID)
+    expected_record = {"pr": pr, "commit": commit, "checks": evidence_checks}
+    for current_id, before_task in before_tasks.items():
+        after_task = after_tasks[current_id]
+        if current_id != task_id and before_task != after_task:
+            raise HarnessError("COMPLETION_MUTATION_FAILED", "unrelated task changed", CLAIM_INVALID)
+        if current_id == task_id:
+            expected = dict(before_task)
+            expected["status"] = "done"
+            expected["claim"] = None
+            expected["evidence"] = before_task["evidence"] + [expected_record]
+            if after_task != expected:
+                raise HarnessError("COMPLETION_MUTATION_FAILED", "completion changed unexpected fields", CLAIM_INVALID)
+    for key in before_queue:
+        if key != "tasks" and before_queue[key] != new_queue.get(key):
+            raise HarnessError("COMPLETION_MUTATION_FAILED", "completion changed queue metadata", CLAIM_INVALID)
+    _atomic_write(queue_path, new_text.encode("utf-8"))
+
+
+def complete_task(
+    task_id: str,
+    pr: int,
+    commit: str,
+    *,
+    repo: Path = ROOT,
+    queue_path: Path | None = None,
+) -> dict[str, Any]:
+    queue_path = queue_path or repo / "execution" / "tasks.yaml"
+    if not isinstance(pr, int) or isinstance(pr, bool) or pr <= 0:
+        raise HarnessError("INVALID_PR", "pr must be a positive integer", CLAIM_INVALID)
+    _validate_sha(commit, "commit")
+    verification = verify_task(task_id, repo=repo, queue_path=queue_path)
+    queue = _validated_queue(queue_path)
+    task = _task_for_id(queue, task_id)
+    claim = task.get("claim")
+    if task["status"] != "in-progress" or not isinstance(claim, dict):
+        raise HarnessError("CLAIM_REQUIRED", "task must have an active claim", CLAIM_INVALID)
+    branch = _git_output(repo, ["branch", "--show-current"], code="CLAIM_BRANCH_MISMATCH", message="current branch cannot be read")
+    if branch == "main" or branch != claim.get("branch"):
+        raise HarnessError("CLAIM_BRANCH_MISMATCH", "current branch does not match active claim", CLAIM_INVALID)
+    head = _git_output(repo, ["rev-parse", "HEAD"], code="INVALID_COMMIT", message="HEAD cannot be read")
+    if head != commit:
+        raise HarnessError("COMMIT_MISMATCH", "commit must equal current HEAD", CLAIM_INVALID)
+    status = _run_git(repo, ["status", "--porcelain=v1", "--untracked-files=all"])
+    if status.returncode != 0 or status.stdout.strip():
+        raise HarnessError("WORKTREE_DIRTY", "worktree and index must be clean", CLAIM_INVALID)
+    if task["evidence"]:
+        raise HarnessError("EVIDENCE_ALREADY_PRESENT", "task already has evidence", CLAIM_INVALID)
+    evidence_checks = [
+        f"python3 tools/task_harness.py verify-paths {task_id} --json — passed"
+    ] + [f"{result['command']} — passed" for result in verification["checks"]]
+    _completion_mutation(queue_path, queue, task_id, pr, commit, evidence_checks)
+    return {
+        "task": task_id,
+        "status": "done",
+        "pr": pr,
+        "commit": commit,
+        "checks": evidence_checks,
+    }
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="task_harness")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -1128,6 +1392,16 @@ def _parser() -> argparse.ArgumentParser:
     verify.add_argument("--committed-only", action="store_true")
     verify.add_argument("--queue", type=Path, default=DEFAULT_QUEUE)
     verify.add_argument("--json", action="store_true")
+    run_checks = subparsers.add_parser("verify")
+    run_checks.add_argument("task_id")
+    run_checks.add_argument("--queue", type=Path, default=DEFAULT_QUEUE)
+    run_checks.add_argument("--json", action="store_true")
+    complete = subparsers.add_parser("complete")
+    complete.add_argument("task_id")
+    complete.add_argument("--pr", required=True, type=int)
+    complete.add_argument("--commit", required=True)
+    complete.add_argument("--queue", type=Path, default=DEFAULT_QUEUE)
+    complete.add_argument("--json", action="store_true")
     return parser
 
 
@@ -1171,6 +1445,22 @@ def _write_path_guard_error(task_id: str, error: PathGuardError, *, as_json: boo
         sys.stderr.write(f"{error.code}: {error.message}\n")
 
 
+def _write_check_failure(task_id: str, error: CheckFailure, *, as_json: bool) -> None:
+    if as_json:
+        sys.stderr.write(
+            canonical_json(
+                {
+                    "task": task_id,
+                    "status": "failed",
+                    "checks": error.results,
+                }
+            )
+            + "\n"
+        )
+    else:
+        sys.stderr.write(f"{error.code}: {error.message}\n")
+
+
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     if args.command == "verify-paths":
@@ -1190,6 +1480,64 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         except PathGuardError as error:
             _write_path_guard_error(args.task_id, error, as_json=args.json)
+            return error.exit_code
+    if args.command == "verify":
+        try:
+            if os.environ.get("TASK_HARNESS_NESTED_VERIFY") == "1":
+                task, claim = _active_task_for_verification(
+                    args.task_id,
+                    repo=args.queue.parent.parent,
+                    queue_path=args.queue,
+                )
+                verify_paths(
+                    args.task_id,
+                    base=claim["base"],
+                    repo=args.queue.parent.parent,
+                    queue_path=args.queue,
+                )
+                result = {"task": args.task_id, "status": "passed", "checks": []}
+            else:
+                result = verify_task(
+                    args.task_id,
+                    repo=args.queue.parent.parent,
+                    queue_path=args.queue,
+                )
+            if args.json:
+                sys.stdout.write(canonical_json(result) + "\n")
+            else:
+                sys.stdout.write(f"{args.task_id}: verification passed\n")
+            return 0
+        except CheckFailure as error:
+            _write_check_failure(args.task_id, error, as_json=args.json)
+            return error.exit_code
+        except PathGuardError as error:
+            _write_path_guard_error(args.task_id, error, as_json=args.json)
+            return error.exit_code
+        except HarnessError as error:
+            _write_error(error, as_json=args.json)
+            return error.exit_code
+    if args.command == "complete":
+        try:
+            result = complete_task(
+                args.task_id,
+                args.pr,
+                args.commit,
+                repo=args.queue.parent.parent,
+                queue_path=args.queue,
+            )
+            if args.json:
+                sys.stdout.write(canonical_json(result) + "\n")
+            else:
+                sys.stdout.write(f"{args.task_id}: completion recorded\n")
+            return 0
+        except CheckFailure as error:
+            _write_check_failure(args.task_id, error, as_json=args.json)
+            return error.exit_code
+        except PathGuardError as error:
+            _write_path_guard_error(args.task_id, error, as_json=args.json)
+            return error.exit_code
+        except HarnessError as error:
+            _write_error(error, as_json=args.json)
             return error.exit_code
     if args.command == "context":
         try:

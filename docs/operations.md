@@ -33,6 +33,15 @@ python3 tools/task_harness.py verify-paths SM-NNN --base <claim-base> --committe
 
 終了コード4は許可外pathの検出、終了コード2はqueue・claim・Git状態の不正を表す。出力にfile内容、entity本文、raw voice、秘密、認証情報、絶対pathを含めない。
 
+verifyはchecksを宣言順にshellなしで実行し、最初の失敗で停止する。成功後、worktreeをcleanにしてから現在HEADとPR番号を指定してcompleteする。
+
+```bash
+python3 tools/task_harness.py verify SM-NNN --json
+python3 tools/task_harness.py complete SM-NNN --pr <number> --commit <head-sha> --json
+```
+
+completeはqueueの対象taskだけをatomic replaceで更新する。失敗時はqueue bytesとactive claimを保持し、mergeやremote lockのreleaseは行わない。
+
 1. 作業開始前にbranch、対象Issue、許可パス、未コミット差分を確認する。
 
    ```bash
