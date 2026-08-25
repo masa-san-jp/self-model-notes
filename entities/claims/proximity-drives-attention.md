@@ -3,6 +3,7 @@ id: claim/proximity-drives-attention
 type: claim
 subject: subject/masa
 layer: motivation
+motivation_direction: unknown
 scope: state
 statement: "注意を捕らえているのは挑戦の非合理さではなく、対象との距離の近さである可能性がある"
 conditions: ["同種の挑戦をしている人が他にも存在する状況で"]

@@ -15,64 +15,65 @@
 
 ## Field coverage
 
-| Field | Unobserved | Unknown | Confirmed empty | Observed |
-|---|---:|---:|---:|---:|
-| subject.consent_refs | 0 | 0 | 0 | 1 |
-| source.captured_at | 0 | 0 | 0 | 2 |
-| source.locator | 0 | 0 | 0 | 2 |
-| source.raw_content_stored | 0 | 0 | 0 | 2 |
-| source.consent.obtained | 0 | 0 | 0 | 2 |
-| source.consent.purposes | 0 | 0 | 0 | 2 |
-| source.consent.allowed_operations | 0 | 0 | 0 | 2 |
-| source.consent.expires_at | 0 | 2 | 0 | 0 |
-| source.consent.revoked_at | 0 | 2 | 0 | 0 |
-| source.reliability_notes | 0 | 1 | 0 | 1 |
-| event.time.observed_at | 0 | 0 | 0 | 1 |
-| event.time.precision | 0 | 0 | 0 | 1 |
-| event.context.domains | 0 | 0 | 0 | 1 |
-| event.context.social | 0 | 0 | 0 | 1 |
-| event.context.uncertainty | 0 | 0 | 0 | 1 |
-| event.context.control | 0 | 0 | 0 | 1 |
-| event.state.fatigue | 0 | 1 | 0 | 0 |
-| event.state.stress | 0 | 1 | 0 | 0 |
-| event.trigger | 0 | 0 | 0 | 1 |
-| event.observed_facts | 0 | 0 | 0 | 1 |
-| event.raw_voice | 0 | 0 | 0 | 1 |
-| event.appraisal | 0 | 1 | 0 | 0 |
-| event.emotion | 0 | 1 | 0 | 0 |
-| event.body | 0 | 1 | 0 | 0 |
-| event.cognition | 0 | 1 | 0 | 0 |
-| event.action | 0 | 0 | 0 | 1 |
-| event.immediate_outcome | 0 | 1 | 0 | 0 |
-| event.delayed_outcome | 0 | 1 | 0 | 0 |
-| event.source_refs | 0 | 0 | 0 | 1 |
-| claim.layer | 0 | 0 | 0 | 3 |
-| claim.scope | 0 | 0 | 0 | 3 |
-| claim.statement | 0 | 0 | 0 | 3 |
-| claim.conditions | 0 | 0 | 0 | 3 |
-| claim.supporting_evidence | 0 | 0 | 0 | 3 |
-| claim.counterevidence | 0 | 0 | 3 | 0 |
-| claim.alternative_explanations | 0 | 0 | 0 | 3 |
-| claim.confidence | 0 | 0 | 0 | 3 |
-| claim.status | 0 | 0 | 0 | 3 |
-| claim.supersedes | 0 | 3 | 0 | 0 |
-| claim.superseded_by | 0 | 3 | 0 | 0 |
-| pattern.condition | 0 | 0 | 0 | 0 |
-| pattern.recurring_appraisal | 0 | 0 | 0 | 0 |
-| pattern.recurring_drive | 0 | 0 | 0 | 0 |
-| pattern.recurring_action | 0 | 0 | 0 | 0 |
-| pattern.reinforcement | 0 | 0 | 0 | 0 |
-| pattern.contexts_seen | 0 | 0 | 0 | 0 |
-| pattern.evidence | 0 | 0 | 0 | 0 |
-| pattern.claim_refs | 0 | 0 | 0 | 0 |
-| pattern.counterevidence | 0 | 0 | 0 | 0 |
-| pattern.confidence | 0 | 0 | 0 | 0 |
-| pattern.status | 0 | 0 | 0 | 0 |
-| measurement.instrument.name | 0 | 0 | 0 | 0 |
-| measurement.instrument.version | 0 | 0 | 0 | 0 |
-| measurement.instrument.official | 0 | 0 | 0 | 0 |
-| measurement.instrument.scoring_reference | 0 | 0 | 0 | 0 |
-| measurement.administered_at | 0 | 0 | 0 | 0 |
-| measurement.source_ref | 0 | 0 | 0 | 0 |
-| measurement.scores | 0 | 0 | 0 | 0 |
-| measurement.interpretation_claim_refs | 0 | 0 | 0 | 0 |
+| Field | Unobserved | Null | Unknown | Confirmed empty | Observed |
+|---|---:|---:|---:|---:|---:|
+| subject.consent_refs | 0 | 0 | 0 | 0 | 1 |
+| source.captured_at | 0 | 0 | 0 | 0 | 2 |
+| source.locator | 0 | 0 | 0 | 0 | 2 |
+| source.raw_content_stored | 0 | 0 | 0 | 0 | 2 |
+| source.consent.obtained | 0 | 0 | 0 | 0 | 2 |
+| source.consent.purposes | 0 | 0 | 0 | 0 | 2 |
+| source.consent.allowed_operations | 0 | 0 | 0 | 0 | 2 |
+| source.consent.expires_at | 0 | 2 | 0 | 0 | 0 |
+| source.consent.revoked_at | 0 | 2 | 0 | 0 | 0 |
+| source.reliability_notes | 0 | 1 | 0 | 0 | 1 |
+| event.time.observed_at | 0 | 0 | 0 | 0 | 1 |
+| event.time.precision | 0 | 0 | 0 | 0 | 1 |
+| event.context.domains | 0 | 0 | 0 | 0 | 1 |
+| event.context.social | 0 | 0 | 0 | 0 | 1 |
+| event.context.uncertainty | 0 | 0 | 0 | 0 | 1 |
+| event.context.control | 0 | 0 | 0 | 0 | 1 |
+| event.state.fatigue | 0 | 1 | 0 | 0 | 0 |
+| event.state.stress | 0 | 0 | 1 | 0 | 0 |
+| event.trigger | 0 | 0 | 0 | 0 | 1 |
+| event.observed_facts | 0 | 0 | 0 | 0 | 1 |
+| event.raw_voice | 0 | 0 | 0 | 0 | 1 |
+| event.appraisal | 0 | 1 | 0 | 0 | 0 |
+| event.emotion | 0 | 1 | 0 | 0 | 0 |
+| event.body | 0 | 1 | 0 | 0 | 0 |
+| event.cognition | 0 | 1 | 0 | 0 | 0 |
+| event.action | 0 | 0 | 0 | 0 | 1 |
+| event.immediate_outcome | 0 | 1 | 0 | 0 | 0 |
+| event.delayed_outcome | 0 | 1 | 0 | 0 | 0 |
+| event.source_refs | 0 | 0 | 0 | 0 | 1 |
+| claim.layer | 0 | 0 | 0 | 0 | 3 |
+| claim.motivation_direction | 0 | 2 | 1 | 0 | 0 |
+| claim.scope | 0 | 0 | 0 | 0 | 3 |
+| claim.statement | 0 | 0 | 0 | 0 | 3 |
+| claim.conditions | 0 | 0 | 0 | 0 | 3 |
+| claim.supporting_evidence | 0 | 0 | 0 | 0 | 3 |
+| claim.counterevidence | 0 | 0 | 0 | 3 | 0 |
+| claim.alternative_explanations | 0 | 0 | 0 | 0 | 3 |
+| claim.confidence | 0 | 0 | 0 | 0 | 3 |
+| claim.status | 0 | 0 | 0 | 0 | 3 |
+| claim.supersedes | 0 | 3 | 0 | 0 | 0 |
+| claim.superseded_by | 0 | 3 | 0 | 0 | 0 |
+| pattern.condition | 0 | 0 | 0 | 0 | 0 |
+| pattern.recurring_appraisal | 0 | 0 | 0 | 0 | 0 |
+| pattern.recurring_drive | 0 | 0 | 0 | 0 | 0 |
+| pattern.recurring_action | 0 | 0 | 0 | 0 | 0 |
+| pattern.reinforcement | 0 | 0 | 0 | 0 | 0 |
+| pattern.contexts_seen | 0 | 0 | 0 | 0 | 0 |
+| pattern.evidence | 0 | 0 | 0 | 0 | 0 |
+| pattern.claim_refs | 0 | 0 | 0 | 0 | 0 |
+| pattern.counterevidence | 0 | 0 | 0 | 0 | 0 |
+| pattern.confidence | 0 | 0 | 0 | 0 | 0 |
+| pattern.status | 0 | 0 | 0 | 0 | 0 |
+| measurement.instrument.name | 0 | 0 | 0 | 0 | 0 |
+| measurement.instrument.version | 0 | 0 | 0 | 0 | 0 |
+| measurement.instrument.official | 0 | 0 | 0 | 0 | 0 |
+| measurement.instrument.scoring_reference | 0 | 0 | 0 | 0 | 0 |
+| measurement.administered_at | 0 | 0 | 0 | 0 | 0 |
+| measurement.source_ref | 0 | 0 | 0 | 0 | 0 |
+| measurement.scores | 0 | 0 | 0 | 0 | 0 |
+| measurement.interpretation_claim_refs | 0 | 0 | 0 | 0 | 0 |

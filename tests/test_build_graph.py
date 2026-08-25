@@ -72,7 +72,7 @@ class BuildGraphTests(unittest.TestCase):
             ("source/interview", "event/observed", "claim/hypothesis", "pattern/recurring"),
         })
 
-    def test_coverage_distinguishes_unobserved_unknown_and_confirmed_empty(self):
+    def test_coverage_distinguishes_unobserved_null_unknown_and_confirmed_empty(self):
         event = make_entity(
             "event",
             "coverage",
@@ -85,13 +85,14 @@ class BuildGraphTests(unittest.TestCase):
         coverage = build_coverage([event])
 
         self.assertEqual(coverage["field_coverage"]["event.trigger"]["unobserved"], 1)
-        self.assertEqual(coverage["field_coverage"]["event.observed_facts"]["unknown"], 1)
+        self.assertEqual(coverage["field_coverage"]["event.observed_facts"]["null"], 1)
         self.assertEqual(coverage["field_coverage"]["event.raw_voice"]["confirmed-empty"], 1)
         self.assertEqual(coverage["field_coverage"]["event.action"]["observed"], 1)
         self.assertEqual(coverage["field_coverage"]["event.context.uncertainty"]["unknown"], 1)
 
         markdown = coverage_markdown(coverage)
         self.assertIn("Unobserved", markdown)
+        self.assertIn("Null", markdown)
         self.assertIn("Unknown", markdown)
         self.assertIn("Confirmed empty", markdown)
 
@@ -137,8 +138,23 @@ class BuildGraphTests(unittest.TestCase):
         for field in unobserved_fields:
             with self.subTest(coverage_field=field):
                 states = coverage["field_coverage"][f"event.{field}"]
-                self.assertEqual(1, states["unknown"])
+                self.assertEqual(1, states["null"])
+                self.assertEqual(0, states["unknown"])
                 self.assertEqual(0, states["confirmed-empty"])
+
+    def test_motivation_direction_coverage_distinguishes_null_unknown_and_observed(self):
+        claims = [
+            make_entity("claim", "direction-null", layer="tension", motivation_direction=None),
+            make_entity("claim", "direction-unknown", layer="motivation", motivation_direction="unknown"),
+            make_entity("claim", "direction-observed", layer="motivation", motivation_direction="seek"),
+        ]
+
+        coverage = build_coverage(claims)
+        states = coverage["field_coverage"]["claim.motivation_direction"]
+
+        self.assertEqual(states["null"], 1)
+        self.assertEqual(states["unknown"], 1)
+        self.assertEqual(states["observed"], 1)
 
 
 if __name__ == "__main__":

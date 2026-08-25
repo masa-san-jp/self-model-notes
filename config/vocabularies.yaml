@@ -8,6 +8,7 @@ plural_paths:
   pattern: patterns
   measurement: measurements
 claim_layers: [emotion, motivation, behavioral-principle, tension, other]
+motivation_directions: [seek, protect, avoid, mixed, unknown]
 claim_statuses: [hypothesis, supported, revised, rejected]
 scopes: [state, context-bound, trait-candidate, trait]
 confidence: [unknown, low, medium, high]
@@ -18,4 +19,3 @@ allowed_operations: [store-reference, analyze, derive, bundle, export-signals]
 unknown_semantics:
   null: not-known-or-not-observed
   empty_list: checked-and-no-items
-

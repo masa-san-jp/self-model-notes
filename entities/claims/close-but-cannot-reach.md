@@ -3,6 +3,7 @@ id: claim/close-but-cannot-reach
 type: claim
 subject: subject/masa
 layer: tension
+motivation_direction: null
 scope: state
 statement: "距離が近いために目を離せない一方で、その近さが介入を可能にはしていない"
 conditions: ["身近な人が、結果の見通しが立たない試みの途中にあるとき"]

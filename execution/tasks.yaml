@@ -475,7 +475,7 @@ tasks:
   - id: SM-015
     title: Add explicit motivation direction to Claims
     phase: 8
-    status: ready
+    status: in-progress
     depends_on: [SM-014]
     issue: https://github.com/masa-san-jp/self-model-notes/issues/39
     allowed_paths:

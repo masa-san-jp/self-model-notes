@@ -10,354 +10,420 @@
   "field_coverage": {
     "claim.alternative_explanations": {
       "confirmed-empty": 0,
+      "null": 0,
       "observed": 3,
       "unknown": 0,
       "unobserved": 0
     },
     "claim.conditions": {
       "confirmed-empty": 0,
+      "null": 0,
       "observed": 3,
       "unknown": 0,
       "unobserved": 0
     },
     "claim.confidence": {
       "confirmed-empty": 0,
+      "null": 0,
       "observed": 3,
       "unknown": 0,
       "unobserved": 0
     },
     "claim.counterevidence": {
       "confirmed-empty": 3,
+      "null": 0,
       "observed": 0,
       "unknown": 0,
       "unobserved": 0
     },
     "claim.layer": {
       "confirmed-empty": 0,
+      "null": 0,
       "observed": 3,
       "unknown": 0,
       "unobserved": 0
     },
+    "claim.motivation_direction": {
+      "confirmed-empty": 0,
+      "null": 2,
+      "observed": 0,
+      "unknown": 1,
+      "unobserved": 0
+    },
     "claim.scope": {
       "confirmed-empty": 0,
+      "null": 0,
       "observed": 3,
       "unknown": 0,
       "unobserved": 0
     },
     "claim.statement": {
       "confirmed-empty": 0,
+      "null": 0,
       "observed": 3,
       "unknown": 0,
       "unobserved": 0
     },
     "claim.status": {
       "confirmed-empty": 0,
+      "null": 0,
       "observed": 3,
       "unknown": 0,
       "unobserved": 0
     },
     "claim.superseded_by": {
       "confirmed-empty": 0,
+      "null": 3,
       "observed": 0,
-      "unknown": 3,
+      "unknown": 0,
       "unobserved": 0
     },
     "claim.supersedes": {
       "confirmed-empty": 0,
+      "null": 3,
       "observed": 0,
-      "unknown": 3,
+      "unknown": 0,
       "unobserved": 0
     },
     "claim.supporting_evidence": {
       "confirmed-empty": 0,
+      "null": 0,
       "observed": 3,
       "unknown": 0,
       "unobserved": 0
     },
     "event.action": {
       "confirmed-empty": 0,
+      "null": 0,
       "observed": 1,
       "unknown": 0,
       "unobserved": 0
     },
     "event.appraisal": {
       "confirmed-empty": 0,
+      "null": 1,
       "observed": 0,
-      "unknown": 1,
+      "unknown": 0,
       "unobserved": 0
     },
     "event.body": {
       "confirmed-empty": 0,
+      "null": 1,
       "observed": 0,
-      "unknown": 1,
+      "unknown": 0,
       "unobserved": 0
     },
     "event.cognition": {
       "confirmed-empty": 0,
+      "null": 1,
       "observed": 0,
-      "unknown": 1,
+      "unknown": 0,
       "unobserved": 0
     },
     "event.context.control": {
       "confirmed-empty": 0,
+      "null": 0,
       "observed": 1,
       "unknown": 0,
       "unobserved": 0
     },
     "event.context.domains": {
       "confirmed-empty": 0,
+      "null": 0,
       "observed": 1,
       "unknown": 0,
       "unobserved": 0
     },
     "event.context.social": {
       "confirmed-empty": 0,
+      "null": 0,
       "observed": 1,
       "unknown": 0,
       "unobserved": 0
     },
     "event.context.uncertainty": {
       "confirmed-empty": 0,
+      "null": 0,
       "observed": 1,
       "unknown": 0,
       "unobserved": 0
     },
     "event.delayed_outcome": {
       "confirmed-empty": 0,
+      "null": 1,
       "observed": 0,
-      "unknown": 1,
+      "unknown": 0,
       "unobserved": 0
     },
     "event.emotion": {
       "confirmed-empty": 0,
+      "null": 1,
       "observed": 0,
-      "unknown": 1,
+      "unknown": 0,
       "unobserved": 0
     },
     "event.immediate_outcome": {
       "confirmed-empty": 0,
+      "null": 1,
       "observed": 0,
-      "unknown": 1,
+      "unknown": 0,
       "unobserved": 0
     },
     "event.observed_facts": {
       "confirmed-empty": 0,
+      "null": 0,
       "observed": 1,
       "unknown": 0,
       "unobserved": 0
     },
     "event.raw_voice": {
       "confirmed-empty": 0,
+      "null": 0,
       "observed": 1,
       "unknown": 0,
       "unobserved": 0
     },
     "event.source_refs": {
       "confirmed-empty": 0,
+      "null": 0,
       "observed": 1,
       "unknown": 0,
       "unobserved": 0
     },
     "event.state.fatigue": {
       "confirmed-empty": 0,
+      "null": 1,
       "observed": 0,
-      "unknown": 1,
+      "unknown": 0,
       "unobserved": 0
     },
     "event.state.stress": {
       "confirmed-empty": 0,
+      "null": 0,
       "observed": 0,
       "unknown": 1,
       "unobserved": 0
     },
     "event.time.observed_at": {
       "confirmed-empty": 0,
+      "null": 0,
       "observed": 1,
       "unknown": 0,
       "unobserved": 0
     },
     "event.time.precision": {
       "confirmed-empty": 0,
+      "null": 0,
       "observed": 1,
       "unknown": 0,
       "unobserved": 0
     },
     "event.trigger": {
       "confirmed-empty": 0,
+      "null": 0,
       "observed": 1,
       "unknown": 0,
       "unobserved": 0
     },
     "measurement.administered_at": {
       "confirmed-empty": 0,
+      "null": 0,
       "observed": 0,
       "unknown": 0,
       "unobserved": 0
     },
     "measurement.instrument.name": {
       "confirmed-empty": 0,
+      "null": 0,
       "observed": 0,
       "unknown": 0,
       "unobserved": 0
     },
     "measurement.instrument.official": {
       "confirmed-empty": 0,
+      "null": 0,
       "observed": 0,
       "unknown": 0,
       "unobserved": 0
     },
     "measurement.instrument.scoring_reference": {
       "confirmed-empty": 0,
+      "null": 0,
       "observed": 0,
       "unknown": 0,
       "unobserved": 0
     },
     "measurement.instrument.version": {
       "confirmed-empty": 0,
+      "null": 0,
       "observed": 0,
       "unknown": 0,
       "unobserved": 0
     },
     "measurement.interpretation_claim_refs": {
       "confirmed-empty": 0,
+      "null": 0,
       "observed": 0,
       "unknown": 0,
       "unobserved": 0
     },
     "measurement.scores": {
       "confirmed-empty": 0,
+      "null": 0,
       "observed": 0,
       "unknown": 0,
       "unobserved": 0
     },
     "measurement.source_ref": {
       "confirmed-empty": 0,
+      "null": 0,
       "observed": 0,
       "unknown": 0,
       "unobserved": 0
     },
     "pattern.claim_refs": {
       "confirmed-empty": 0,
+      "null": 0,
       "observed": 0,
       "unknown": 0,
       "unobserved": 0
     },
     "pattern.condition": {
       "confirmed-empty": 0,
+      "null": 0,
       "observed": 0,
       "unknown": 0,
       "unobserved": 0
     },
     "pattern.confidence": {
       "confirmed-empty": 0,
+      "null": 0,
       "observed": 0,
       "unknown": 0,
       "unobserved": 0
     },
     "pattern.contexts_seen": {
       "confirmed-empty": 0,
+      "null": 0,
       "observed": 0,
       "unknown": 0,
       "unobserved": 0
     },
     "pattern.counterevidence": {
       "confirmed-empty": 0,
+      "null": 0,
       "observed": 0,
       "unknown": 0,
       "unobserved": 0
     },
     "pattern.evidence": {
       "confirmed-empty": 0,
+      "null": 0,
       "observed": 0,
       "unknown": 0,
       "unobserved": 0
     },
     "pattern.recurring_action": {
       "confirmed-empty": 0,
+      "null": 0,
       "observed": 0,
       "unknown": 0,
       "unobserved": 0
     },
     "pattern.recurring_appraisal": {
       "confirmed-empty": 0,
+      "null": 0,
       "observed": 0,
       "unknown": 0,
       "unobserved": 0
     },
     "pattern.recurring_drive": {
       "confirmed-empty": 0,
+      "null": 0,
       "observed": 0,
       "unknown": 0,
       "unobserved": 0
     },
     "pattern.reinforcement": {
       "confirmed-empty": 0,
+      "null": 0,
       "observed": 0,
       "unknown": 0,
       "unobserved": 0
     },
     "pattern.status": {
       "confirmed-empty": 0,
+      "null": 0,
       "observed": 0,
       "unknown": 0,
       "unobserved": 0
     },
     "source.captured_at": {
       "confirmed-empty": 0,
+      "null": 0,
       "observed": 2,
       "unknown": 0,
       "unobserved": 0
     },
     "source.consent.allowed_operations": {
       "confirmed-empty": 0,
+      "null": 0,
       "observed": 2,
       "unknown": 0,
       "unobserved": 0
     },
     "source.consent.expires_at": {
       "confirmed-empty": 0,
+      "null": 2,
       "observed": 0,
-      "unknown": 2,
+      "unknown": 0,
       "unobserved": 0
     },
     "source.consent.obtained": {
       "confirmed-empty": 0,
+      "null": 0,
       "observed": 2,
       "unknown": 0,
       "unobserved": 0
     },
     "source.consent.purposes": {
       "confirmed-empty": 0,
+      "null": 0,
       "observed": 2,
       "unknown": 0,
       "unobserved": 0
     },
     "source.consent.revoked_at": {
       "confirmed-empty": 0,
+      "null": 2,
       "observed": 0,
-      "unknown": 2,
+      "unknown": 0,
       "unobserved": 0
     },
     "source.locator": {
       "confirmed-empty": 0,
+      "null": 0,
       "observed": 2,
       "unknown": 0,
       "unobserved": 0
     },
     "source.raw_content_stored": {
       "confirmed-empty": 0,
+      "null": 0,
       "observed": 2,
       "unknown": 0,
       "unobserved": 0
     },
     "source.reliability_notes": {
       "confirmed-empty": 0,
+      "null": 1,
       "observed": 1,
-      "unknown": 1,
+      "unknown": 0,
       "unobserved": 0
     },
     "subject.consent_refs": {
       "confirmed-empty": 0,
+      "null": 0,
       "observed": 1,
       "unknown": 0,
       "unobserved": 0
