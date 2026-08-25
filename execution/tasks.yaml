@@ -333,7 +333,7 @@ tasks:
   - id: SM-012
     title: Register the gap-closure task queue
     phase: 7
-    status: in-progress
+    status: done
     depends_on: [SM-011]
     issue: https://github.com/masa-san-jp/self-model-notes/issues/41
     allowed_paths:
@@ -362,7 +362,15 @@ tasks:
       - Existing SM-001 through SM-011 must be changed to pass validation
       - A path outside the issue allowance is required
       - Another agent is changing execution/tasks.yaml
-    evidence: []
+    evidence:
+      - pr: 42
+        commit: 820f367
+        checks:
+          - ".venv/bin/python -m unittest tests.test_execution_tasks — 7 passed"
+          - ".venv/bin/python -m unittest discover -s tests -p 'test_*.py' — 65 passed"
+          - ".venv/bin/python tools/build_graph.py --check — passed"
+          - ".venv/bin/python tools/audit.py --dry-run — 3 soft review findings, no failure"
+          - "git diff --check — passed"
 
   - id: SM-013
     title: Preserve unobserved Event fields as null
