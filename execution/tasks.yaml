@@ -588,7 +588,7 @@ tasks:
   - id: SM-017
     title: Track Derived Self Model snapshots and detect staleness
     phase: 8
-    status: ready
+    status: done
     depends_on: [SM-016]
     issue: https://github.com/masa-san-jp/self-model-notes/issues/38
     allowed_paths:
@@ -632,7 +632,19 @@ tasks:
       - Core schema, vocabulary, or consent must change
       - A path outside the issue allowance is required
       - Another agent has unfinished conflicting changes
-    evidence: []
+    evidence:
+      - pr: 49
+        commit: d7e3ff3
+        artifact_commit: b6b2cf4
+        checks:
+          - ".venv/bin/python -m unittest tests.test_self_model tests.test_bundle tests.test_cli — 22 passed"
+          - ".venv/bin/python -m unittest discover -s tests -p 'test_*.py' — 84 passed"
+          - ".venv/bin/python tools/build_graph.py --check — passed"
+          - ".venv/bin/python tools/audit.py --check — passed"
+          - ".venv/bin/python tools/bundle.py --all --check — passed"
+          - ".venv/bin/python tools/audit.py --dry-run — 3 soft review findings, no failure"
+          - "git diff --check — passed"
+          - "git diff --exit-code -- data/self-models — passed"
 
   - id: SM-018
     title: Export an orchestration-compatible semantic DTO

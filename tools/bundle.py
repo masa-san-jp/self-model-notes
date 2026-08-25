@@ -5,23 +5,32 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from pathlib import Path
 from typing import Any
 
 try:
     from build_self_model import (
         ROOT,
+        SnapshotError,
         _load_valid_entities,
-        build_model,
+        build_current_model,
+        canonical_json,
         model_path,
+        report_stale_artifacts,
+        stale_artifacts,
         write_model,
     )
 except ModuleNotFoundError:  # Imported as tools.bundle by the test suite.
     from tools.build_self_model import (
         ROOT,
+        SnapshotError,
         _load_valid_entities,
-        build_model,
+        build_current_model,
+        canonical_json,
         model_path,
+        report_stale_artifacts,
+        stale_artifacts,
         write_model,
     )
 
@@ -207,18 +216,57 @@ def write_bundle(content: str, path: Path) -> None:
     path.write_text(content, encoding="utf-8")
 
 
+def _active_subject_ids(entities) -> list[str]:
+    return sorted(
+        entity.id
+        for entity in entities
+        if entity.type == "subject" and entity.meta.get("status") == "active"
+    )
+
+
+def _expected_artifacts(model: dict[str, Any]) -> dict[Path, str]:
+    subject_id = model["subject"]
+    return {
+        model_path(subject_id): canonical_json(model),
+        bundle_path(subject_id): render_bundle(model),
+    }
+
+
+def _build_models(entities, subject_ids: list[str]) -> list[dict[str, Any]]:
+    return [build_current_model(entities, subject_id) for subject_id in subject_ids]
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--subject", required=True)
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument("--subject")
+    group.add_argument("--all", action="store_true")
+    parser.add_argument("--check", action="store_true")
     args = parser.parse_args()
     entities = _load_valid_entities()
-    if not any(entity.id == args.subject and entity.type == "subject" for entity in entities):
-        raise SystemExit(f"Subject not found: {args.subject}")
-    model = build_model(entities, args.subject)
-    write_model(model, model_path(args.subject))
-    path = bundle_path(args.subject)
-    write_bundle(render_bundle(model), path)
-    print(f"built {path.relative_to(ROOT)}")
+    subject_ids = _active_subject_ids(entities) if args.all else [args.subject]
+    try:
+        models = _build_models(entities, subject_ids)
+    except SnapshotError as error:
+        print(f"ERROR {error}", file=sys.stderr)
+        return 1
+
+    expected = {}
+    for model in models:
+        expected.update(_expected_artifacts(model))
+    if args.check:
+        stale = stale_artifacts(expected)
+        if stale:
+            command = ".venv/bin/python tools/bundle.py --all" if args.all else f".venv/bin/python tools/bundle.py --subject {args.subject}"
+            report_stale_artifacts(stale, command)
+            return 1
+        print(f"OK: {len(models)} subject bundle(s) are current")
+        return 0
+
+    for model in models:
+        write_model(model, model_path(model["subject"]))
+        write_bundle(render_bundle(model), bundle_path(model["subject"]))
+    print(f"built {len(models)} subject bundle(s)")
     return 0
 
 

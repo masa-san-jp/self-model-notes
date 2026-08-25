@@ -23,6 +23,7 @@
    python3 -m unittest discover -s tests -p "test_*.py"
    python3 tools/audit.py --dry-run
    python3 tools/audit.py --check
+   python3 tools/bundle.py --all --check
    ```
 
 4. entityを追加・改訂した場合だけ、生成物を再生成して差分を確認する。
@@ -31,7 +32,10 @@
    python3 tools/build_graph.py
    python3 tools/build_self_model.py --subject subject/<id>
    python3 tools/bundle.py --subject subject/<id>
+   python3 tools/bundle.py --all --check
    ```
+
+   entityを先にcommitし、JSON/Markdownを再生成して差分と機微情報を確認し、artifactを別commitする。`source_commit`は対象Subjectのcanonical entityだけから算出され、artifact commit自身は参照しない。
 
 5. exportは目的と操作を明示する。Sourceが1件でも同意不備なら全体がdenyされる。
 
@@ -47,6 +51,8 @@
 - `build_graph.py --check`がstaleを報告したら、`data/`や`overviews/`を手編集せず、正本entityを確認して`python3 tools/build_graph.py`を再実行する。
 - `audit.py --check`がstaleを報告したら、`data/audit.json`を手編集せず、正本entityを確認して`python3 tools/audit.py`を再実行する。`--check`自体はファイルを書き換えない。
 - Self Modelやbundleが古い場合も、生成JSON/Markdownを直接直さず、対象Subjectのbuildコマンドを再実行する。
+- `tools/build_self_model.py --check` はJSONだけ、`tools/bundle.py --subject ... --check` はJSONとMarkdown、`tools/bundle.py --all --check` は全active SubjectをID順に検証する。stale/missing時はrepair commandを表示するが、本文やraw voiceは表示しない。
+- canonical entityに未commit差分がある場合はsnapshot生成・checkを行わず、対象pathだけを報告してentity commitを要求する。artifactだけの未commit差分はcheck対象として許可する。
 - exportがdenyされたら、deny JSONの`source`と`rule`だけを確認する。同意条件を迂回したり、raw voiceを手でコピーしたりしない。
 - テスト失敗時は失敗ログと差分を保持し、skip、削除、生成物の手編集で緑にしない。
 - 不要な削除、reset、履歴改変は行わない。復旧不能な場合はIssueへ停止理由と観測事実を記録する。

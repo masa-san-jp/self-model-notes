@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 from copy import deepcopy
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -25,6 +26,10 @@ MODEL_FIELDS = (
 )
 
 MODEL_SCHEMA_VERSION = 2
+
+
+class SnapshotError(RuntimeError):
+    """Raised when a tracked snapshot cannot be safely generated or checked."""
 
 
 def _iso(value: Any) -> str | None:
@@ -70,9 +75,106 @@ def current_source_commit(root: Path = ROOT) -> str:
         return "unknown"
 
 
+def selected_entities(entities: list[Entity], subject_id: str) -> list[Entity]:
+    return [
+        entity
+        for entity in entities
+        if entity.id == subject_id or entity.meta.get("subject") == subject_id
+    ]
+
+
+def entity_paths_for_subject(
+    entities: list[Entity], subject_id: str, root: Path = ROOT
+) -> list[Path]:
+    paths = {
+        entity.path.relative_to(root)
+        for entity in selected_entities(entities, subject_id)
+    }
+    return sorted(paths, key=lambda path: str(path))
+
+
+def _entity_path_args(paths: list[Path]) -> list[str]:
+    return [str(path) for path in paths]
+
+
+def dirty_entity_paths(
+    entities: list[Entity], subject_id: str, root: Path = ROOT
+) -> list[Path]:
+    paths = entity_paths_for_subject(entities, subject_id, root)
+    if not paths:
+        raise SnapshotError(f"no canonical entities found for {subject_id}")
+    result = subprocess.run(
+        ["git", "status", "--porcelain=v1", "--untracked-files=all", "--", *_entity_path_args(paths)],
+        cwd=root,
+        text=True,
+        capture_output=True,
+    )
+    if result.returncode != 0:
+        raise SnapshotError("cannot inspect canonical entity changes")
+    return [Path(line[3:].strip()) for line in result.stdout.splitlines() if len(line) >= 4]
+
+
+def latest_entity_commit(
+    entities: list[Entity], subject_id: str, root: Path = ROOT
+) -> str:
+    paths = entity_paths_for_subject(entities, subject_id, root)
+    if not paths:
+        raise SnapshotError(f"no canonical entities found for {subject_id}")
+    dirty = dirty_entity_paths(entities, subject_id, root)
+    if dirty:
+        rendered = ", ".join(str(path) for path in dirty)
+        raise SnapshotError(
+            f"entity changes must be committed before snapshot generation: {rendered}"
+        )
+    result = subprocess.run(
+        ["git", "log", "-1", "--format=%H", "--", *_entity_path_args(paths)],
+        cwd=root,
+        text=True,
+        capture_output=True,
+    )
+    commit = result.stdout.strip()
+    if result.returncode != 0 or re.fullmatch(r"[0-9a-f]{40}", commit) is None:
+        raise SnapshotError(
+            f"cannot determine a 40-character entity commit for {subject_id}"
+        )
+    return commit
+
+
+def build_current_model(
+    entities: list[Entity], subject_id: str, root: Path = ROOT
+) -> dict[str, Any]:
+    if not any(entity.id == subject_id and entity.type == "subject" for entity in entities):
+        raise SnapshotError(f"Subject not found: {subject_id}")
+    source_commit = latest_entity_commit(entities, subject_id, root)
+    return build_model(entities, subject_id, source_commit=source_commit)
+
+
 def model_path(subject_id: str, root: Path = ROOT) -> Path:
     kind, slug = subject_id.split("/", 1)
     return root / "data" / "self-models" / kind / f"{slug}.json"
+
+
+def stale_artifacts(expected: dict[Path, str]) -> list[Path]:
+    return [
+        path
+        for path, content in expected.items()
+        if not path.exists() or path.read_text(encoding="utf-8") != content
+    ]
+
+
+def display_path(path: Path, root: Path = ROOT) -> str:
+    try:
+        return str(path.relative_to(root))
+    except ValueError:
+        return str(path)
+
+
+def report_stale_artifacts(
+    paths: list[Path], repair_command: str, root: Path = ROOT
+) -> None:
+    for path in paths:
+        print(f"ERROR stale or missing artifact: {display_path(path, root)}", file=sys.stderr)
+    print(f"repair: {repair_command}", file=sys.stderr)
 
 
 def _as_of(entities: list[Entity]) -> str | None:
@@ -305,11 +407,7 @@ def build_model(
     *,
     source_commit: str | None = None,
 ) -> dict[str, Any]:
-    selected = [
-        entity
-        for entity in entities
-        if entity.id == subject_id or entity.meta.get("subject") == subject_id
-    ]
+    selected = selected_entities(entities, subject_id)
     claims = [_claim_record(entity) for entity in selected if entity.type == "claim"]
     patterns = [_pattern_record(entity) for entity in selected if entity.type == "pattern"]
     observations = [_observation_record(entity) for entity in selected if entity.type == "event"]
@@ -387,12 +485,26 @@ def _load_valid_entities() -> list[Entity]:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--subject", required=True)
+    parser.add_argument("--check", action="store_true")
     args = parser.parse_args()
     entities = _load_valid_entities()
-    if not any(entity.id == args.subject and entity.type == "subject" for entity in entities):
-        raise SystemExit(f"Subject not found: {args.subject}")
-    model = build_model(entities, args.subject)
     path = model_path(args.subject)
+    try:
+        model = build_current_model(entities, args.subject)
+    except SnapshotError as error:
+        print(f"ERROR {error}", file=sys.stderr)
+        return 1
+    expected = {path: canonical_json(model)}
+    if args.check:
+        stale = stale_artifacts(expected)
+        if stale:
+            report_stale_artifacts(
+                stale,
+                f".venv/bin/python tools/build_self_model.py --subject {args.subject}",
+            )
+            return 1
+        print(f"OK: {path.relative_to(ROOT)} is current")
+        return 0
     write_model(model, path)
     print(f"built {path.relative_to(ROOT)}")
     return 0

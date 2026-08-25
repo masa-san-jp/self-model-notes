@@ -1,13 +1,21 @@
 import json
 import re
+import subprocess
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from tests.test_validation import make_entity, valid_entities
 from tools.bundle import render_bundle
-from tools.build_self_model import build_model, model_path, write_model
-from tools.kb import discover_entities
+from tools.build_self_model import (
+    SnapshotError,
+    build_model,
+    latest_entity_commit,
+    model_path,
+    stale_artifacts,
+    write_model,
+)
+from tools.kb import Entity, discover_entities
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -282,6 +290,46 @@ class SelfModelTests(unittest.TestCase):
                 for item in model["unknowns"]
             )
         )
+
+    def test_entity_commit_is_deterministic_and_dirty_entities_fail_closed(self):
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            subject_path = root / "entities" / "subjects" / "example.md"
+            event_path = root / "entities" / "events" / "example.md"
+            subject_path.parent.mkdir(parents=True)
+            event_path.parent.mkdir(parents=True)
+            subject_path.write_text("subject\n", encoding="utf-8")
+            event_path.write_text("event\n", encoding="utf-8")
+            subprocess.run(["git", "init", "-q", "-b", "main"], cwd=root, check=True)
+            subprocess.run(["git", "config", "user.email", "test@example.invalid"], cwd=root, check=True)
+            subprocess.run(["git", "config", "user.name", "Snapshot Test"], cwd=root, check=True)
+            subprocess.run(["git", "add", "entities"], cwd=root, check=True)
+            subprocess.run(["git", "commit", "-qm", "entity snapshot"], cwd=root, check=True)
+            entities = [
+                Entity(subject_path, {"id": "subject/example", "type": "subject"}, ""),
+                Entity(event_path, {"id": "event/example", "type": "event", "subject": "subject/example"}, ""),
+            ]
+
+            commit = latest_entity_commit(entities, "subject/example", root)
+            self.assertRegex(commit, r"^[0-9a-f]{40}$")
+            self.assertEqual(commit, latest_entity_commit(list(reversed(entities)), "subject/example", root))
+
+            event_path.write_text("changed entity\n", encoding="utf-8")
+            with self.assertRaisesRegex(SnapshotError, "entity changes must be committed"):
+                latest_entity_commit(entities, "subject/example", root)
+
+    def test_stale_artifact_check_does_not_write(self):
+        with TemporaryDirectory() as directory:
+            path = Path(directory) / "model.json"
+            missing = Path(directory) / "missing.json"
+            path.write_text("old\n", encoding="utf-8")
+            before = path.read_text(encoding="utf-8")
+
+            stale = stale_artifacts({path: "new\n", missing: "new\n"})
+
+            self.assertEqual(stale, [path, missing])
+            self.assertEqual(path.read_text(encoding="utf-8"), before)
+            self.assertFalse(missing.exists())
 
 
 if __name__ == "__main__":
