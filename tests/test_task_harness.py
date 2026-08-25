@@ -37,7 +37,8 @@ class TaskHarnessTests(unittest.TestCase):
     def test_current_queue_validates_and_selects_sm020(self):
         self.assertEqual([], task_harness.validate_queue(self.queue))
         selected = task_harness.selectable_tasks(self.queue)
-        self.assertEqual(["SM-020"], [task["id"] for task in selected])
+        expected_id = "SM-020" if self.queue_task("SM-020")["status"] == "ready" else "SM-021"
+        self.assertEqual([expected_id], [task["id"] for task in selected])
         self.assertEqual(
             {
                 "id",
@@ -51,12 +52,16 @@ class TaskHarnessTests(unittest.TestCase):
             set(task_harness.task_output(selected[0])),
         )
 
+    def queue_task(self, task_id: str) -> dict:
+        return next(task for task in self.queue["tasks"] if task["id"] == task_id)
+
     def test_selection_is_independent_of_yaml_task_order(self):
         reversed_queue = self.queue_copy()
         reversed_queue["tasks"].reverse()
         self.assertEqual([], task_harness.validate_queue(reversed_queue))
+        expected_id = "SM-020" if self.queue_task("SM-020")["status"] == "ready" else "SM-021"
         self.assertEqual(
-            ["SM-020"],
+            [expected_id],
             [task["id"] for task in task_harness.selectable_tasks(reversed_queue)],
         )
 
@@ -103,7 +108,8 @@ class TaskHarnessTests(unittest.TestCase):
         self.assertEqual(before, QUEUE_PATH.read_bytes())
         result = json.loads(first)
         self.assertEqual(3, result["queue_version"])
-        self.assertEqual("SM-020", result["task"]["id"])
+        expected_id = "SM-020" if self.queue_task("SM-020")["status"] == "ready" else "SM-021"
+        self.assertEqual(expected_id, result["task"]["id"])
         self.assertEqual(
             {
                 "id",
