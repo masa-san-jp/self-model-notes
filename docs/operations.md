@@ -42,6 +42,19 @@ python3 tools/task_harness.py complete SM-NNN --pr <number> --commit <head-sha> 
 
 completeはqueueの対象taskだけをatomic replaceで更新する。失敗時はqueue bytesとactive claimを保持し、mergeやremote lockのreleaseは行わない。
 
+### PR policy gate
+
+GitHub Actionsの`harness-policy` jobは、`pull_request`でbase SHAを`trusted-base`、head SHAを`candidate`へ別々にcheckoutする。`trusted-base/tools/task_harness.py verify-pr`へcandidateのpathとGitHubが提供するbase/head/ref/titleだけを渡す。権限は`contents: read`に限定し、PR本文、write API、secrets、candidateからの書き込みを使わない。
+
+```bash
+python3 trusted-base/tools/task_harness.py verify-pr \
+  --repo "$GITHUB_WORKSPACE/candidate" \
+  --task SM-NNN --base <base-sha> --head <head-sha> \
+  --ref agent/sm-nnn-agent --title "[SM-NNN] task title" --json
+```
+
+このgateはcandidateの`verify-pr`実装を信頼しない。candidate queueのbaseがtrusted queueと一致すること、task contract・dependencies・stop conditions・checks・allowed pathsが変更されていないことを先に確認し、許可外path、evidence削除、claim置換、rollback、check失敗を拒否する。旧baseにCLIがない最初のbootstrap PRだけは、workflowがその事実をログへ出して通過させる。
+
 1. 作業開始前にbranch、対象Issue、許可パス、未コミット差分を確認する。
 
    ```bash

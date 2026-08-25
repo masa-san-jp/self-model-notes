@@ -106,6 +106,17 @@ class CLITests(unittest.TestCase):
         self.assertIn("共有lock", runbook)
         self.assertIn("raw voice本文は既定でexportしない", runbook)
 
+    def test_harness_policy_workflow_uses_trusted_read_only_checkouts(self):
+        workflow = (ROOT / ".github" / "workflows" / "validate.yml").read_text(encoding="utf-8")
+
+        self.assertIn("harness-policy:", workflow)
+        self.assertIn("path: trusted-base", workflow)
+        self.assertIn("path: candidate", workflow)
+        self.assertIn("trusted-base/tools/task_harness.py verify-pr", workflow)
+        self.assertIn("permissions:\n  contents: read", workflow)
+        self.assertIn("Bootstrap policy verifier", workflow)
+        self.assertIn("PR_REF", workflow)
+
 
 if __name__ == "__main__":
     unittest.main()

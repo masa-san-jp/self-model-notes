@@ -85,3 +85,20 @@ active claimのtaskを完了するときは、宣言されたchecksを順序ど�
 
     python3 tools/task_harness.py verify SM-NNN --json
     python3 tools/task_harness.py complete SM-NNN --pr NUMBER --commit SHA --json
+
+## PR policy gate
+
+Phase 10のPRは、候補checkoutから実行系を読み込まず、base SHAで取得したtrusted-baseのharnessを使って検査する。trusted-baseとcandidateは別ディレクトリにcheckoutし、queueの契約、依存、許可path、claim、lifecycle、evidenceをbase側の定義で比較する。
+
+```bash
+python3 trusted-base/tools/task_harness.py verify-pr \
+  --repo "$GITHUB_WORKSPACE/candidate" \
+  --task SM-NNN \
+  --base <base-sha> \
+  --head <head-sha> \
+  --ref agent/sm-nnn-agent \
+  --title "[SM-NNN] task title" \
+  --json
+```
+
+`verify-pr`は、PR branchとtitleのtask ID一致、full SHAとancestor、1 taskだけのqueue lifecycle、readyからin-progressを経たdone遷移、base contractとの差分、committed-only path guard、base側checksの順序実行を検証する。候補がharness、queue contract、testを変更しても、policy判定の実体はtrusted-baseから実行される。旧baseにこのCLIがないbootstrap PRだけはpolicy jobを明示的に通過し、次のPRから強制される。
