@@ -74,6 +74,30 @@ class CLITests(unittest.TestCase):
         self.assertNotEqual(export.returncode, 0)
         self.assertIn("Export denied", export.stderr)
 
+    def test_tracked_self_model_and_bundle_checks_are_current(self):
+        model = self.run_cli("tools/build_self_model.py", "--subject", "subject/masa", "--check")
+        bundle = self.run_cli("tools/bundle.py", "--subject", "subject/masa", "--check")
+        all_bundles = self.run_cli("tools/bundle.py", "--all", "--check")
+
+        self.assertEqual(model.returncode, 0, model.stderr)
+        self.assertEqual(bundle.returncode, 0, bundle.stderr)
+        self.assertEqual(all_bundles.returncode, 0, all_bundles.stderr)
+
+    def test_bundle_subject_and_all_are_mutually_exclusive(self):
+        result = self.run_cli("tools/bundle.py", "--subject", "subject/masa", "--all")
+
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("not allowed with argument", result.stderr)
+
+    def test_snapshot_source_commit_is_entity_commit_not_artifact_head(self):
+        snapshot = json.loads((ROOT / "data" / "self-models" / "subject" / "masa.json").read_text(encoding="utf-8"))
+        head = subprocess.run(
+            ["git", "rev-parse", "HEAD"], cwd=ROOT, text=True, capture_output=True, check=True
+        ).stdout.strip()
+
+        self.assertRegex(snapshot["source_commit"], r"^[0-9a-f]{40}$")
+        self.assertNotEqual(snapshot["source_commit"], head)
+
     def test_runbook_documents_non_destructive_recovery_and_collision_rules(self):
         runbook = (ROOT / "docs" / "operations.md").read_text(encoding="utf-8")
 

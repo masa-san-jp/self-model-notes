@@ -5,6 +5,7 @@
 ```bash
 cat overviews/coverage.md
 python3 tools/bundle.py --subject subject/<id>
+python3 tools/bundle.py --all --check
 python3 tools/export_signals.py --subject subject/<id> --purpose artistic-research --operation export-signals
 ```
 
