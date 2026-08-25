@@ -81,21 +81,21 @@
       "unobserved": 0
     },
     "event.appraisal": {
-      "confirmed-empty": 1,
+      "confirmed-empty": 0,
       "observed": 0,
-      "unknown": 0,
+      "unknown": 1,
       "unobserved": 0
     },
     "event.body": {
-      "confirmed-empty": 1,
+      "confirmed-empty": 0,
       "observed": 0,
-      "unknown": 0,
+      "unknown": 1,
       "unobserved": 0
     },
     "event.cognition": {
-      "confirmed-empty": 1,
+      "confirmed-empty": 0,
       "observed": 0,
-      "unknown": 0,
+      "unknown": 1,
       "unobserved": 0
     },
     "event.context.control": {
@@ -123,21 +123,21 @@
       "unobserved": 0
     },
     "event.delayed_outcome": {
-      "confirmed-empty": 1,
+      "confirmed-empty": 0,
       "observed": 0,
-      "unknown": 0,
+      "unknown": 1,
       "unobserved": 0
     },
     "event.emotion": {
-      "confirmed-empty": 1,
+      "confirmed-empty": 0,
       "observed": 0,
-      "unknown": 0,
+      "unknown": 1,
       "unobserved": 0
     },
     "event.immediate_outcome": {
-      "confirmed-empty": 1,
+      "confirmed-empty": 0,
       "observed": 0,
-      "unknown": 0,
+      "unknown": 1,
       "unobserved": 0
     },
     "event.observed_facts": {

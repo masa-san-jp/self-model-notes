@@ -375,7 +375,7 @@ tasks:
   - id: SM-013
     title: Preserve unobserved Event fields as null
     phase: 7
-    status: ready
+    status: in-progress
     depends_on: [SM-012]
     issue: https://github.com/masa-san-jp/self-model-notes/issues/35
     allowed_paths:
@@ -387,6 +387,7 @@ tasks:
       - data/coverage.json
       - overviews/coverage.md
       - execution/tasks.yaml
+      - tests/test_execution_tasks.py
     acceptance:
       - The six unobserved Event fields are explicitly null
       - The Event prose and frontmatter agree that those fields are unobserved
@@ -395,6 +396,7 @@ tasks:
       - A regression test fails for the old empty-list representation
       - Existing entity references and Claim content are unchanged
       - No identifiers, secrets, or raw transcript are added
+      - Queue selection tests remain valid while SM-013 is in progress and after it is done
     checks:
       - .venv/bin/python -m unittest tests.test_build_graph
       - .venv/bin/python -m unittest discover -s tests -p "test_*.py"
