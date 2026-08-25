@@ -24,14 +24,14 @@ raw_voice:
     source_ref: source/interview-20260813
   - text: "出せない"
     source_ref: source/interview-20260813
-appraisal: []
-emotion: []
-body: []
-cognition: []
+appraisal: null
+emotion: null
+body: null
+cognition: null
 action:
   - "見続けている"
-immediate_outcome: []
-delayed_outcome: []
+immediate_outcome: null
+delayed_outcome: null
 source_refs: [source/interview-20260813]
 created: 2026-08-13
 updated: 2026-08-13

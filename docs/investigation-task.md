@@ -22,6 +22,7 @@ python3 tools/new_entity.py event <slug> --subject subject/<id>
 ```
 
 1出来事に限定し、trigger、observed facts、raw voice、action、immediate outcome、source refsを分ける。
+質問していない、取得していないslotは`null`で保存する。確認して該当なしの場合だけ`[]`、評価を試みて判定不能の場合だけ`unknown`とし、3状態を相互変換しない。
 
 ## 3. Claimを作る
 

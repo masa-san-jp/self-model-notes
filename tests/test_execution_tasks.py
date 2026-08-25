@@ -82,9 +82,18 @@ class ExecutionTaskQueueTests(unittest.TestCase):
         if self.by_id["SM-012"]["status"] == "in-progress":
             self.assertEqual([], selectable_tasks(self.queue))
 
-    def test_selection_is_sm013_after_bootstrap_is_done(self):
+    def test_selection_uses_lowest_ready_task_through_task_lifecycle(self):
         if self.by_id["SM-012"]["status"] == "done":
-            self.assertEqual(["SM-013"], selectable_tasks(self.queue))
+            eligible = [
+                task["id"]
+                for task in self.tasks
+                if task["status"] == "ready"
+                and set(task["depends_on"]).issubset(
+                    {candidate["id"] for candidate in self.tasks if candidate["status"] == "done"}
+                )
+            ]
+            expected = [min(eligible)] if eligible else []
+            self.assertEqual(expected, selectable_tasks(self.queue))
 
     def test_existing_tasks_are_unchanged_in_status_and_evidence_shape(self):
         for task in self.tasks:
