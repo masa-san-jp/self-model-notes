@@ -475,7 +475,7 @@ tasks:
   - id: SM-015
     title: Add explicit motivation direction to Claims
     phase: 8
-    status: in-progress
+    status: done
     depends_on: [SM-014]
     issue: https://github.com/masa-san-jp/self-model-notes/issues/39
     allowed_paths:
@@ -519,7 +519,16 @@ tasks:
       - Issue #36 or SM-014 is incomplete
       - A path outside the issue allowance is required
       - Another agent has unfinished conflicting changes
-    evidence: []
+    evidence:
+      - pr: 45
+        commit: dadd65e
+        merge_commit: c6275f3
+        checks:
+          - ".venv/bin/python -m unittest tests.test_schema tests.test_validation tests.test_epistemic_rules tests.test_build_graph — 29 passed"
+          - ".venv/bin/python -m unittest discover -s tests -p 'test_*.py' — 74 passed"
+          - ".venv/bin/python tools/build_graph.py --check — passed"
+          - ".venv/bin/python tools/audit.py --dry-run — 3 soft review findings, no failure"
+          - "git diff --check — passed"
 
   - id: SM-016
     title: Implement the Derived Self Model v2 contract
