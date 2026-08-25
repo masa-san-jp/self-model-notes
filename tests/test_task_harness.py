@@ -5,6 +5,7 @@ import copy
 import concurrent.futures
 import io
 import json
+import re
 import shutil
 import subprocess
 import tempfile
@@ -52,7 +53,12 @@ class TaskHarnessTests(unittest.TestCase):
     def test_current_queue_validates_and_selects_sm020(self):
         self.assertEqual([], task_harness.validate_queue(self.queue))
         selected = task_harness.selectable_tasks(self.queue)
-        expected_id = "SM-020" if self.queue_task("SM-020")["status"] == "ready" else "SM-021"
+        if self.queue_task("SM-020")["status"] == "ready":
+            expected_id = "SM-020"
+        elif self.queue_task("SM-021")["status"] == "ready":
+            expected_id = "SM-021"
+        else:
+            expected_id = "SM-022"
         self.assertEqual([expected_id], [task["id"] for task in selected])
         self.assertEqual(
             {
@@ -74,7 +80,12 @@ class TaskHarnessTests(unittest.TestCase):
         reversed_queue = self.queue_copy()
         reversed_queue["tasks"].reverse()
         self.assertEqual([], task_harness.validate_queue(reversed_queue))
-        expected_id = "SM-020" if self.queue_task("SM-020")["status"] == "ready" else "SM-021"
+        if self.queue_task("SM-020")["status"] == "ready":
+            expected_id = "SM-020"
+        elif self.queue_task("SM-021")["status"] == "ready":
+            expected_id = "SM-021"
+        else:
+            expected_id = "SM-022"
         self.assertEqual(
             [expected_id],
             [task["id"] for task in task_harness.selectable_tasks(reversed_queue)],
@@ -123,7 +134,12 @@ class TaskHarnessTests(unittest.TestCase):
         self.assertEqual(before, QUEUE_PATH.read_bytes())
         result = json.loads(first)
         self.assertEqual(3, result["queue_version"])
-        expected_id = "SM-020" if self.queue_task("SM-020")["status"] == "ready" else "SM-021"
+        if self.queue_task("SM-020")["status"] == "ready":
+            expected_id = "SM-020"
+        elif self.queue_task("SM-021")["status"] == "ready":
+            expected_id = "SM-021"
+        else:
+            expected_id = "SM-022"
         self.assertEqual(expected_id, result["task"]["id"])
         self.assertEqual(
             {
@@ -153,7 +169,10 @@ class TaskHarnessTests(unittest.TestCase):
 
     def test_no_candidate_returns_three_and_null_task(self):
         queue = self.queue_copy()
-        queue["tasks"][19]["status"] = "blocked"
+        selected = task_harness.selectable_tasks(queue)
+        self.assertTrue(selected)
+        selected_id = selected[0]["id"]
+        next(task for task in queue["tasks"] if task["id"] == selected_id)["status"] = "blocked"
         path = self.write_queue(queue)
         stdout = io.StringIO()
         with contextlib.redirect_stdout(stdout):
@@ -177,7 +196,17 @@ class TemporaryRemote:
         self._git(self.repo, "config", "user.name", "Harness Test")
         self._git(self.repo, "config", "user.email", "harness@example.invalid")
         (self.repo / "execution").mkdir()
-        (self.repo / "execution" / "tasks.yaml").write_bytes(QUEUE_PATH.read_bytes())
+        queue_path = self.repo / "execution" / "tasks.yaml"
+        queue_path.write_bytes(QUEUE_PATH.read_bytes())
+        queue = task_harness.load_queue(queue_path)
+        task = next(item for item in queue["tasks"] if item["id"] == "SM-021")
+        task["status"] = "ready"
+        task["claim"] = None
+        task["evidence"] = []
+        queue_path.write_text(
+            yaml.safe_dump(queue, sort_keys=False, allow_unicode=True),
+            encoding="utf-8",
+        )
         self._git(self.repo, "add", "execution/tasks.yaml")
         self._git(self.repo, "commit", "-m", "fixture base")
         self._git(self.repo, "remote", "add", "origin", str(self.bare))
@@ -402,13 +431,18 @@ class TaskHarnessLifecycleTests(unittest.TestCase):
         implementation_commit = fixture._git(maint, "rev-parse", "HEAD")
         queue_path = maint / "execution/tasks.yaml"
         text = queue_path.read_text(encoding="utf-8")
-        start = text.index("  - id: SM-021")
-        end = text.index("  - id: SM-022", start)
-        block = text[start:end]
-        block = block.replace("    status: ready", "    status: done", 1)
+        match = re.search(
+            r"(?ms)^(?P<indent> *)- id: SM-021\n.*?(?=^(?P=indent)- id: |\Z)",
+            text,
+        )
+        self.assertIsNotNone(match)
+        start, end = match.span()
+        indent = match.group("indent")
+        block = match.group(0)
+        block = block.replace(f"{indent}  status: ready", f"{indent}  status: done", 1)
         block = block.replace(
-            "    evidence: []",
-            f"    evidence:\n      - commit: {implementation_commit}\n        checks:\n          - simulated implementation\n",
+            f"{indent}  evidence: []",
+            f"{indent}  evidence:\n{indent}    - commit: {implementation_commit}\n{indent}      checks:\n{indent}        - simulated implementation\n",
             1,
         )
         queue_path.write_text(text[:start] + block + text[end:], encoding="utf-8")
@@ -445,9 +479,16 @@ class TaskHarnessLifecycleTests(unittest.TestCase):
         maint = fixture.clone("maint-missing")
         remote_queue = maint / "execution/tasks.yaml"
         text = remote_queue.read_text(encoding="utf-8")
-        start = text.index("  - id: SM-021")
-        end = text.index("  - id: SM-022", start)
-        block = text[start:end].replace("    status: ready", "    status: done", 1)
+        match = re.search(
+            r"(?ms)^(?P<indent> *)- id: SM-021\n.*?(?=^(?P=indent)- id: |\Z)",
+            text,
+        )
+        self.assertIsNotNone(match)
+        start, end = match.span()
+        indent = match.group("indent")
+        block = match.group(0).replace(
+            f"{indent}  status: ready", f"{indent}  status: done", 1
+        )
         remote_queue.write_text(text[:start] + block + text[end:], encoding="utf-8")
         fixture._git(maint, "add", "execution/tasks.yaml")
         fixture._git(maint, "commit", "-m", "incomplete completion")

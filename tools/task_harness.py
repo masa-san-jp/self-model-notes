@@ -611,28 +611,34 @@ def _write_claim(path: Path, claim: dict[str, str]) -> None:
         raise HarnessError(CLAIM_MUTATION_FAILED, "queue mutation failed") from exc
     task_id = claim["task_id"]
     block_pattern = re.compile(
-        rf"(?ms)^  - id: {re.escape(task_id)}\n.*?(?=^  - id: |\Z)"
+        rf"(?ms)^(?P<indent> *)- id: {re.escape(task_id)}\n"
+        rf".*?(?=^(?P=indent)- id: |\Z)"
     )
     match = block_pattern.search(text)
     if match is None:
         raise HarnessError(CLAIM_MUTATION_FAILED, "selected task block is missing")
     block = match.group(0)
-    status_pattern = re.compile(r"^    status: ready$", re.MULTILINE)
+    field_indent = match.group("indent") + "  "
+    nested_indent = field_indent + "  "
+    status_pattern = re.compile(
+        rf"^{re.escape(field_indent)}status: ready$", re.MULTILINE
+    )
     if len(status_pattern.findall(block)) != 1:
         raise HarnessError(CLAIM_MUTATION_FAILED, "selected task status is not ready")
-    if block.count("    claim: null") != 1:
+    claim_null = f"{field_indent}claim: null"
+    if block.count(claim_null) != 1:
         raise HarnessError(CLAIM_MUTATION_FAILED, "selected task claim is not null")
-    updated = status_pattern.sub("    status: in-progress", block, count=1)
+    updated = status_pattern.sub(f"{field_indent}status: in-progress", block, count=1)
     claim_text = (
-        "    claim:\n"
-        f"      actor: {claim['actor']}\n"
-        f"      base: {claim['base']}\n"
-        f"      branch: {claim['branch']}\n"
-        f"      remote: {claim['remote']}\n"
-        f"      lock_ref: {claim['lock_ref']}\n"
-        f"      claimed_at: '{claim['claimed_at']}'\n"
+        f"{field_indent}claim:\n"
+        f"{nested_indent}actor: {claim['actor']}\n"
+        f"{nested_indent}base: {claim['base']}\n"
+        f"{nested_indent}branch: {claim['branch']}\n"
+        f"{nested_indent}remote: {claim['remote']}\n"
+        f"{nested_indent}lock_ref: {claim['lock_ref']}\n"
+        f"{nested_indent}claimed_at: '{claim['claimed_at']}'\n"
     )
-    updated = updated.replace("    claim: null", claim_text, 1)
+    updated = updated.replace(claim_null, claim_text, 1)
     _atomic_write(path, (text[: match.start()] + updated + text[match.end() :]).encode("utf-8"))
 
 
