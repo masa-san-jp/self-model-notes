@@ -649,7 +649,7 @@ tasks:
   - id: SM-018
     title: Export an orchestration-compatible semantic DTO
     phase: 9
-    status: in-progress
+    status: done
     depends_on: [SM-017]
     issue: https://github.com/masa-san-jp/self-model-notes/issues/40
     allowed_paths:
@@ -689,4 +689,17 @@ tasks:
       - A sibling schema must change
       - A path outside the issue allowance is required
       - Another agent has unfinished conflicting changes
-    evidence: []
+    evidence:
+      - pr: 50
+        commit: ef14472
+        merge_commit: 85eecee
+        checks:
+          - ".venv/bin/python -m unittest tests.test_export_signals tests.test_e2e — 17 passed"
+          - ".venv/bin/python -m unittest discover -s tests -p 'test_*.py' — 90 passed"
+          - ".venv/bin/python tools/build_graph.py --check — passed"
+          - ".venv/bin/python tools/audit.py --check — passed"
+          - ".venv/bin/python tools/export_signals.py --purpose artistic-research --limit 0 — 3 signals, fixed 26 fields"
+          - ".venv/bin/python tools/audit.py --dry-run — 3 soft review findings, no failure"
+          - "git diff --check — passed"
+          - "git diff --exit-code -- data/ overviews/coverage.md — passed"
+          - "GitHub Actions validate for PR #50 — passed"
