@@ -9,6 +9,20 @@ body:
       placeholder: SM-XXX
     validations:
       required: true
+  - type: input
+    id: parent
+    attributes:
+      label: Parent issue
+      placeholder: "#52"
+    validations:
+      required: true
+  - type: textarea
+    id: task_dependencies
+    attributes:
+      label: Task dependencies with evidence
+      description: Completed task IDs, PRs, commits, or test evidence.
+    validations:
+      required: true
   - type: textarea
     id: objective
     attributes:
@@ -51,4 +65,24 @@ body:
       description: Decisions the agent may not make autonomously.
     validations:
       required: true
-
+  - type: textarea
+    id: lifecycle_commands
+    attributes:
+      label: Expected lifecycle commands
+      description: Exact next, claim, context, verify, complete, and release commands.
+    validations:
+      required: true
+  - type: textarea
+    id: privacy_impact
+    attributes:
+      label: Privacy impact
+      description: State whether fixtures, output, consent, raw voice, credentials, or identifiers are affected.
+    validations:
+      required: true
+  - type: checkboxes
+    id: dispatchability
+    attributes:
+      label: Dispatchability
+      options:
+        - label: I registered this task in execution/tasks.yaml; unregistered tasks are not dispatchable.
+          required: true
