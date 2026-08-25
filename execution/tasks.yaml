@@ -588,7 +588,7 @@ tasks:
   - id: SM-017
     title: Track Derived Self Model snapshots and detect staleness
     phase: 8
-    status: ready
+    status: in-progress
     depends_on: [SM-016]
     issue: https://github.com/masa-san-jp/self-model-notes/issues/38
     allowed_paths:

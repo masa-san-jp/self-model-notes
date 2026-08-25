@@ -43,6 +43,8 @@ data/              決定論的な生成物
 overviews/         coverage等の人間向け生成物
 ```
 
+`data/self-models/subject/<slug>.json` と `.md` はGit管理するcurrent snapshotです。entityをcommitした後に `python3 tools/bundle.py --all` で再生成し、`python3 tools/bundle.py --all --check` でJSON/Markdownのstalenessを確認します。過去snapshotは別名fileではなくGit historyで比較します。
+
 ## 最小コマンド
 
 ```bash
@@ -63,4 +65,3 @@ python3 tools/audit.py
 - 正式尺度がなければ尺度得点を作らない。
 - 同意範囲外のデータをexportしない。
 - 心理診断、精神疾患推定、重大な人事判断には使わない。
-
