@@ -533,7 +533,7 @@ tasks:
   - id: SM-016
     title: Implement the Derived Self Model v2 contract
     phase: 8
-    status: in-progress
+    status: done
     depends_on: [SM-015]
     issue: https://github.com/masa-san-jp/self-model-notes/issues/37
     allowed_paths:
@@ -573,7 +573,17 @@ tasks:
       - A path outside the issue allowance is required
       - Issue #39 or SM-015 is incomplete
       - Another agent has unfinished conflicting changes
-    evidence: []
+    evidence:
+      - pr: 47
+        commit: eb2d1e1
+        merge_commit: dc0c688
+        checks:
+          - ".venv/bin/python -m unittest tests.test_self_model tests.test_bundle tests.test_e2e — 14 passed"
+          - ".venv/bin/python -m unittest discover -s tests -p 'test_*.py' — 79 passed"
+          - ".venv/bin/python tools/build_graph.py --check — passed"
+          - ".venv/bin/python tools/audit.py --dry-run — 3 soft review findings, no failure"
+          - ".venv/bin/python -m json.tool tests/contracts/self-model-v2.schema.json — passed"
+          - "git diff --check — passed"
 
   - id: SM-017
     title: Track Derived Self Model snapshots and detect staleness
