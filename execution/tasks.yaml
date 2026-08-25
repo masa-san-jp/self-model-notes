@@ -1018,7 +1018,7 @@ tasks:
   - id: SM-025
     title: Prove the full harness lifecycle and publish the operator contract
     phase: 10
-    status: ready
+    status: in-progress
     depends_on: [SM-024]
     issue: https://github.com/masa-san-jp/self-model-notes/issues/59
     allowed_paths:
@@ -1033,7 +1033,13 @@ tasks:
       - docs/operations.md
       - .github/ISSUE_TEMPLATE/implementation-task.yml
       - execution/tasks.yaml
-    claim: null
+    claim:
+      actor: alice
+      base: ccc420dafad7f614a86c08c906af3c0eee415ff3
+      branch: agent/sm-025-alice
+      remote: origin
+      lock_ref: refs/heads/harness-lock/sm-025
+      claimed_at: '2026-08-25T20:00:00.000000000Z'
     acceptance:
       - Temporary Git repository and bare remote E2E covers selection, claim, context, path guard, failed check, completion, merge, release, and next task
       - Unit and E2E tests cover no-ready, malformed queue, competing claim, dirty worktree, stale base, disallowed path, unsafe check, duplicate completion, premature release, and successful release

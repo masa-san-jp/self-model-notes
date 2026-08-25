@@ -72,7 +72,13 @@ class TaskHarnessTests(unittest.TestCase):
             elif self.queue_task("SM-023")["status"] == "ready":
                 expected_id = "SM-023"
             else:
-                expected_id = "SM-024" if self.queue_task("SM-024")["status"] == "ready" else "SM-025"
+                expected_id = (
+                    "SM-024"
+                    if self.queue_task("SM-024")["status"] == "ready"
+                    else "SM-025"
+                    if self.queue_task("SM-025")["status"] == "ready"
+                    else "SM-026"
+                )
         self.assertEqual([expected_id], [task["id"] for task in selected])
         self.assertEqual(
             {
@@ -104,7 +110,13 @@ class TaskHarnessTests(unittest.TestCase):
             elif self.queue_task("SM-023")["status"] == "ready":
                 expected_id = "SM-023"
             else:
-                expected_id = "SM-024" if self.queue_task("SM-024")["status"] == "ready" else "SM-025"
+                expected_id = (
+                    "SM-024"
+                    if self.queue_task("SM-024")["status"] == "ready"
+                    else "SM-025"
+                    if self.queue_task("SM-025")["status"] == "ready"
+                    else "SM-026"
+                )
         self.assertEqual(
             [expected_id],
             [task["id"] for task in task_harness.selectable_tasks(reversed_queue)],
@@ -163,7 +175,13 @@ class TaskHarnessTests(unittest.TestCase):
             elif self.queue_task("SM-023")["status"] == "ready":
                 expected_id = "SM-023"
             else:
-                expected_id = "SM-024" if self.queue_task("SM-024")["status"] == "ready" else "SM-025"
+                expected_id = (
+                    "SM-024"
+                    if self.queue_task("SM-024")["status"] == "ready"
+                    else "SM-025"
+                    if self.queue_task("SM-025")["status"] == "ready"
+                    else "SM-026"
+                )
         self.assertEqual(expected_id, result["task"]["id"])
         self.assertEqual(
             {
@@ -1093,9 +1111,15 @@ class PolicyVerifierTests(unittest.TestCase):
         self.assertEqual(123, task["evidence"][0]["pr"])
         self.assertNotIn("stdout", json.dumps(task["evidence"]))
         self.assertNotIn("stderr", json.dumps(task["evidence"]))
-        expected_next = "SM-024" if next(
+        expected_next = "SM-024"
+        if next(
             item for item in task_harness.load_queue(QUEUE_PATH)["tasks"] if item["id"] == "SM-024"
-        )["status"] == "ready" else "SM-025"
+        )["status"] != "ready":
+            expected_next = "SM-025"
+            if next(
+                item for item in task_harness.load_queue(QUEUE_PATH)["tasks"] if item["id"] == "SM-025"
+            )["status"] != "ready":
+                expected_next = "SM-026"
         self.assertEqual(expected_next, task_harness.selectable_tasks(queue)[0]["id"])
         with self.assertRaises(HarnessError) as caught:
             complete_task(
