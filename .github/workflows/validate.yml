@@ -5,7 +5,69 @@ on:
   push:
     branches: [main]
 
+permissions:
+  contents: read
+
 jobs:
+  harness-policy:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout trusted base
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.event.pull_request.base.repo.full_name }}
+          ref: ${{ github.event.pull_request.base.sha }}
+          fetch-depth: 0
+          path: trusted-base
+      - name: Checkout candidate
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          path: candidate
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install trusted-base dependencies
+        run: python3 -m pip install -e trusted-base
+      - name: Make trusted-base read-only
+        run: chmod -R a-w trusted-base
+      - name: Detect policy verifier
+        id: policy-verifier
+        shell: bash
+        run: |
+          if python3 trusted-base/tools/task_harness.py verify-pr --help >/dev/null 2>&1; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Verify candidate PR policy
+        if: steps.policy-verifier.outputs.available == 'true'
+        env:
+          PR_REF: ${{ github.event.pull_request.head.ref }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          TASK_ID="$(PR_REF="$PR_REF" python3 -c 'import os, re; match = re.fullmatch(r"agent/(sm-[0-9]{3})-[a-z0-9]+(?:-[a-z0-9]+)*", os.environ["PR_REF"]); print(match.group(1).upper() if match else (_ for _ in ()).throw(SystemExit("invalid agent branch")))')"
+          python3 trusted-base/tools/task_harness.py verify-pr \
+            --repo "$GITHUB_WORKSPACE/candidate" \
+            --task "$TASK_ID" \
+            --base "$BASE_SHA" \
+            --head "$HEAD_SHA" \
+            --ref "$PR_REF" \
+            --title "$PR_TITLE" \
+            --json
+      - name: Bootstrap policy verifier
+        if: steps.policy-verifier.outputs.available != 'true'
+        run: echo "trusted base predates verify-pr; bootstrap PR is accepted"
+
   validate:
     runs-on: ubuntu-latest
     steps:

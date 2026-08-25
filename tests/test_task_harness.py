@@ -26,6 +26,7 @@ from tools.task_harness import (
     CheckFailure,
     HarnessError,
     PATH_DISALLOWED,
+    PolicyError,
     PathGuardError,
     claim_task,
     complete_task,
@@ -33,6 +34,7 @@ from tools.task_harness import (
     release_task,
     verify_task,
     verify_paths,
+    verify_pr,
 )
 
 
@@ -70,7 +72,7 @@ class TaskHarnessTests(unittest.TestCase):
             elif self.queue_task("SM-023")["status"] == "ready":
                 expected_id = "SM-023"
             else:
-                expected_id = "SM-024"
+                expected_id = "SM-024" if self.queue_task("SM-024")["status"] == "ready" else "SM-025"
         self.assertEqual([expected_id], [task["id"] for task in selected])
         self.assertEqual(
             {
@@ -102,7 +104,7 @@ class TaskHarnessTests(unittest.TestCase):
             elif self.queue_task("SM-023")["status"] == "ready":
                 expected_id = "SM-023"
             else:
-                expected_id = "SM-024"
+                expected_id = "SM-024" if self.queue_task("SM-024")["status"] == "ready" else "SM-025"
         self.assertEqual(
             [expected_id],
             [task["id"] for task in task_harness.selectable_tasks(reversed_queue)],
@@ -161,7 +163,7 @@ class TaskHarnessTests(unittest.TestCase):
             elif self.queue_task("SM-023")["status"] == "ready":
                 expected_id = "SM-023"
             else:
-                expected_id = "SM-024"
+                expected_id = "SM-024" if self.queue_task("SM-024")["status"] == "ready" else "SM-025"
         self.assertEqual(expected_id, result["task"]["id"])
         self.assertEqual(
             {
@@ -815,6 +817,248 @@ class CheckAndCompletionTests(unittest.TestCase):
             verify_task("SM-023", repo=fixture.repo, queue_path=fixture.queue_path)
         self.assertEqual("CHECK_FAILED", caught.exception.code)
         self.assertEqual(before, fixture.queue_path.read_bytes())
+
+
+class PolicyCandidate:
+    def __init__(self, test_case: unittest.TestCase):
+        self.root = Path(tempfile.mkdtemp())
+        test_case.addCleanup(shutil.rmtree, self.root, True)
+        self.repo = self.root / "candidate"
+        shutil.copytree(
+            ROOT,
+            self.repo,
+            ignore=shutil.ignore_patterns(".git", ".venv", "__pycache__", ".DS_Store"),
+        )
+        self.git("init", "-b", "main")
+        self.git("config", "user.name", "Harness Test")
+        self.git("config", "user.email", "harness@example.invalid")
+        self.git("add", ".")
+        self.git("commit", "-m", "policy base")
+        self.base = self.git("rev-parse", "HEAD")
+        self.git("switch", "-c", "agent/sm-024-alice")
+
+    def git(self, *args: str) -> str:
+        result = subprocess.run(
+            ["git", *args],
+            cwd=self.repo,
+            text=True,
+            capture_output=True,
+            shell=False,
+        )
+        if result.returncode:
+            raise AssertionError(f"policy fixture git failed: {args}: {result.stderr}")
+        return result.stdout.strip()
+
+    def write_queue(self, queue: dict) -> None:
+        (self.repo / "execution/tasks.yaml").write_text(
+            yaml.safe_dump(queue, sort_keys=False, allow_unicode=True),
+            encoding="utf-8",
+        )
+
+    def queue(self) -> dict:
+        return task_harness.load_queue(self.repo / "execution/tasks.yaml")
+
+    def set_task(self, task_id: str, **changes: object) -> None:
+        queue = self.queue()
+        task = next(item for item in queue["tasks"] if item["id"] == task_id)
+        task.update(changes)
+        self.write_queue(queue)
+
+    def claim(self) -> str:
+        self.set_task(
+            "SM-024",
+            status="in-progress",
+            claim={
+                "actor": "alice",
+                "base": self.base,
+                "branch": "agent/sm-024-alice",
+                "remote": "origin",
+                "lock_ref": "refs/heads/harness-lock/sm-024",
+                "claimed_at": "test-claim",
+            },
+            evidence=[],
+        )
+        self.git("add", "execution/tasks.yaml")
+        self.git("commit", "-m", "claim SM-024")
+        return self.git("rev-parse", "HEAD")
+
+    def complete(self, *, intermediate: bool = True, extra_path: str | None = None) -> str:
+        implementation_commit = self.git("rev-parse", "HEAD")
+        if not intermediate:
+            self.set_task(
+                "SM-024",
+                status="done",
+                claim=None,
+                evidence=[
+                    {"pr": 999, "commit": self.base, "checks": ["simulated"]}
+                ],
+            )
+        else:
+            self.set_task(
+                "SM-024",
+                status="done",
+                claim=None,
+                evidence=[
+                    {"pr": 999, "commit": implementation_commit, "checks": ["simulated"]}
+                ],
+            )
+        if extra_path is not None:
+            path = self.repo / extra_path
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("candidate content\n", encoding="utf-8")
+        self.git("add", ".")
+        self.git("commit", "-m", "complete SM-024")
+        return self.git("rev-parse", "HEAD")
+
+    def policy(self, head: str, **overrides: str) -> dict:
+        values = {
+            "repo": self.repo,
+            "task_id": "SM-024",
+            "base": self.base,
+            "head": head,
+            "ref": "agent/sm-024-alice",
+            "title": "[SM-024] Enforce one-task PR policy",
+        }
+        values.update(overrides)
+        return verify_pr(**values)
+
+
+class PolicyVerifierTests(unittest.TestCase):
+    def test_valid_lifecycle_uses_base_contract_and_runs_checks(self):
+        fixture = PolicyCandidate(self)
+        fixture.claim()
+        head = fixture.complete()
+        with mock.patch.object(
+            task_harness,
+            "_run_declared_checks",
+            return_value=[{"command": "simulated", "exit_code": 0, "status": "passed"}],
+        ) as checks:
+            result = fixture.policy(head)
+        self.assertEqual("passed", result["status"])
+        self.assertEqual("SM-024", result["task"])
+        self.assertEqual(["execution/tasks.yaml"], result["paths"])
+        checks.assert_called_once()
+
+    def test_branch_and_title_identity_are_required(self):
+        fixture = PolicyCandidate(self)
+        head = fixture.claim()
+        for overrides, code in (
+            ({"ref": "agent/sm-025-alice"}, "TASK_BRANCH_MISMATCH"),
+            ({"ref": "agent/sm-024-ALICE"}, "BRANCH_INVALID"),
+            ({"title": "SM-024 Enforce one-task PR policy"}, "TITLE_MISMATCH"),
+        ):
+            with self.subTest(code=code):
+                with self.assertRaises(PolicyError) as caught:
+                    fixture.policy(head, **overrides)
+                self.assertEqual(code, caught.exception.code)
+
+    def test_direct_done_transition_and_rollback_are_rejected(self):
+        direct = PolicyCandidate(self)
+        direct_head = direct.complete(intermediate=False)
+        with self.assertRaises(PolicyError) as caught:
+            direct.policy(direct_head)
+        self.assertEqual("TRANSITION_INVALID", caught.exception.code)
+
+        rollback = PolicyCandidate(self)
+        rollback.claim()
+        rollback.set_task("SM-024", status="ready", claim=None, evidence=[])
+        rollback.git("add", "execution/tasks.yaml")
+        rollback.git("commit", "-m", "rollback claim")
+        rollback_head = rollback.complete()
+        with self.assertRaises(PolicyError) as caught:
+            rollback.policy(rollback_head)
+        self.assertEqual("TRANSITION_INVALID", caught.exception.code)
+
+    def test_contract_metadata_and_evidence_changes_are_rejected(self):
+        contract = PolicyCandidate(self)
+        contract.claim()
+        contract.set_task("SM-025", title="weakened contract")
+        contract_head = contract.complete()
+        with self.assertRaises(PolicyError) as caught:
+            contract.policy(contract_head)
+        self.assertEqual("TASK_CONTRACT_CHANGED", caught.exception.code)
+
+        metadata = PolicyCandidate(self)
+        metadata.claim()
+        queue = metadata.queue()
+        queue["policy"]["shared_locks"] = []
+        metadata.write_queue(queue)
+        metadata.git("add", "execution/tasks.yaml")
+        metadata.git("commit", "-m", "weaken queue metadata")
+        metadata_head = metadata.complete()
+        with self.assertRaises(PolicyError) as caught:
+            metadata.policy(metadata_head)
+        self.assertEqual("QUEUE_METADATA_CHANGED", caught.exception.code)
+
+        evidence = PolicyCandidate(self)
+        evidence.claim()
+        evidence.set_task("SM-024", status="done", claim=None, evidence=[])
+        evidence.git("add", "execution/tasks.yaml")
+        evidence.git("commit", "-m", "delete evidence")
+        with self.assertRaises(PolicyError) as caught:
+            evidence.policy(evidence.git("rev-parse", "HEAD"))
+        self.assertEqual("QUEUE_INVALID", caught.exception.code)
+
+    def test_trusted_policy_cannot_be_bypassed_by_candidate_verifier_or_path(self):
+        fixture = PolicyCandidate(self)
+        fixture.claim()
+        (fixture.repo / "tools/task_harness.py").write_text(
+            "raise SystemExit(0)\n", encoding="utf-8"
+        )
+        head = fixture.complete(extra_path="README.md")
+        with mock.patch.object(task_harness, "_run_declared_checks") as checks:
+            with self.assertRaises(PolicyError) as caught:
+                fixture.policy(head)
+        self.assertEqual("PATH_DISALLOWED", caught.exception.code)
+        self.assertEqual(PATH_DISALLOWED, caught.exception.exit_code)
+        self.assertEqual(["README.md"], caught.exception.paths)
+        checks.assert_not_called()
+
+    def test_declared_policy_check_failure_is_returned_with_check_exit_code(self):
+        fixture = PolicyCandidate(self)
+        fixture.claim()
+        head = fixture.complete()
+        failed = CheckFailure(
+            "CHECK_FAILED",
+            "declared check failed",
+            [{"command": "simulated", "exit_code": 1, "status": "failed"}],
+        )
+        with mock.patch.object(task_harness, "_run_declared_checks", side_effect=failed):
+            with self.assertRaises(CheckFailure) as caught:
+                fixture.policy(head)
+        self.assertEqual("CHECK_FAILED", caught.exception.code)
+        self.assertEqual(5, caught.exception.exit_code)
+
+    def test_policy_json_reports_only_safe_rule_and_paths(self):
+        fixture = PolicyCandidate(self)
+        fixture.claim()
+        head = fixture.complete(extra_path="README.md")
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+            result = task_harness.main(
+                [
+                    "verify-pr",
+                    "--repo",
+                    str(fixture.repo),
+                    "--task",
+                    "SM-024",
+                    "--base",
+                    fixture.base,
+                    "--head",
+                    head,
+                    "--ref",
+                    "agent/sm-024-alice",
+                    "--title",
+                    "[SM-024] Enforce one-task PR policy",
+                    "--json",
+                ]
+            )
+        self.assertEqual(PATH_DISALLOWED, result)
+        self.assertEqual("", stdout.getvalue())
+        self.assertEqual(
+            {"task", "rule", "paths"}, set(json.loads(stderr.getvalue()))
+        )
 
     def test_complete_is_atomic_and_records_one_evidence_then_rejects_duplicate(self):
         fixture = CompletionRemote(self)
