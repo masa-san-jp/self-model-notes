@@ -1025,6 +1025,7 @@ tasks:
       - tools/task_harness.py
       - tests/test_task_harness.py
       - tests/test_harness_e2e.py
+      - tests/test_execution_tasks.py
       - tests/fixtures/harness/**
       - AGENTS.md
       - README.md
