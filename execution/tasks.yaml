@@ -857,7 +857,7 @@ tasks:
   - id: SM-022
     title: Enforce allowed paths against the complete Git change set
     phase: 10
-    status: ready
+    status: done
     depends_on: [SM-021]
     issue: https://github.com/masa-san-jp/self-model-notes/issues/56
     allowed_paths:
@@ -889,7 +889,22 @@ tasks:
       - Git cannot provide an unambiguous status for a tested change kind
       - Existing schema, consent, privacy, or export behavior must change
       - A path outside the issue allowance is required
-    evidence: []
+    evidence:
+      - pr: 64
+        commit: 7b9f5d1
+        checks:
+          - ".venv/bin/python -m unittest tests.test_task_harness tests.test_execution_tasks — 29 passed"
+          - ".venv/bin/python -m unittest discover -s tests -p 'test_*.py' — 112 passed"
+          - ".venv/bin/python tools/task_harness.py validate — passed"
+          - ".venv/bin/python tools/task_harness.py next --json — selected SM-023"
+          - "verify-paths committed/staged/unstaged/untracked/deleted/renamed/copied/conflicted fixtures — passed"
+          - "literal/star/question/double-star pattern table — passed"
+          - ".venv/bin/python tools/build_graph.py --check — passed"
+          - ".venv/bin/python tools/audit.py --check — passed"
+          - "git diff --check — passed"
+          - "git diff --exit-code -- data/ overviews/coverage.md — passed"
+          - "GitHub Actions validate for PR #64 — passed"
+        next_ready: SM-023
 
   - id: SM-023
     title: Run task checks safely and write completion evidence atomically

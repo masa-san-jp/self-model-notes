@@ -75,3 +75,8 @@ SM-021以降のライフサイクル操作は、選択したtaskだけを対象�
     python3 tools/task_harness.py release SM-NNN --actor ACTOR --remote REMOTE --json
 
 claimは固定ref `refs/heads/harness-lock/sm-NNN` をnon-force pushで取得し、成功時だけ `agent/sm-NNN-actor` branchとqueueの `in-progress` claimを作る。失敗時はqueue bytes、開始branch、既存lockを保持する。releaseはremote main上のdone taskと証拠、actor、branch、lock payloadの一致を確認してから、該当lockだけを削除する。
+
+変更pathのguardは、active claimのbaseからHEADまでのcommit差分に加え、作業中のstage済み・未stage・untracked差分を検査する。rename/copyはsourceとdestinationの両方を対象とし、allowed_pathsにないpathを1件でも検出したら終了コード4で停止する。
+
+    python3 tools/task_harness.py verify-paths SM-NNN --base SHA --json
+    python3 tools/task_harness.py verify-paths SM-NNN --base SHA --committed-only --json
