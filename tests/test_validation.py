@@ -105,6 +105,8 @@ def make_entity(entity_type, slug, **updates):
     }
     meta.update(templates[entity_type])
     meta.update(updates)
+    if entity_type == "claim" and "motivation_direction" not in meta:
+        meta["motivation_direction"] = "unknown" if meta["layer"] == "motivation" else None
     path = ROOT / "entities" / plural / f"{slug}.md"
     return Entity(path=path, meta=meta, body="\n")
 
@@ -219,6 +221,27 @@ class ValidationTest(unittest.TestCase):
 
         self.assertTrue(any(error.field == "supporting_evidence" and "no evidence" in error.message for error in errors))
         self.assertTrue(any(error.field == "evidence" and "multiple distinct Events" in error.message for error in errors))
+
+    def test_motivation_direction_accepts_all_fixed_values(self):
+        for direction in ("seek", "protect", "avoid", "mixed", "unknown"):
+            with self.subTest(direction=direction):
+                claim = make_entity("claim", f"direction-{direction}", motivation_direction=direction)
+                errors = validate_entities([claim])
+                self.assertFalse(any(error.field == "motivation_direction" for error in errors))
+
+    def test_motivation_direction_is_required_and_layer_scoped(self):
+        missing = make_entity("claim", "direction-missing")
+        del missing.meta["motivation_direction"]
+        invalid_value = make_entity("claim", "direction-invalid", motivation_direction="not-a-direction")
+        non_motivation = make_entity("claim", "direction-tension", layer="tension", motivation_direction="avoid")
+        non_motivation_null = make_entity("claim", "direction-tension-null", layer="tension", motivation_direction=None)
+
+        errors = validate_entities([missing, invalid_value, non_motivation, non_motivation_null])
+
+        self.assertTrue(any(error.path.endswith("direction-missing.md") and error.field == "motivation_direction" and "required field" in error.message for error in errors))
+        self.assertTrue(any(error.path.endswith("direction-invalid.md") and error.field == "motivation_direction" and "closed vocabulary" in error.message for error in errors))
+        self.assertTrue(any(error.path.endswith("direction-tension.md") and error.field == "motivation_direction" and "must be null" in error.message for error in errors))
+        self.assertFalse(any(error.path.endswith("direction-tension-null.md") and error.field == "motivation_direction" for error in errors))
 
 
 if __name__ == "__main__":

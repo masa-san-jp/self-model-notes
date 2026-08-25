@@ -4,6 +4,8 @@ from pathlib import Path
 
 import yaml
 
+from tools.new_entity import template
+
 
 ROOT = Path(__file__).resolve().parents[1]
 SCHEMA_PATH = ROOT / "docs" / "schema.md"
@@ -35,7 +37,7 @@ REQUIRED_FIELDS = {
     "claim": {
         "id", "type", "subject", "layer", "scope", "statement", "conditions",
         "supporting_evidence", "counterevidence", "alternative_explanations", "confidence",
-        "status", "supersedes", "superseded_by", "created", "updated",
+        "status", "supersedes", "superseded_by", "motivation_direction", "created", "updated",
     },
     "pattern": {
         "id", "type", "subject", "condition", "recurring_appraisal", "recurring_drive",
@@ -86,6 +88,15 @@ class SchemaExamplesTest(unittest.TestCase):
                 self.assertTrue(required_fields <= valid.keys())
                 self.assertTrue(required_fields <= invalid.keys())
 
+    def test_motivation_direction_vocabulary_is_fixed(self):
+        self.assertEqual(
+            self.vocabularies["motivation_directions"],
+            ["seek", "protect", "avoid", "mixed", "unknown"],
+        )
+
+    def test_new_claim_template_starts_with_null_motivation_direction(self):
+        self.assertIsNone(template("claim", "new-claim", "subject/example")["motivation_direction"])
+
     def test_id_path_and_reference_rules_are_explicit(self):
         plural_paths = self.vocabularies["plural_paths"]
         slug_pattern = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
@@ -131,6 +142,8 @@ class SchemaExamplesTest(unittest.TestCase):
 
         claim, claim_invalid = self.examples_for("claim")
         self.assertGreaterEqual(len(claim["alternative_explanations"]), 2)
+        self.assertEqual(claim["motivation_direction"], "seek")
+        self.assertIsNone(claim_invalid["motivation_direction"])
         self.assertEqual(claim_invalid["supporting_evidence"], [])
         self.assertEqual(len(claim_invalid["alternative_explanations"]), 1)
 

@@ -7,7 +7,10 @@ from pathlib import Path
 
 import yaml
 
-from kb import ROOT, vocabularies
+try:
+    from kb import ROOT, vocabularies
+except ModuleNotFoundError:  # Imported as tools.new_entity by the test suite.
+    from tools.kb import ROOT, vocabularies
 
 
 def template(kind: str, slug: str, subject: str | None) -> dict:
@@ -22,7 +25,7 @@ def template(kind: str, slug: str, subject: str | None) -> dict:
     if kind == "event":
         return {**common, "subject": subject, "time": {"observed_at": None, "precision": "unknown"}, "context": {"domains": [], "social": []}, "state": {"fatigue": "unknown", "stress": "unknown"}, "trigger": None, "observed_facts": [], "raw_voice": [], "appraisal": [], "emotion": [], "body": [], "cognition": [], "action": [], "immediate_outcome": [], "delayed_outcome": [], "source_refs": []}
     if kind == "claim":
-        return {**common, "subject": subject, "layer": "other", "scope": "state", "statement": None, "conditions": [], "supporting_evidence": [], "counterevidence": [], "alternative_explanations": [None, None], "confidence": "unknown", "status": "hypothesis", "supersedes": None, "superseded_by": None}
+        return {**common, "subject": subject, "layer": "other", "scope": "state", "statement": None, "conditions": [], "supporting_evidence": [], "counterevidence": [], "alternative_explanations": [None, None], "confidence": "unknown", "status": "hypothesis", "supersedes": None, "superseded_by": None, "motivation_direction": None}
     if kind == "pattern":
         return {**common, "subject": subject, "condition": None, "recurring_appraisal": [], "recurring_drive": [], "recurring_action": [], "reinforcement": [], "contexts_seen": [], "evidence": [], "claim_refs": [], "counterevidence": [], "confidence": "unknown", "status": "hypothesis"}
     return {**common, "subject": subject, "instrument": {"name": None, "version": None, "official": True, "scoring_reference": None}, "administered_at": None, "source_ref": None, "scores": {}, "interpretation_claim_refs": []}
@@ -47,4 +50,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

@@ -3,6 +3,7 @@ id: claim/observation
 type: claim
 subject: subject/fixture
 layer: motivation
+motivation_direction: unknown
 scope: state
 statement: synthetic derived statement
 conditions: [synthetic condition]

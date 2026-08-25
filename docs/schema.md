@@ -199,6 +199,7 @@ id: claim/example-control
 type: claim
 subject: subject/example
 layer: motivation
+motivation_direction: seek
 scope: state                 # state | context-bound | trait-candidate | trait
 statement: "外部制約時に制御感の回復を求める可能性がある"
 conditions: ["自律を制限されたと知覚したとき"]
@@ -216,9 +217,12 @@ updated: 2026-08-11
 ```
 
 - layer: `emotion | motivation | behavioral-principle | tension | other`
+- `motivation_direction`: `seek | protect | avoid | mixed | unknown` for `layer: motivation`; `null` for every other layer.
 - status: `hypothesis | supported | revised | rejected`
 - 代替説明は最低2件を保持する。
 - Claimを上書きして履歴を消さず、改訂時は`supersedes`/`superseded_by`で接続する。
+
+`seek`は得る・近づく・増やす方向、`protect`は関係・状態・自己像・安全を守る方向、`avoid`は苦痛・脅威・損失・状況から離れる方向を表す。`mixed`は複数方向が不可分な場合だけ、`unknown`は根拠から方向を判定できない場合だけ使う。Claim本文やDrive IDのキーワードから自動分類しない。
 
 ### Invalid example（必ずreject）
 
@@ -229,6 +233,7 @@ id: claim/example-control
 type: claim
 subject: subject/example
 layer: motivation
+motivation_direction: null
 scope: state
 statement: "外部制約時に制御感の回復を求める可能性がある"
 conditions: ["自律を制限されたと知覚したとき"]
@@ -415,6 +420,7 @@ claim:
 ```
 
 `null`、`[]`、`unknown`は同じ意味へ正規化しない。`null`は未知・未観測、`[]`は確認済みで該当なし、`unknown`は該当語彙が定義する評価不能を表す。
+生成されるcoverageでもこの3状態を分離して集計し、未定義キーは`unobserved`として別に扱う。
 
 ## Validation Levels
 
