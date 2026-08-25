@@ -137,7 +137,7 @@ class TaskHarnessTests(unittest.TestCase):
         stdout = io.StringIO()
         with contextlib.redirect_stdout(stdout):
             self.assertEqual(
-                0,
+                expected_exit,
                 task_harness.main(["next", "--queue", str(QUEUE_PATH), "--json"]),
             )
         self.assertEqual(first, stdout.getvalue())
@@ -181,7 +181,7 @@ class TaskHarnessTests(unittest.TestCase):
         queue = self.queue_copy()
         selected = task_harness.selectable_tasks(queue)
         if not selected:
-            task = self.queue_task("SM-026")
+            task = next(item for item in queue["tasks"] if item["id"] == "SM-026")
             task["status"] = "ready"
             task["claim"] = None
             selected = task_harness.selectable_tasks(queue)
