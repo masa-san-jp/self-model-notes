@@ -707,7 +707,7 @@ tasks:
   - id: SM-019
     title: Register the self-enforcing harness task queue
     phase: 10
-    status: in-progress
+    status: done
     depends_on: [SM-018]
     issue: https://github.com/masa-san-jp/self-model-notes/issues/53
     allowed_paths:
@@ -736,7 +736,19 @@ tasks:
       - Existing SM-001 through SM-018 must be changed to pass validation
       - A path outside the issue allowance is required
       - Another agent is changing execution/tasks.yaml
-    evidence: []
+    evidence:
+      - pr: 61
+        commit: 170f9c1
+        checks:
+          - ".venv/bin/python -m unittest tests.test_execution_tasks — 9 passed"
+          - ".venv/bin/python -m unittest discover -s tests -p 'test_*.py' — 92 passed"
+          - ".venv/bin/python tools/build_graph.py --check — passed"
+          - ".venv/bin/python tools/audit.py --check — passed"
+          - ".venv/bin/python tools/audit.py --dry-run — 3 soft review findings, no failure"
+          - "git diff --check — passed"
+          - "git diff --exit-code -- data/ overviews/coverage.md — passed"
+          - "GitHub Actions validate for PR #61 — passed"
+        next_ready: SM-020
 
   - id: SM-020
     title: Implement queue contract validation and deterministic selection
