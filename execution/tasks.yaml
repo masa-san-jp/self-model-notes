@@ -375,7 +375,7 @@ tasks:
   - id: SM-013
     title: Preserve unobserved Event fields as null
     phase: 7
-    status: in-progress
+    status: done
     depends_on: [SM-012]
     issue: https://github.com/masa-san-jp/self-model-notes/issues/35
     allowed_paths:
@@ -410,7 +410,16 @@ tasks:
       - Personal or third-party information is required
       - A path outside the issue allowance is required
       - Another agent has unfinished conflicting changes
-    evidence: []
+    evidence:
+      - pr: 43
+        commit: 96fc245
+        checks:
+          - ".venv/bin/python -m unittest tests.test_build_graph — 5 passed"
+          - ".venv/bin/python -m unittest discover -s tests -p 'test_*.py' — 66 passed"
+          - ".venv/bin/python tools/build_graph.py — passed"
+          - ".venv/bin/python tools/build_graph.py --check — passed"
+          - ".venv/bin/python tools/audit.py --dry-run — 3 soft review findings, no failure"
+          - "git diff --check — passed"
 
   - id: SM-014
     title: Detect stale audit artifacts and enforce synchronization
