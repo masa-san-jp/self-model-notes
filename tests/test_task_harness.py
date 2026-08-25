@@ -11,6 +11,7 @@ import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 import yaml
 
@@ -22,12 +23,15 @@ from tools.task_harness import (
     CLAIM_PRECONDITION,
     CLAIM_SAME_TASK_LOCK,
     CLAIM_SHARED_LOCK,
+    CheckFailure,
     HarnessError,
     PATH_DISALLOWED,
     PathGuardError,
     claim_task,
+    complete_task,
     context_task,
     release_task,
+    verify_task,
     verify_paths,
 )
 
@@ -61,7 +65,12 @@ class TaskHarnessTests(unittest.TestCase):
         elif self.queue_task("SM-021")["status"] == "ready":
             expected_id = "SM-021"
         else:
-            expected_id = "SM-022" if self.queue_task("SM-022")["status"] == "ready" else "SM-023"
+            if self.queue_task("SM-022")["status"] == "ready":
+                expected_id = "SM-022"
+            elif self.queue_task("SM-023")["status"] == "ready":
+                expected_id = "SM-023"
+            else:
+                expected_id = "SM-024"
         self.assertEqual([expected_id], [task["id"] for task in selected])
         self.assertEqual(
             {
@@ -88,7 +97,12 @@ class TaskHarnessTests(unittest.TestCase):
         elif self.queue_task("SM-021")["status"] == "ready":
             expected_id = "SM-021"
         else:
-            expected_id = "SM-022" if self.queue_task("SM-022")["status"] == "ready" else "SM-023"
+            if self.queue_task("SM-022")["status"] == "ready":
+                expected_id = "SM-022"
+            elif self.queue_task("SM-023")["status"] == "ready":
+                expected_id = "SM-023"
+            else:
+                expected_id = "SM-024"
         self.assertEqual(
             [expected_id],
             [task["id"] for task in task_harness.selectable_tasks(reversed_queue)],
@@ -142,7 +156,12 @@ class TaskHarnessTests(unittest.TestCase):
         elif self.queue_task("SM-021")["status"] == "ready":
             expected_id = "SM-021"
         else:
-            expected_id = "SM-022" if self.queue_task("SM-022")["status"] == "ready" else "SM-023"
+            if self.queue_task("SM-022")["status"] == "ready":
+                expected_id = "SM-022"
+            elif self.queue_task("SM-023")["status"] == "ready":
+                expected_id = "SM-023"
+            else:
+                expected_id = "SM-024"
         self.assertEqual(expected_id, result["task"]["id"])
         self.assertEqual(
             {
@@ -663,6 +682,192 @@ class PathGuardTests(unittest.TestCase):
                 queue_path=fixture.repo / "execution/tasks.yaml",
             )
         self.assertEqual("BASE_NOT_ANCESTOR", caught.exception.code)
+
+
+class CompletionRemote:
+    def __init__(self, test_case: unittest.TestCase):
+        self.root = Path(tempfile.mkdtemp())
+        test_case.addCleanup(shutil.rmtree, self.root, True)
+        self.repo = self.root / "agent"
+        self.bare = self.root / "remote.git"
+        self.repo.mkdir()
+        TemporaryRemote._git(self.root, "init", "--bare", str(self.bare))
+        TemporaryRemote._git(self.repo, "init", "-b", "main")
+        TemporaryRemote._git(self.repo, "config", "user.name", "Harness Test")
+        TemporaryRemote._git(self.repo, "config", "user.email", "harness@example.invalid")
+        (self.repo / "execution").mkdir()
+        (self.repo / "tools").mkdir()
+        queue_path = self.repo / "execution/tasks.yaml"
+        queue_path.write_bytes(QUEUE_PATH.read_bytes())
+        (self.repo / "tools/task_harness.py").write_text(
+            "# completion fixture\n", encoding="utf-8"
+        )
+        TemporaryRemote._git(self.repo, "add", ".")
+        TemporaryRemote._git(self.repo, "commit", "-m", "completion base")
+        TemporaryRemote._git(self.repo, "remote", "add", "origin", str(self.bare))
+        TemporaryRemote._git(self.repo, "push", "-u", "origin", "main")
+        self.base = TemporaryRemote._git(self.repo, "rev-parse", "HEAD")
+        TemporaryRemote._git(self.repo, "switch", "-c", "agent/sm-023-alice")
+        queue = task_harness.load_queue(queue_path)
+        task = next(item for item in queue["tasks"] if item["id"] == "SM-023")
+        task["status"] = "in-progress"
+        task["evidence"] = []
+        task["claim"] = {
+            "actor": "alice",
+            "base": self.base,
+            "branch": "agent/sm-023-alice",
+            "remote": "origin",
+            "lock_ref": "refs/heads/harness-lock/sm-023",
+            "claimed_at": "test-claim",
+        }
+        task["checks"] = ["python3 -c pass", "python3 -c pass"]
+        queue_path.write_text(
+            yaml.safe_dump(queue, sort_keys=False, allow_unicode=True),
+            encoding="utf-8",
+        )
+        TemporaryRemote._git(self.repo, "add", "execution/tasks.yaml")
+        TemporaryRemote._git(self.repo, "commit", "-m", "claim SM-023")
+        self.head = TemporaryRemote._git(self.repo, "rev-parse", "HEAD")
+        self.queue_path = queue_path
+
+    def git(self, *args: str) -> str:
+        return TemporaryRemote._git(self.repo, *args)
+
+
+class CheckAndCompletionTests(unittest.TestCase):
+    def test_safe_check_parser_rejects_shell_and_assignment_syntax(self):
+        self.assertEqual(["python3", "-c", "pass"], task_harness._safe_check_argv("python3 -c pass"))
+        for command in (
+            "python3 -c pass && echo unsafe",
+            "python3 -c pass > output",
+            "FLAG=value python3 -c pass",
+            "python3 -c $(unsafe)",
+        ):
+            with self.subTest(command=command):
+                with self.assertRaises(CheckFailure) as caught:
+                    task_harness._run_declared_checks("SM-023", [command], repo=Path("."))
+                self.assertEqual("UNSAFE_CHECK", caught.exception.code)
+
+    def test_checks_run_in_yaml_order_and_stop_on_first_failure(self):
+        completed = [
+            subprocess.CompletedProcess(["first"], 0),
+            subprocess.CompletedProcess(["second"], 3),
+        ]
+        with mock.patch("tools.task_harness.subprocess.run", side_effect=completed) as runner:
+            with self.assertRaises(CheckFailure) as caught:
+                task_harness._run_declared_checks(
+                    "SM-023",
+                    ["python3 -c first", "python3 -c second", "python3 -c never"],
+                    repo=Path("."),
+                )
+        self.assertEqual("CHECK_FAILED", caught.exception.code)
+        self.assertEqual(2, runner.call_count)
+        self.assertEqual(["python3", "-c", "first"], runner.call_args_list[0].args[0])
+        self.assertFalse(runner.call_args_list[0].kwargs["shell"])
+        self.assertEqual(["python3", "-c", "second"], runner.call_args_list[1].args[0])
+
+    def test_missing_executable_and_timeout_are_stable_failures(self):
+        with self.assertRaises(CheckFailure) as missing:
+            task_harness._run_declared_checks(
+                "SM-023",
+                ["definitely-not-an-installed-executable"],
+                repo=Path("."),
+            )
+        self.assertEqual("MISSING_EXECUTABLE", missing.exception.code)
+        with mock.patch(
+            "tools.task_harness.subprocess.run",
+            side_effect=subprocess.TimeoutExpired(["python3"], 60),
+        ):
+            with self.assertRaises(CheckFailure) as timeout:
+                task_harness._run_declared_checks(
+                    "SM-023",
+                    ["python3 -c pass"],
+                    repo=Path("."),
+                )
+        self.assertEqual("CHECK_TIMEOUT", timeout.exception.code)
+
+    def test_verify_runs_path_guard_and_declared_checks(self):
+        fixture = CompletionRemote(self)
+        result = verify_task(
+            "SM-023",
+            repo=fixture.repo,
+            queue_path=fixture.queue_path,
+        )
+        self.assertEqual("passed", result["status"])
+        self.assertEqual(2, len(result["checks"]))
+        self.assertTrue(all(item["status"] == "passed" for item in result["checks"]))
+        self.assertNotIn("stdout", json.dumps(result))
+        self.assertNotIn("stderr", json.dumps(result))
+
+    def test_failed_verify_leaves_queue_byte_identical(self):
+        fixture = CompletionRemote(self)
+        queue = task_harness.load_queue(fixture.queue_path)
+        task = next(item for item in queue["tasks"] if item["id"] == "SM-023")
+        task["checks"] = ["python3 -c \"raise SystemExit(3)\"", "python3 -c pass"]
+        fixture.queue_path.write_text(
+            yaml.safe_dump(queue, sort_keys=False, allow_unicode=True),
+            encoding="utf-8",
+        )
+        fixture.git("add", "execution/tasks.yaml")
+        fixture.git("commit", "-m", "failing check")
+        before = fixture.queue_path.read_bytes()
+        with self.assertRaises(CheckFailure) as caught:
+            verify_task("SM-023", repo=fixture.repo, queue_path=fixture.queue_path)
+        self.assertEqual("CHECK_FAILED", caught.exception.code)
+        self.assertEqual(before, fixture.queue_path.read_bytes())
+
+    def test_complete_is_atomic_and_records_one_evidence_then_rejects_duplicate(self):
+        fixture = CompletionRemote(self)
+        result = complete_task(
+            "SM-023",
+            123,
+            fixture.head,
+            repo=fixture.repo,
+            queue_path=fixture.queue_path,
+        )
+        self.assertEqual("done", result["status"])
+        queue = task_harness.load_queue(fixture.queue_path)
+        task = next(item for item in queue["tasks"] if item["id"] == "SM-023")
+        self.assertEqual("done", task["status"])
+        self.assertIsNone(task["claim"])
+        self.assertEqual(1, len(task["evidence"]))
+        self.assertEqual(123, task["evidence"][0]["pr"])
+        self.assertNotIn("stdout", json.dumps(task["evidence"]))
+        self.assertNotIn("stderr", json.dumps(task["evidence"]))
+        self.assertEqual("SM-024", task_harness.selectable_tasks(queue)[0]["id"])
+        with self.assertRaises(HarnessError) as caught:
+            complete_task(
+                "SM-023",
+                123,
+                fixture.head,
+                repo=fixture.repo,
+                queue_path=fixture.queue_path,
+            )
+        self.assertEqual("CLAIM_REQUIRED", caught.exception.code)
+
+    def test_dirty_completion_and_wrong_commit_are_rejected_without_queue_change(self):
+        fixture = CompletionRemote(self)
+        before = fixture.queue_path.read_bytes()
+        with self.assertRaises(HarnessError) as wrong:
+            complete_task(
+                "SM-023",
+                123,
+                "0" * 40,
+                repo=fixture.repo,
+                queue_path=fixture.queue_path,
+            )
+        self.assertEqual("COMMIT_MISMATCH", wrong.exception.code)
+        (fixture.repo / "tools/task_harness.py").write_text("dirty\n", encoding="utf-8")
+        with self.assertRaises(HarnessError) as dirty:
+            complete_task(
+                "SM-023",
+                123,
+                fixture.head,
+                repo=fixture.repo,
+                queue_path=fixture.queue_path,
+            )
+        self.assertEqual("WORKTREE_DIRTY", dirty.exception.code)
+        self.assertEqual(before, fixture.queue_path.read_bytes())
 
 
 if __name__ == "__main__":
