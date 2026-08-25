@@ -86,6 +86,21 @@ class HarnessError(RuntimeError):
         self.exit_code = exit_code
 
 
+class PathGuardError(HarnessError):
+    """A path guard error with safe, sorted path details."""
+
+    def __init__(
+        self,
+        rule: str,
+        message: str,
+        *,
+        paths: list[str] | None = None,
+        exit_code: int = 2,
+    ):
+        super().__init__(rule, message, exit_code)
+        self.paths = sorted(set(paths or []))
+
+
 CLAIM_INVALID = 2
 CLAIM_SAME_TASK_LOCK = "CLAIM_SAME_TASK_LOCK"
 CLAIM_SHARED_LOCK = "CLAIM_SHARED_LOCK"
@@ -97,6 +112,8 @@ CLAIM_CLEANUP_FAILED = "CLAIM_CLEANUP_FAILED"
 RELEASE_PRECONDITION = "RELEASE_PRECONDITION"
 RELEASE_ACTOR = "RELEASE_ACTOR"
 RELEASE_LOCK = "RELEASE_LOCK"
+PATH_INVALID = 2
+PATH_DISALLOWED = 4
 
 
 def canonical_json(value: Any) -> str:
@@ -846,6 +863,240 @@ def release_task(
     return {"task_id": task_id, "lock_ref": ref, "released": True}
 
 
+def _safe_path_for_error(path: str) -> str:
+    if (
+        not isinstance(path, str)
+        or path.startswith("/")
+        or "\\" in path
+        or re.match(r"^[A-Za-z]:", path)
+    ):
+        return "<invalid-path>"
+    return path
+
+
+def _normalize_git_path(path: str) -> str:
+    if (
+        not isinstance(path, str)
+        or not path
+        or "\x00" in path
+        or path.startswith("/")
+        or "\\" in path
+        or re.match(r"^[A-Za-z]:", path)
+    ):
+        raise PathGuardError(
+            "INVALID_PATH",
+            "Git returned an invalid relative path",
+            paths=[_safe_path_for_error(path)],
+        )
+    parts = path.split("/")
+    if any(part in {"", ".", ".."} for part in parts):
+        raise PathGuardError(
+            "INVALID_PATH",
+            "Git returned an invalid relative path",
+            paths=[_safe_path_for_error(path)],
+        )
+    return path
+
+
+_DIFF_STATUS_RE = re.compile(r"^[ACDMRTUXB][0-9]*$")
+
+
+def _parse_diff_paths(output: str) -> list[str]:
+    paths: list[str] = []
+    fields = output.split("\x00")
+    index = 0
+    while index < len(fields):
+        token = fields[index]
+        if not token:
+            index += 1
+            continue
+        status: str
+        first_path: str | None = None
+        if "\t" in token:
+            status, first_path = token.split("\t", 1)
+            index += 1
+        elif _DIFF_STATUS_RE.fullmatch(token):
+            status = token
+            index += 1
+        else:
+            index += 1
+            continue
+        if first_path:
+            paths.append(first_path)
+        path_count = 2 if status[:1] in {"R", "C"} else 1
+        for _ in range(path_count):
+            if index >= len(fields) or not fields[index]:
+                break
+            paths.append(fields[index])
+            index += 1
+    return paths
+
+
+def _parse_status_paths(output: str) -> list[str]:
+    paths: list[str] = []
+    fields = output.split("\x00")
+    index = 0
+    while index < len(fields):
+        token = fields[index]
+        index += 1
+        if not token:
+            continue
+        if len(token) < 3 or token[2] != " ":
+            raise PathGuardError("INVALID_GIT_STATUS", "Git status format is ambiguous")
+        status = token[:2]
+        paths.append(token[3:])
+        if status[:1] in {"R", "C"} or status[1:2] in {"R", "C"}:
+            if index >= len(fields) or not fields[index]:
+                raise PathGuardError("INVALID_GIT_STATUS", "Git rename status is incomplete")
+            paths.append(fields[index])
+            index += 1
+    return paths
+
+
+def _git_path_output(repo: Path, args: list[str]) -> str:
+    result = _run_git(repo, args)
+    if result.returncode != 0:
+        raise PathGuardError("GIT_STATE_INVALID", "Git path state cannot be inspected")
+    return result.stdout
+
+
+def _changed_git_paths(
+    repo: Path,
+    base: str,
+    head: str,
+    *,
+    committed_only: bool,
+) -> list[str]:
+    raw_paths: list[str] = []
+    raw_paths.extend(
+        _parse_diff_paths(
+            _git_path_output(
+                repo,
+                ["diff", "--no-ext-diff", "--name-status", "-z", "-M", "-C", base, head],
+            )
+        )
+    )
+    if not committed_only:
+        raw_paths.extend(
+            _parse_status_paths(
+                _git_path_output(
+                    repo,
+                    ["status", "--porcelain=v1", "-z", "--untracked-files=all"],
+                )
+            )
+        )
+        for diff_args in (
+            ["diff", "--no-ext-diff", "--name-status", "-z", "-M", "-C"],
+            ["diff", "--no-ext-diff", "--cached", "--name-status", "-z", "-M", "-C"],
+        ):
+            raw_paths.extend(
+                _parse_diff_paths(_git_path_output(repo, diff_args))
+            )
+    return sorted({_normalize_git_path(path) for path in raw_paths})
+
+
+def _glob_regex(pattern: str) -> re.Pattern[str]:
+    segments = pattern.split("/")
+    expression = "^"
+    for index, segment in enumerate(segments):
+        last = index == len(segments) - 1
+        if segment == "**":
+            if last:
+                expression += r"(?:[^/]+/)*[^/]+"
+            else:
+                expression += r"(?:[^/]+/)*"
+            continue
+        for character in segment:
+            if character == "*":
+                expression += r"[^/]*"
+            elif character == "?":
+                expression += r"[^/]"
+            else:
+                expression += re.escape(character)
+        if not last:
+            expression += "/"
+    return re.compile(expression + "$")
+
+
+def _path_allowed(path: str, allowed_patterns: list[str]) -> bool:
+    return any(_glob_regex(pattern).fullmatch(path) for pattern in allowed_patterns)
+
+
+def _guard_commit(repo: Path, value: str | None, field: str) -> str:
+    if value is None:
+        result = _run_git(repo, ["rev-parse", "HEAD"])
+        if result.returncode != 0:
+            raise PathGuardError("GIT_STATE_INVALID", "Git HEAD cannot be resolved")
+        value = result.stdout.strip()
+    if not isinstance(value, str) or not SHA_RE.fullmatch(value):
+        raise PathGuardError("INVALID_COMMIT", f"{field} must be a 40-character commit")
+    result = _run_git(repo, ["cat-file", "-e", f"{value}^{{commit}}"])
+    if result.returncode != 0:
+        raise PathGuardError("INVALID_COMMIT", f"{field} is not a commit")
+    return value
+
+
+def verify_paths(
+    task_id: str,
+    *,
+    base: str | None = None,
+    head: str | None = None,
+    committed_only: bool = False,
+    repo: Path = ROOT,
+    queue_path: Path | None = None,
+) -> dict[str, Any]:
+    queue_path = queue_path or repo / "execution" / "tasks.yaml"
+    try:
+        queue = _validated_queue(queue_path)
+    except HarnessError as error:
+        raise PathGuardError(error.code, error.message) from error
+    try:
+        task = _task_for_id(queue, task_id)
+    except HarnessError as error:
+        raise PathGuardError(error.code, error.message) from error
+    claim = task.get("claim")
+    if claim is not None:
+        if task["status"] != "in-progress" or not isinstance(claim, dict):
+            raise PathGuardError("CLAIM_INVALID", "task claim is invalid")
+        current_branch = _run_git(repo, ["branch", "--show-current"])
+        if current_branch.returncode != 0 or current_branch.stdout.strip() != claim.get("branch"):
+            raise PathGuardError("CLAIM_BRANCH_MISMATCH", "current branch does not match active claim")
+        claimed_base = claim.get("base")
+        if base is None:
+            base = claimed_base
+        elif base != claimed_base:
+            raise PathGuardError("CLAIM_BASE_MISMATCH", "base does not match active claim")
+    elif base is None:
+        raise PathGuardError("ACTIVE_CLAIM_REQUIRED", "base is required without an active claim")
+    base_commit = _guard_commit(repo, base, "base")
+    head_commit = _guard_commit(repo, head, "head")
+    ancestor = _run_git(repo, ["merge-base", "--is-ancestor", base_commit, head_commit])
+    if ancestor.returncode != 0:
+        raise PathGuardError("BASE_NOT_ANCESTOR", "base is not an ancestor of head")
+    changed_paths = _changed_git_paths(
+        repo,
+        base_commit,
+        head_commit,
+        committed_only=committed_only,
+    )
+    offending = [
+        path for path in changed_paths if not _path_allowed(path, task["allowed_paths"])
+    ]
+    if offending:
+        raise PathGuardError(
+            "PATH_DISALLOWED",
+            "one or more changed paths are outside the task allowance",
+            paths=offending,
+            exit_code=PATH_DISALLOWED,
+        )
+    return {
+        "task": task_id,
+        "base": base_commit,
+        "head": head_commit,
+        "paths": changed_paths,
+    }
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="task_harness")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -870,6 +1121,13 @@ def _parser() -> argparse.ArgumentParser:
     context.add_argument("task_id")
     context.add_argument("--queue", type=Path, default=DEFAULT_QUEUE)
     context.add_argument("--json", action="store_true")
+    verify = subparsers.add_parser("verify-paths")
+    verify.add_argument("task_id")
+    verify.add_argument("--base")
+    verify.add_argument("--head")
+    verify.add_argument("--committed-only", action="store_true")
+    verify.add_argument("--queue", type=Path, default=DEFAULT_QUEUE)
+    verify.add_argument("--json", action="store_true")
     return parser
 
 
@@ -897,8 +1155,42 @@ def _write_error(error: HarnessError, *, as_json: bool) -> None:
         sys.stderr.write(f"{error.code}: {error.message}\n")
 
 
+def _write_path_guard_error(task_id: str, error: PathGuardError, *, as_json: bool) -> None:
+    if as_json:
+        sys.stderr.write(
+            canonical_json(
+                {
+                    "task": task_id,
+                    "rule": error.code,
+                    "paths": sorted(error.paths),
+                }
+            )
+            + "\n"
+        )
+    else:
+        sys.stderr.write(f"{error.code}: {error.message}\n")
+
+
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
+    if args.command == "verify-paths":
+        try:
+            result = verify_paths(
+                args.task_id,
+                base=args.base,
+                head=args.head,
+                committed_only=args.committed_only,
+                repo=args.queue.parent.parent,
+                queue_path=args.queue,
+            )
+            if args.json:
+                sys.stdout.write(canonical_json(result) + "\n")
+            else:
+                sys.stdout.write(f"{result['task']}: {len(result['paths'])} changed paths allowed\n")
+            return 0
+        except PathGuardError as error:
+            _write_path_guard_error(args.task_id, error, as_json=args.json)
+            return error.exit_code
     if args.command == "context":
         try:
             _write_result(context_task(args.task_id, queue_path=args.queue), as_json=args.json)

@@ -23,9 +23,12 @@ from tools.task_harness import (
     CLAIM_SAME_TASK_LOCK,
     CLAIM_SHARED_LOCK,
     HarnessError,
+    PATH_DISALLOWED,
+    PathGuardError,
     claim_task,
     context_task,
     release_task,
+    verify_paths,
 )
 
 
@@ -196,6 +199,10 @@ class TemporaryRemote:
         self._git(self.repo, "config", "user.name", "Harness Test")
         self._git(self.repo, "config", "user.email", "harness@example.invalid")
         (self.repo / "execution").mkdir()
+        (self.repo / "tools").mkdir()
+        (self.repo / "tools" / "task_harness.py").write_text(
+            "# harness fixture\n", encoding="utf-8"
+        )
         queue_path = self.repo / "execution" / "tasks.yaml"
         queue_path.write_bytes(QUEUE_PATH.read_bytes())
         queue = task_harness.load_queue(queue_path)
@@ -207,7 +214,7 @@ class TemporaryRemote:
             yaml.safe_dump(queue, sort_keys=False, allow_unicode=True),
             encoding="utf-8",
         )
-        self._git(self.repo, "add", "execution/tasks.yaml")
+        self._git(self.repo, "add", "execution/tasks.yaml", "tools/task_harness.py")
         self._git(self.repo, "commit", "-m", "fixture base")
         self._git(self.repo, "remote", "add", "origin", str(self.bare))
         self._git(self.repo, "push", "-u", "origin", "main")
@@ -497,6 +504,161 @@ class TaskHarnessLifecycleTests(unittest.TestCase):
             release_task("SM-021", "alice", "origin", repo=fixture.repo, queue_path=queue_path)
         self.assertEqual("RELEASE_PRECONDITION", caught.exception.code)
         self.assertEqual(1, len(fixture.lock_output().splitlines()))
+
+
+class PathGuardTests(unittest.TestCase):
+    def test_allowed_committed_path_and_repeated_json_are_stable(self):
+        fixture = TemporaryRemote(self)
+        base = fixture.base()
+        tool = fixture.repo / "tools" / "task_harness.py"
+        tool.write_text(tool.read_text(encoding="utf-8") + "# changed\n", encoding="utf-8")
+        fixture._git(fixture.repo, "add", "tools/task_harness.py")
+        fixture._git(fixture.repo, "commit", "-m", "allowed harness change")
+        head = fixture.base()
+        first = verify_paths(
+            "SM-022",
+            base=base,
+            head=head,
+            committed_only=True,
+            repo=fixture.repo,
+            queue_path=fixture.repo / "execution/tasks.yaml",
+        )
+        second = verify_paths(
+            "SM-022",
+            base=base,
+            head=head,
+            committed_only=True,
+            repo=fixture.repo,
+            queue_path=fixture.repo / "execution/tasks.yaml",
+        )
+        self.assertEqual(first, second)
+        self.assertEqual({"task", "base", "head", "paths"}, set(first))
+        self.assertEqual("SM-022", first["task"])
+        self.assertEqual(["tools/task_harness.py"], first["paths"])
+
+    def test_disallowed_path_is_exit_four_and_json_is_safe(self):
+        fixture = TemporaryRemote(self)
+        base = fixture.base()
+        readme = fixture.repo / "README.md"
+        readme.write_text("synthetic disallowed path\n", encoding="utf-8")
+        fixture._git(fixture.repo, "add", "README.md")
+        fixture._git(fixture.repo, "commit", "-m", "disallowed path")
+        head = fixture.base()
+        with self.assertRaises(PathGuardError) as caught:
+            verify_paths(
+                "SM-022",
+                base=base,
+                head=head,
+                committed_only=True,
+                repo=fixture.repo,
+                queue_path=fixture.repo / "execution/tasks.yaml",
+            )
+        self.assertEqual(PATH_DISALLOWED, caught.exception.exit_code)
+        self.assertEqual(["README.md"], caught.exception.paths)
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+            result = task_harness.main(
+                [
+                    "verify-paths",
+                    "SM-022",
+                    "--base",
+                    base,
+                    "--head",
+                    head,
+                    "--committed-only",
+                    "--queue",
+                    str(fixture.repo / "execution/tasks.yaml"),
+                    "--json",
+                ]
+            )
+        self.assertEqual(PATH_DISALLOWED, result)
+        self.assertEqual("", stdout.getvalue())
+        failure = json.loads(stderr.getvalue())
+        self.assertEqual({"task", "rule", "paths"}, set(failure))
+        self.assertEqual("SM-022", failure["task"])
+        self.assertEqual("PATH_DISALLOWED", failure["rule"])
+        self.assertEqual(["README.md"], failure["paths"])
+
+    def test_pattern_matching_is_root_anchored_and_table_driven(self):
+        cases = [
+            ("tools/task_harness.py", "tools/task_harness.py", True),
+            ("tools/task_harness.py", "tools/other.py", False),
+            ("docs/*.md", "docs/plan.md", True),
+            ("docs/*.md", "docs/sub/plan.md", False),
+            ("tests/test_?.py", "tests/test_a.py", True),
+            ("tests/test_?.py", "tests/test_ab.py", False),
+            ("tests/**", "tests/test.py", True),
+            ("tests/**", "tests/deep/test.py", True),
+            ("tests/**", "tests", False),
+            ("**/*.py", "tools/task_harness.py", True),
+            ("**/*.py", "README.md", False),
+        ]
+        for pattern, path, expected in cases:
+            with self.subTest(pattern=pattern, path=path):
+                self.assertEqual(expected, task_harness._path_allowed(path, [pattern]))
+
+    def test_complete_worktree_states_and_rename_sources_are_visible(self):
+        fixture = TemporaryRemote(self)
+        (fixture.repo / "tracked.txt").write_text("tracked\n", encoding="utf-8")
+        (fixture.repo / "rename-source.txt").write_text("rename\n", encoding="utf-8")
+        fixture._git(fixture.repo, "add", "tracked.txt", "rename-source.txt")
+        fixture._git(fixture.repo, "commit", "-m", "state fixture")
+        base = fixture.base()
+        (fixture.repo / "staged.txt").write_text("staged\n", encoding="utf-8")
+        fixture._git(fixture.repo, "add", "staged.txt")
+        (fixture.repo / "unstaged.txt").write_text("unstaged\n", encoding="utf-8")
+        (fixture.repo / "untracked.txt").write_text("untracked\n", encoding="utf-8")
+        (fixture.repo / "tracked.txt").unlink()
+        fixture._git(fixture.repo, "mv", "rename-source.txt", "rename-target.txt")
+        shutil.copyfile(
+            fixture.repo / "tools" / "task_harness.py",
+            fixture.repo / "copy.txt",
+        )
+        fixture._git(fixture.repo, "add", "copy.txt")
+        paths = task_harness._changed_git_paths(
+            fixture.repo,
+            base,
+            base,
+            committed_only=False,
+        )
+        for path in (
+            "staged.txt",
+            "unstaged.txt",
+            "untracked.txt",
+            "tracked.txt",
+            "rename-source.txt",
+            "rename-target.txt",
+            "copy.txt",
+        ):
+            self.assertIn(path, paths)
+        self.assertIn("conflicted.txt", task_harness._parse_status_paths("UU conflicted.txt\0"))
+        self.assertEqual(
+            ["new.txt", "old.txt"],
+            sorted(task_harness._parse_diff_paths("R100\0new.txt\0old.txt\0")),
+        )
+
+    def test_base_must_be_a_commit_ancestor(self):
+        fixture = TemporaryRemote(self)
+        head = fixture.base()
+        tree = fixture._git(fixture.repo, "rev-parse", "HEAD^{tree}")
+        unrelated = fixture._git(
+            fixture.repo,
+            "commit-tree",
+            tree,
+            "-m",
+            "unrelated",
+        )
+        with self.assertRaises(PathGuardError) as caught:
+            verify_paths(
+                "SM-022",
+                base=unrelated,
+                head=head,
+                committed_only=True,
+                repo=fixture.repo,
+                queue_path=fixture.repo / "execution/tasks.yaml",
+            )
+        self.assertEqual("BASE_NOT_ANCESTOR", caught.exception.code)
 
 
 if __name__ == "__main__":
