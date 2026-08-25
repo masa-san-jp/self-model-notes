@@ -2,8 +2,11 @@ from __future__ import annotations
 
 import contextlib
 import copy
+import concurrent.futures
 import io
 import json
+import shutil
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -11,6 +14,18 @@ from pathlib import Path
 import yaml
 
 from tools import task_harness
+from tools.task_harness import (
+    CLAIM_LOCK_RACE,
+    CLAIM_MUTATION_FAILED,
+    CLAIM_PATH_CONFLICT,
+    CLAIM_PRECONDITION,
+    CLAIM_SAME_TASK_LOCK,
+    CLAIM_SHARED_LOCK,
+    HarnessError,
+    claim_task,
+    context_task,
+    release_task,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -148,6 +163,299 @@ class TaskHarnessTests(unittest.TestCase):
             {"queue_version": 3, "reason": "no-selectable-task", "task": None},
             json.loads(stdout.getvalue()),
         )
+
+
+class TemporaryRemote:
+    def __init__(self, test_case: unittest.TestCase):
+        self.root = Path(tempfile.mkdtemp())
+        test_case.addCleanup(shutil.rmtree, self.root, True)
+        self.repo = self.root / "agent"
+        self.bare = self.root / "remote.git"
+        self.repo.mkdir()
+        self._git(self.root, "init", "--bare", str(self.bare))
+        self._git(self.repo, "init", "-b", "main")
+        self._git(self.repo, "config", "user.name", "Harness Test")
+        self._git(self.repo, "config", "user.email", "harness@example.invalid")
+        (self.repo / "execution").mkdir()
+        (self.repo / "execution" / "tasks.yaml").write_bytes(QUEUE_PATH.read_bytes())
+        self._git(self.repo, "add", "execution/tasks.yaml")
+        self._git(self.repo, "commit", "-m", "fixture base")
+        self._git(self.repo, "remote", "add", "origin", str(self.bare))
+        self._git(self.repo, "push", "-u", "origin", "main")
+
+    @staticmethod
+    def _git(cwd: Path, *args: str) -> str:
+        result = subprocess.run(
+            ["git", *args],
+            cwd=cwd,
+            text=True,
+            capture_output=True,
+            shell=False,
+        )
+        if result.returncode:
+            raise AssertionError(f"git fixture setup failed: {args}")
+        return result.stdout.strip()
+
+    def clone(self, name: str) -> Path:
+        target = self.root / name
+        self._git(self.root, "clone", "-b", "main", str(self.bare), str(target))
+        self._git(target, "config", "user.name", "Harness Test")
+        self._git(target, "config", "user.email", "harness@example.invalid")
+        return target
+
+    def base(self, repo: Path | None = None) -> str:
+        return self._git(repo or self.repo, "rev-parse", "HEAD")
+
+    def lock_output(self, repo: Path | None = None) -> str:
+        return self._git(
+            repo or self.repo,
+            "ls-remote",
+            "--refs",
+            "origin",
+            "refs/heads/harness-lock/*",
+        )
+
+
+class TaskHarnessLifecycleTests(unittest.TestCase):
+    def test_claim_creates_fixed_lowercase_lock_branch_and_context(self):
+        fixture = TemporaryRemote(self)
+        base = fixture.base()
+        result = claim_task(
+            "SM-021",
+            "alice",
+            "origin",
+            base,
+            repo=fixture.repo,
+            queue_path=fixture.repo / "execution/tasks.yaml",
+        )
+        self.assertEqual("agent/sm-021-alice", result["claim"]["branch"])
+        self.assertEqual("refs/heads/harness-lock/sm-021", result["claim"]["lock_ref"])
+        self.assertEqual("agent/sm-021-alice", fixture._git(fixture.repo, "branch", "--show-current"))
+        self.assertEqual(1, len(fixture.lock_output().splitlines()))
+        first = context_task("SM-021", queue_path=fixture.repo / "execution/tasks.yaml")
+        second = context_task("SM-021", queue_path=fixture.repo / "execution/tasks.yaml")
+        self.assertEqual(first, second)
+        self.assertEqual("in-progress", task_harness.load_queue(fixture.repo / "execution/tasks.yaml")["tasks"][-6]["status"])
+
+    def test_concurrent_claims_have_exactly_one_winner(self):
+        fixture = TemporaryRemote(self)
+        first = fixture.clone("first")
+        second = fixture.clone("second")
+        base = fixture.base(first)
+
+        def attempt(repo: Path, actor: str):
+            try:
+                claim_task(
+                    "SM-021",
+                    actor,
+                    "origin",
+                    base,
+                    repo=repo,
+                    queue_path=repo / "execution/tasks.yaml",
+                )
+                return "success"
+            except HarnessError as error:
+                return error.code
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+            outcomes = list(
+                executor.map(
+                    lambda item: attempt(*item),
+                    ((first, "alice"), (second, "bob")),
+                )
+            )
+        self.assertEqual(1, outcomes.count("success"))
+        self.assertEqual(1, len([outcome for outcome in outcomes if outcome != "success"]))
+        self.assertIn(outcomes[0] if outcomes[0] != "success" else outcomes[1], {CLAIM_SAME_TASK_LOCK, CLAIM_LOCK_RACE})
+        self.assertEqual(1, len(fixture.lock_output().splitlines()))
+
+    def test_shared_and_overlapping_paths_have_distinct_stable_errors(self):
+        queue = task_harness.load_queue(QUEUE_PATH)
+        by_id = {task["id"]: task for task in queue["tasks"]}
+        shared = task_harness._lock_conflict(queue, by_id["SM-021"], {"SM-022"})
+        self.assertEqual((CLAIM_SHARED_LOCK, "task uses a policy shared-lock path"), shared)
+        queue["policy"]["shared_locks"] = []
+        by_id["SM-021"]["allowed_paths"] = ["docs/plan/**"]
+        by_id["SM-022"]["allowed_paths"] = ["docs/plan/file.md"]
+        overlap = task_harness._lock_conflict(queue, by_id["SM-021"], {"SM-022"})
+        self.assertEqual((CLAIM_PATH_CONFLICT, "task allowed paths overlap a remote lock"), overlap)
+        queue["policy"]["shared_locks"] = []
+        by_id["SM-021"]["allowed_paths"] = ["alpha/**"]
+        by_id["SM-022"]["allowed_paths"] = ["beta/**"]
+        by_id["SM-022"]["depends_on"] = []
+        self.assertIsNone(task_harness._lock_conflict(queue, by_id["SM-022"], {"SM-021"}))
+        self.assertEqual(
+            "SM-022",
+            task_harness._current_task(queue, "SM-022", {"SM-021"})["id"],
+        )
+
+    def test_post_lock_mutation_failure_removes_only_new_lock_and_restores_bytes(self):
+        fixture = TemporaryRemote(self)
+        queue_path = fixture.repo / "execution/tasks.yaml"
+        before = queue_path.read_bytes()
+        base = fixture.base()
+
+        def fail_mutation(path: Path, claim: dict[str, str]) -> None:
+            raise HarnessError(CLAIM_MUTATION_FAILED, "forced test mutation failure")
+
+        with self.assertRaises(HarnessError) as caught:
+            claim_task(
+                "SM-021",
+                "alice",
+                "origin",
+                base,
+                repo=fixture.repo,
+                queue_path=queue_path,
+                mutate=fail_mutation,
+            )
+        self.assertEqual(CLAIM_MUTATION_FAILED, caught.exception.code)
+        self.assertEqual(before, queue_path.read_bytes())
+        self.assertEqual("main", fixture._git(fixture.repo, "branch", "--show-current"))
+        self.assertEqual("", fixture.lock_output())
+
+    def test_claim_rejects_invalid_actor_dirty_and_stale_base_without_mutation(self):
+        fixture = TemporaryRemote(self)
+        queue_path = fixture.repo / "execution/tasks.yaml"
+        base = fixture.base()
+        with self.assertRaises(HarnessError) as caught:
+            claim_task("SM-021", "Alice", "origin", base, repo=fixture.repo, queue_path=queue_path)
+        self.assertEqual("INVALID_ACTOR", caught.exception.code)
+        (fixture.repo / "untracked.txt").write_text("dirty\n", encoding="utf-8")
+        with self.assertRaises(HarnessError) as caught:
+            claim_task("SM-021", "alice", "origin", base, repo=fixture.repo, queue_path=queue_path)
+        self.assertEqual(CLAIM_PRECONDITION, caught.exception.code)
+        (fixture.repo / "untracked.txt").unlink()
+        with self.assertRaises(HarnessError) as caught:
+            claim_task("SM-021", "alice", "origin", "0" * 40, repo=fixture.repo, queue_path=queue_path)
+        self.assertEqual(CLAIM_PRECONDITION, caught.exception.code)
+        self.assertEqual("", fixture.lock_output())
+        self.assertEqual("main", fixture._git(fixture.repo, "branch", "--show-current"))
+
+    def test_claim_rejects_detached_diverged_missing_remote_and_no_selection(self):
+        detached = TemporaryRemote(self)
+        base = detached.base()
+        detached._git(detached.repo, "switch", "--detach", base)
+        with self.assertRaises(HarnessError) as caught:
+            claim_task(
+                "SM-021",
+                "alice",
+                "origin",
+                base,
+                repo=detached.repo,
+                queue_path=detached.repo / "execution/tasks.yaml",
+            )
+        self.assertEqual(CLAIM_PRECONDITION, caught.exception.code)
+
+        diverged = TemporaryRemote(self)
+        diverged._git(diverged.repo, "switch", "main")
+        (diverged.repo / "local.txt").write_text("ahead\n", encoding="utf-8")
+        diverged._git(diverged.repo, "add", "local.txt")
+        diverged._git(diverged.repo, "commit", "-m", "local divergence")
+        with self.assertRaises(HarnessError) as caught:
+            claim_task(
+                "SM-021",
+                "alice",
+                "origin",
+                diverged.base(),
+                repo=diverged.repo,
+                queue_path=diverged.repo / "execution/tasks.yaml",
+            )
+        self.assertEqual(CLAIM_PRECONDITION, caught.exception.code)
+
+        missing_remote = TemporaryRemote(self)
+        with self.assertRaises(HarnessError) as caught:
+            claim_task(
+                "SM-021",
+                "alice",
+                "missing",
+                missing_remote.base(),
+                repo=missing_remote.repo,
+                queue_path=missing_remote.repo / "execution/tasks.yaml",
+            )
+        self.assertEqual(CLAIM_PRECONDITION, caught.exception.code)
+
+        no_selection = TemporaryRemote(self)
+        queue_path = no_selection.repo / "execution/tasks.yaml"
+        queue = task_harness.load_queue(queue_path)
+        next(task for task in queue["tasks"] if task["id"] == "SM-021")["status"] = "blocked"
+        queue_path.write_text(yaml.safe_dump(queue, sort_keys=False), encoding="utf-8")
+        no_selection._git(no_selection.repo, "add", "execution/tasks.yaml")
+        no_selection._git(no_selection.repo, "commit", "-m", "block task")
+        no_selection._git(no_selection.repo, "push", "origin", "main")
+        with self.assertRaises(HarnessError) as caught:
+            claim_task(
+                "SM-021",
+                "alice",
+                "origin",
+                no_selection.base(),
+                repo=no_selection.repo,
+                queue_path=queue_path,
+            )
+        self.assertEqual("TASK_NOT_SELECTABLE", caught.exception.code)
+
+    def _complete_remote_task(self, fixture: TemporaryRemote) -> str:
+        maint = fixture.clone("maint")
+        implementation = maint / "implementation.txt"
+        implementation.write_text("implemented\n", encoding="utf-8")
+        fixture._git(maint, "add", "implementation.txt")
+        fixture._git(maint, "commit", "-m", "implementation")
+        implementation_commit = fixture._git(maint, "rev-parse", "HEAD")
+        queue_path = maint / "execution/tasks.yaml"
+        text = queue_path.read_text(encoding="utf-8")
+        start = text.index("  - id: SM-021")
+        end = text.index("  - id: SM-022", start)
+        block = text[start:end]
+        block = block.replace("    status: ready", "    status: done", 1)
+        block = block.replace(
+            "    evidence: []",
+            f"    evidence:\n      - commit: {implementation_commit}\n        checks:\n          - simulated implementation\n",
+            1,
+        )
+        queue_path.write_text(text[:start] + block + text[end:], encoding="utf-8")
+        fixture._git(maint, "add", "execution/tasks.yaml")
+        fixture._git(maint, "commit", "-m", "completion evidence")
+        fixture._git(maint, "push", "origin", "main")
+        return implementation_commit
+
+    def test_release_requires_matching_actor_and_merged_evidence_then_deletes_only_lock(self):
+        fixture = TemporaryRemote(self)
+        queue_path = fixture.repo / "execution/tasks.yaml"
+        base = fixture.base()
+        claim_task("SM-021", "alice", "origin", base, repo=fixture.repo, queue_path=queue_path)
+        with self.assertRaises(HarnessError) as caught:
+            release_task("SM-021", "bob", "origin", repo=fixture.repo, queue_path=queue_path)
+        self.assertEqual("RELEASE_ACTOR", caught.exception.code)
+        with self.assertRaises(HarnessError) as caught:
+            release_task("SM-021", "alice", "origin", repo=fixture.repo, queue_path=queue_path)
+        self.assertEqual("RELEASE_PRECONDITION", caught.exception.code)
+        self._complete_remote_task(fixture)
+        result = release_task("SM-021", "alice", "origin", repo=fixture.repo, queue_path=queue_path)
+        self.assertTrue(result["released"])
+        self.assertEqual("", fixture.lock_output())
+        self.assertTrue(
+            fixture._git(fixture.repo, "show-ref", "--verify", "--quiet", "refs/heads/agent/sm-021-alice")
+            == ""
+        )
+
+    def test_release_with_missing_evidence_keeps_lock(self):
+        fixture = TemporaryRemote(self)
+        queue_path = fixture.repo / "execution/tasks.yaml"
+        base = fixture.base()
+        claim_task("SM-021", "alice", "origin", base, repo=fixture.repo, queue_path=queue_path)
+        maint = fixture.clone("maint-missing")
+        remote_queue = maint / "execution/tasks.yaml"
+        text = remote_queue.read_text(encoding="utf-8")
+        start = text.index("  - id: SM-021")
+        end = text.index("  - id: SM-022", start)
+        block = text[start:end].replace("    status: ready", "    status: done", 1)
+        remote_queue.write_text(text[:start] + block + text[end:], encoding="utf-8")
+        fixture._git(maint, "add", "execution/tasks.yaml")
+        fixture._git(maint, "commit", "-m", "incomplete completion")
+        fixture._git(maint, "push", "origin", "main")
+        with self.assertRaises(HarnessError) as caught:
+            release_task("SM-021", "alice", "origin", repo=fixture.repo, queue_path=queue_path)
+        self.assertEqual("RELEASE_PRECONDITION", caught.exception.code)
+        self.assertEqual(1, len(fixture.lock_output().splitlines()))
 
 
 if __name__ == "__main__":
