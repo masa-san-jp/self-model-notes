@@ -113,13 +113,15 @@ class ExecutionTaskQueueTests(unittest.TestCase):
             expected = [min(eligible)] if eligible else []
             self.assertEqual(expected, [task["id"] for task in selectable_tasks(self.queue)])
 
-    def test_harness_bootstrap_has_only_one_next_task_after_sm019(self):
+    def test_harness_bootstrap_has_only_one_next_task(self):
         if self.by_id["SM-019"]["status"] == "in-progress":
             self.assertEqual([], [task["id"] for task in selectable_tasks(self.queue)])
-        elif self.by_id["SM-019"]["status"] == "done":
+        elif self.by_id["SM-020"]["status"] == "ready":
             self.assertEqual(["SM-020"], [task["id"] for task in selectable_tasks(self.queue)])
+        elif self.by_id["SM-020"]["status"] == "done":
+            self.assertEqual(["SM-021"], [task["id"] for task in selectable_tasks(self.queue)])
         else:
-            self.fail("SM-019 must be in-progress during bootstrap or done after completion")
+            self.fail("harness queue must expose exactly one lifecycle task")
 
     def test_existing_tasks_are_unchanged_in_status_and_evidence_shape(self):
         for task in self.tasks:
