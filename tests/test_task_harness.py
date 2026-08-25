@@ -65,7 +65,12 @@ class TaskHarnessTests(unittest.TestCase):
         elif self.queue_task("SM-021")["status"] == "ready":
             expected_id = "SM-021"
         else:
-            expected_id = "SM-022" if self.queue_task("SM-022")["status"] == "ready" else "SM-023"
+            if self.queue_task("SM-022")["status"] == "ready":
+                expected_id = "SM-022"
+            elif self.queue_task("SM-023")["status"] == "ready":
+                expected_id = "SM-023"
+            else:
+                expected_id = "SM-024"
         self.assertEqual([expected_id], [task["id"] for task in selected])
         self.assertEqual(
             {
@@ -92,7 +97,12 @@ class TaskHarnessTests(unittest.TestCase):
         elif self.queue_task("SM-021")["status"] == "ready":
             expected_id = "SM-021"
         else:
-            expected_id = "SM-022" if self.queue_task("SM-022")["status"] == "ready" else "SM-023"
+            if self.queue_task("SM-022")["status"] == "ready":
+                expected_id = "SM-022"
+            elif self.queue_task("SM-023")["status"] == "ready":
+                expected_id = "SM-023"
+            else:
+                expected_id = "SM-024"
         self.assertEqual(
             [expected_id],
             [task["id"] for task in task_harness.selectable_tasks(reversed_queue)],
@@ -146,7 +156,12 @@ class TaskHarnessTests(unittest.TestCase):
         elif self.queue_task("SM-021")["status"] == "ready":
             expected_id = "SM-021"
         else:
-            expected_id = "SM-022" if self.queue_task("SM-022")["status"] == "ready" else "SM-023"
+            if self.queue_task("SM-022")["status"] == "ready":
+                expected_id = "SM-022"
+            elif self.queue_task("SM-023")["status"] == "ready":
+                expected_id = "SM-023"
+            else:
+                expected_id = "SM-024"
         self.assertEqual(expected_id, result["task"]["id"])
         self.assertEqual(
             {
@@ -696,6 +711,7 @@ class CompletionRemote:
         queue = task_harness.load_queue(queue_path)
         task = next(item for item in queue["tasks"] if item["id"] == "SM-023")
         task["status"] = "in-progress"
+        task["evidence"] = []
         task["claim"] = {
             "actor": "alice",
             "base": self.base,
