@@ -19,6 +19,7 @@ except ModuleNotFoundError:  # Imported as tools.export_signals by the test suit
 
 RESEARCH_SIGNALS_SCHEMA = "urn:self-model-notes:research-signals:v1"
 SOURCE_REPOSITORY = "masa-san-jp/self-model-notes"
+SIGNAL_ID_RE = re.compile(r"^[a-z0-9]+(?:[._:-][a-z0-9]+)*$")
 
 
 def _list_refs(meta: dict[str, Any], field: str) -> list[str]:
@@ -100,11 +101,25 @@ def _consent_denials(source, purpose: str, operation: str, today: date) -> list[
 
 def _source_commit(root: Path = ROOT) -> str:
     try:
-        return subprocess.check_output(
+        commit = subprocess.check_output(
             ["git", "rev-parse", "HEAD"], cwd=root, text=True, stderr=subprocess.DEVNULL
         ).strip()
     except (OSError, subprocess.CalledProcessError):
-        return "unknown"
+        return ""
+    return commit if re.fullmatch(r"[0-9a-f]{40}", commit) else ""
+
+
+def _worktree_is_dirty(root: Path = ROOT) -> bool:
+    try:
+        result = subprocess.run(
+            ["git", "status", "--porcelain=v1", "--untracked-files=all"],
+            cwd=root,
+            text=True,
+            capture_output=True,
+        )
+    except OSError:
+        return True
+    return result.returncode != 0 or bool(result.stdout.strip())
 
 
 def _as_of(selected) -> str | None:
@@ -121,7 +136,7 @@ def _as_of(selected) -> str | None:
 def _signals(selected) -> list[dict[str, Any]]:
     result: list[dict[str, Any]] = []
     for entity in selected:
-        if entity.type == "claim":
+        if entity.type == "claim" and entity.meta.get("status") != "rejected" and entity.meta.get("superseded_by") is None:
             result.append(
                 {
                     "entity_ref": entity.id,
@@ -129,10 +144,13 @@ def _signals(selected) -> list[dict[str, Any]]:
                     "layer": entity.meta.get("layer"),
                     "statement": entity.meta.get("statement"),
                     "certainty": entity.meta.get("confidence", "unknown"),
+                    "motivation_direction": entity.meta.get("motivation_direction"),
+                    "scope": entity.meta.get("scope"),
+                    "conditions": _list_refs(entity.meta, "conditions"),
                     "evidence_refs": _list_refs(entity.meta, "supporting_evidence"),
                 }
             )
-        elif entity.type == "pattern":
+        elif entity.type == "pattern" and entity.meta.get("status") != "rejected":
             result.append(
                 {
                     "entity_ref": entity.id,
@@ -140,6 +158,8 @@ def _signals(selected) -> list[dict[str, Any]]:
                     "layer": "pattern",
                     "statement": entity.meta.get("condition"),
                     "certainty": entity.meta.get("confidence", "unknown"),
+                    "scope": None,
+                    "contexts_seen": _list_refs(entity.meta, "contexts_seen"),
                     "evidence_refs": _list_refs(entity.meta, "evidence"),
                 }
             )
@@ -164,6 +184,24 @@ def export_signals(
             "purpose": purpose,
             "operation": operation,
             "denials": [_denial(subject, "subject.exists", "Subject is missing.")],
+        }
+
+    if source_commit is None and _worktree_is_dirty(ROOT):
+        return {
+            "allowed": False,
+            "subject": subject,
+            "purpose": purpose,
+            "operation": operation,
+            "denials": [_denial("repository", "worktree.clean", "Working tree is dirty; export requires a clean committed state.")],
+        }
+    resolved_commit = source_commit if source_commit is not None else _source_commit(ROOT)
+    if not resolved_commit:
+        return {
+            "allowed": False,
+            "subject": subject,
+            "purpose": purpose,
+            "operation": operation,
+            "denials": [_denial("repository", "commit.available", "A 40-character HEAD commit is required for export.")],
         }
 
     by_id = {entity.id: entity for entity in selected}
@@ -194,19 +232,40 @@ def export_signals(
         "purpose": purpose,
         "operation": operation,
         "as_of": _as_of(selected),
-        "source_commit": source_commit if source_commit is not None else _source_commit(),
+        "source_commit": resolved_commit,
         "signals": _signals(selected),
     }
 
 
 def _signal_item(signal: dict[str, Any]) -> dict[str, Any]:
-    certainty = signal.get("certainty")
+    certainty = _certainty_value(signal)
     return {
         "entity_ref": signal["entity_ref"],
         "statement": signal["statement"],
-        "certainty": certainty if isinstance(certainty, str) and certainty in {"unknown", "low", "medium", "high"} else "unknown",
+        "certainty": certainty,
         "evidence_refs": signal["evidence_refs"],
     }
+
+
+def _certainty_value(signal: dict[str, Any]) -> str:
+    certainty = signal.get("certainty")
+    return certainty if isinstance(certainty, str) and certainty in {"unknown", "low", "medium", "high"} else "unknown"
+
+
+def _domain_group(signal: dict[str, Any]) -> str | None:
+    if signal.get("kind") == "pattern":
+        return "recurring_patterns"
+    if signal.get("layer") == "tension":
+        return "tensions"
+    if signal.get("layer") == "emotion":
+        return "emotional_material"
+    if signal.get("layer") != "motivation":
+        return None
+    return {
+        "seek": "seeks",
+        "protect": "protects",
+        "avoid": "avoids",
+    }.get(signal.get("motivation_direction"))
 
 
 def build_research_signals(result: dict[str, Any]) -> dict[str, Any]:
@@ -227,16 +286,9 @@ def build_research_signals(result: dict[str, Any]) -> dict[str, Any]:
     }
     for signal in result.get("signals", []):
         item = _signal_item(signal)
-        if signal["kind"] == "pattern":
-            signal_groups["recurring_patterns"].append(item)
-        elif signal.get("layer") == "emotion":
-            signal_groups["emotional_material"].append(item)
-        elif signal.get("layer") == "motivation":
-            signal_groups["seeks"].append(item)
-        elif signal.get("layer") == "behavioral-principle":
-            signal_groups["protects"].append(item)
-        elif signal.get("layer") == "tension":
-            signal_groups["tensions"].append(item)
+        group = _domain_group(signal)
+        if group:
+            signal_groups[group].append(item)
     for values in signal_groups.values():
         values.sort(key=lambda item: item["entity_ref"])
     evidence_refs = sorted({ref for values in signal_groups.values() for item in values for ref in item["evidence_refs"]})
@@ -267,8 +319,37 @@ ADAPTER_VERSION = "1.0.0"
 # 本人の長期的な傾向は半年で見直す（アートリサーチ仕様書 9.2 の鮮度表）
 REVALIDATE_DAYS = 180
 # このKBの確度語彙 → 境界の確度語彙
-CERTAINTY_LEVEL = {"high": "observed", "medium": "inferred", "low": "uncertain", "unknown": "unknown"}
+CERTAINTY_LEVEL = {"high": "inferred", "medium": "inferred", "low": "uncertain", "unknown": "unknown"}
 GROUP_FIELDS = ("seeks", "protects", "avoids", "tensions", "recurring_patterns", "traits", "states", "contexts")
+FIXED_SIGNAL_FIELDS = (
+    "signal_id",
+    "repository",
+    "commit",
+    "entity_id",
+    "source_locator",
+    "evidence_locator",
+    "evidence_kind",
+    "statement",
+    "certainty",
+    "unknowns",
+    "constraints",
+    "validity",
+    "freshness",
+    "generated_at",
+    "adapter_version",
+    "consent_scope",
+    "export_permitted",
+    "seeks",
+    "protects",
+    "avoids",
+    "tensions",
+    "recurring_patterns",
+    "raw_voice_locator",
+    "traits",
+    "states",
+    "contexts",
+)
+FIXED_CONSTRAINT = "Use only for artistic-research under approved-derived-only consent."
 
 
 def _statements(groups: dict, field: str) -> list[str]:
@@ -278,13 +359,47 @@ def _statements(groups: dict, field: str) -> list[str]:
 
 def _group_of(signal: dict[str, Any]) -> str:
     """境界の欄のうち、この記録が属するもの。build_research_signals の振り分けと同じ規則。"""
-    if signal.get("kind") == "pattern":
-        return "recurring_patterns"
-    return {
-        "motivation": "seeks",
-        "behavioral-principle": "protects",
-        "tension": "tensions",
-    }.get(signal.get("layer"), "traits")
+    return _domain_group(signal) or "traits"
+
+
+def _signal_groups(signal: dict[str, Any], statement: Any) -> dict[str, list[Any]]:
+    groups = {field: [] for field in GROUP_FIELDS}
+    domain = _domain_group(signal)
+    if domain in groups and isinstance(statement, str):
+        groups[domain].append(statement)
+    scope = signal.get("scope")
+    if scope == "trait" and isinstance(statement, str):
+        groups["traits"].append(statement)
+    elif scope == "state" and isinstance(statement, str):
+        groups["states"].append(statement)
+    elif scope == "context-bound":
+        values = signal.get("conditions")
+        groups["contexts"].extend(value for value in values or [] if isinstance(value, str))
+    elif signal.get("kind") == "pattern":
+        groups["contexts"].extend(value for value in signal.get("contexts_seen", []) if isinstance(value, str))
+    return {field: sorted(set(values)) for field, values in groups.items()}
+
+
+def _signal_unknowns(signal: dict[str, Any]) -> list[str]:
+    unknowns = []
+    certainty = _certainty_value(signal)
+    if certainty in {"low", "unknown"}:
+        unknowns.append(f"confidence is {certainty}")
+    direction = signal.get("motivation_direction")
+    if signal.get("layer") == "motivation" and direction in {"mixed", "unknown"}:
+        unknowns.append(f"motivation direction is {direction}")
+    if signal.get("scope") == "trait-candidate":
+        unknowns.append("trait remains a candidate")
+    return sorted(set(unknowns))
+
+
+def _signal_constraints(signal: dict[str, Any]) -> list[str]:
+    constraints = [FIXED_CONSTRAINT]
+    if signal.get("kind") == "claim":
+        constraints.extend(f"Condition: {value}" for value in signal.get("conditions", []) if isinstance(value, str))
+    elif signal.get("kind") == "pattern":
+        constraints.extend(f"Context: {value}" for value in signal.get("contexts_seen", []) if isinstance(value, str))
+    return sorted(set(constraints))
 
 
 def build_signal_export(result: dict[str, Any], generated_at: str | None = None) -> dict[str, Any]:
@@ -296,8 +411,7 @@ def build_signal_export(result: dict[str, Any], generated_at: str | None = None)
 
     値は新しく作らない。置き場所を変えるだけなのは以前と同じ。
     """
-    grouped = build_research_signals(result)
-    if "research_signals" not in grouped:
+    if not result.get("allowed"):
         # Consent was refused. The refusal is the answer; do not shape it into
         # an export that merely happens to be empty.
         return {
@@ -309,70 +423,147 @@ def build_signal_export(result: dict[str, Any], generated_at: str | None = None)
             "signal_count": 0,
             "signals": [],
         }
-    groups = grouped["research_signals"]
-    subject = grouped["subject"]
-    as_of = grouped.get("as_of")
+    source_commit = result.get("source_commit")
+    if not isinstance(source_commit, str) or not re.fullmatch(r"[0-9a-f]{40}", source_commit):
+        raise ValueError("signal export requires a 40-character source commit")
     stamp = generated_at or datetime.now(timezone(timedelta(hours=9))).replace(microsecond=0).isoformat()
-    checked = f"{as_of}T00:00:00+09:00" if as_of else stamp
-    revalidate = (datetime.fromisoformat(checked) + timedelta(days=REVALIDATE_DAYS)).isoformat()
-
-    by_ref = {}
-    for field in GROUP_FIELDS:
-        for item in groups.get(field, []) or []:
-            if isinstance(item, dict) and item.get("entity_ref"):
-                by_ref[item["entity_ref"]] = (field, item)
+    checked = stamp
 
     records: list[dict[str, Any]] = []
     for signal in sorted(result.get("signals", []), key=lambda item: str(item.get("entity_ref"))):
         entity_ref = str(signal.get("entity_ref"))
-        field, item = by_ref.get(entity_ref, (_group_of(signal), None))
-        statement = (item or signal).get("statement")
-        if not statement:
-            continue
-        certainty = (item or signal).get("certainty", "unknown")
-        evidence_refs = list((item or signal).get("evidence_refs") or [])
-        unknowns = []
-        if not evidence_refs:
-            unknowns.append("この記録を支える証拠は entities 側に記録されていない")
-        if not groups.get("raw_voice_refs"):
-            unknowns.append("本人の生の発話は記録されていない（この書き出しには元から含めない）")
+        statement = signal.get("statement")
+        certainty = _certainty_value(signal)
+        domain_groups = _signal_groups(signal, statement)
+        kind_label = "Claim" if signal.get("kind") == "claim" else "Pattern"
         records.append({
-            "signal_id": f"self:{entity_ref}",
-            "commit": grouped["source_commit"],
+            "signal_id": f"self:{entity_ref.replace('/', ':')}",
+            "repository": EXPORT_REPOSITORY,
+            "commit": source_commit,
             "entity_id": entity_ref,
-            "source_locator": f"entities/{entity_ref}.md",
-            "evidence_locator": f"entities/{entity_ref}.md#evidence",
+            "source_locator": f"self-model://{entity_ref}",
+            "evidence_locator": f"self-model://{entity_ref}#evidence",
             "evidence_kind": "derived",
             "statement": statement,
             "certainty": {
                 "level": CERTAINTY_LEVEL.get(certainty, "unknown"),
-                "basis": f"このKBの確度は {certainty!r}。記録ごとの出所は entities 側に残す",
+                "basis": f"Derived {kind_label} {entity_ref} with confidence {certainty}.",
             },
-            "unknowns": unknowns or ["この記録の未取得事項は entities 側にある"],
-            "constraints": [
-                f"{grouped['purpose']} の目的内でのみ利用する",
-                "同意の範囲を超えて再利用しない",
-                "生の発話を復元しない",
-            ],
+            "unknowns": _signal_unknowns(signal),
+            "constraints": _signal_constraints(signal),
             "validity": {"status": "valid", "checked_at": checked},
-            "freshness": {"status": "current", "retrieved_at": checked, "revalidate_at": revalidate},
+            "freshness": {"status": "unknown", "retrieved_at": checked, "revalidate_at": checked},
             "generated_at": stamp,
             "adapter_version": ADAPTER_VERSION,
-            "consent_scope": f"{grouped['purpose']}/{result['operation']}",
+            "consent_scope": "approved-derived-only",
             "export_permitted": True,
-            "raw_voice_locator": f"self-model://{subject}/raw-voice",
-            **{group: ([statement] if group == field else []) for group in GROUP_FIELDS},
+            "raw_voice_locator": f"self-model://{entity_ref}#raw-voice-not-exported",
+            **domain_groups,
         })
 
-    return {
+    payload = {
         "contract_version": EXPORT_CONTRACT,
         "source_repository": EXPORT_REPOSITORY,
-        "source_commit": grouped["source_commit"],
-        "purpose": grouped["purpose"],
+        "source_commit": source_commit,
+        "purpose": result.get("purpose"),
         "generated_at": stamp,
         "signal_count": len(records),
         "signals": records,
     }
+    errors = validate_signal_export(payload)
+    if errors:
+        raise ValueError("signal export validation failed: " + "; ".join(errors))
+    return payload
+
+
+def validate_signal_export(payload: dict[str, Any]) -> list[str]:
+    required = {"contract_version", "source_repository", "source_commit", "purpose", "generated_at", "signal_count", "signals"}
+    errors: list[str] = []
+    errors.extend(f"unknown top-level field: {field}" for field in set(payload) - required)
+    errors.extend(f"missing required field: {field}" for field in required if field not in payload)
+    if payload.get("contract_version") != EXPORT_CONTRACT:
+        errors.append("contract_version must be research-signal-export/v1")
+    if payload.get("source_repository") != EXPORT_REPOSITORY:
+        errors.append("source_repository must be self-model")
+    if not isinstance(payload.get("source_commit"), str) or not re.fullmatch(r"[0-9a-f]{40}", str(payload.get("source_commit"))):
+        errors.append("source_commit must be a 40-character hexadecimal SHA")
+    if not isinstance(payload.get("purpose"), str):
+        errors.append("purpose must be a string")
+    if not isinstance(payload.get("generated_at"), str):
+        errors.append("generated_at must be a timestamp string")
+    signals = payload.get("signals")
+    if not isinstance(signals, list):
+        return [*errors, "signals must be a list"]
+    if payload.get("signal_count") != len(signals):
+        errors.append("signal_count must equal len(signals)")
+    seen_ids: set[str] = set()
+    seen_entities: set[str] = set()
+    for index, record in enumerate(signals):
+        prefix = f"signals[{index}]"
+        if not isinstance(record, dict):
+            errors.append(f"{prefix} must be an object")
+            continue
+        errors.extend(f"unknown field in {prefix}: {field}" for field in set(record) - set(FIXED_SIGNAL_FIELDS))
+        errors.extend(f"missing field in {prefix}: {field}" for field in set(FIXED_SIGNAL_FIELDS) - set(record))
+        signal_id = record.get("signal_id")
+        entity_id = record.get("entity_id")
+        expected_signal_id = f"self:{entity_id.replace('/', ':')}" if isinstance(entity_id, str) else None
+        if not isinstance(signal_id, str) or SIGNAL_ID_RE.fullmatch(signal_id) is None or signal_id != expected_signal_id:
+            errors.append(f"{prefix}.signal_id is invalid")
+        elif signal_id in seen_ids:
+            errors.append(f"{prefix}.signal_id is not unique")
+        else:
+            seen_ids.add(signal_id)
+        if not isinstance(entity_id, str):
+            errors.append(f"{prefix}.entity_id must be a string")
+        elif entity_id in seen_entities:
+            errors.append(f"{prefix}.entity_id is not unique")
+        else:
+            seen_entities.add(entity_id)
+        if record.get("repository") != EXPORT_REPOSITORY:
+            errors.append(f"{prefix}.repository must be self-model")
+        if record.get("commit") != payload.get("source_commit"):
+            errors.append(f"{prefix}.commit must match source_commit")
+        expected_locators = {
+            "source_locator": f"self-model://{entity_id}",
+            "evidence_locator": f"self-model://{entity_id}#evidence",
+            "raw_voice_locator": f"self-model://{entity_id}#raw-voice-not-exported",
+        }
+        for field, expected in expected_locators.items():
+            if record.get(field) != expected:
+                errors.append(f"{prefix}.{field} must be the fixed opaque locator")
+        if record.get("evidence_kind") != "derived":
+            errors.append(f"{prefix}.evidence_kind must be derived")
+        if not isinstance(record.get("statement"), (str, type(None))):
+            errors.append(f"{prefix}.statement must be a string or null")
+        certainty = record.get("certainty")
+        if not isinstance(certainty, dict) or set(certainty) - {"level", "basis"} or certainty.get("level") not in {"observed", "inferred", "uncertain", "unknown"} or not isinstance(certainty.get("basis"), str):
+            errors.append(f"{prefix}.certainty is invalid")
+        for field in ("unknowns", "constraints"):
+            values = record.get(field)
+            if not isinstance(values, list) or not all(isinstance(value, str) for value in values):
+                errors.append(f"{prefix}.{field} must be a list of strings")
+        for field in ("validity", "freshness"):
+            values = record.get(field)
+            if not isinstance(values, dict):
+                errors.append(f"{prefix}.{field} must be an object")
+        validity = record.get("validity", {})
+        if isinstance(validity, dict) and (set(validity) != {"status", "checked_at"} or validity.get("status") != "valid" or validity.get("checked_at") != record.get("generated_at")):
+            errors.append(f"{prefix}.validity is invalid")
+        freshness = record.get("freshness", {})
+        if isinstance(freshness, dict) and (set(freshness) != {"status", "retrieved_at", "revalidate_at"} or freshness.get("status") != "unknown" or freshness.get("retrieved_at") != record.get("generated_at") or freshness.get("revalidate_at") != record.get("generated_at")):
+            errors.append(f"{prefix}.freshness is invalid")
+        if record.get("generated_at") != payload.get("generated_at"):
+            errors.append(f"{prefix}.generated_at must match envelope generated_at")
+        if record.get("adapter_version") != ADAPTER_VERSION:
+            errors.append(f"{prefix}.adapter_version is invalid")
+        if record.get("consent_scope") != "approved-derived-only" or record.get("export_permitted") is not True:
+            errors.append(f"{prefix} consent fields are invalid")
+        for field in GROUP_FIELDS:
+            values = record.get(field)
+            if not isinstance(values, list) or not all(isinstance(value, str) for value in values):
+                errors.append(f"{prefix}.{field} must be a list of strings")
+    return errors
 
 
 def validate_research_signals(payload: dict[str, Any]) -> list[str]:
@@ -451,7 +642,11 @@ def main() -> int:
     parser.add_argument("--subject", help="省略時はこのKBの全 subject を出す")
     parser.add_argument("--purpose", required=True)
     parser.add_argument("--operation", default="export-signals")
+    parser.add_argument("--limit", type=int, default=0, help="正数なら出力record数を制限し、0は無制限")
+    parser.add_argument("--output", type=Path, help="成功時のJSON出力先。省略時はstdout")
     args = parser.parse_args()
+    if args.limit < 0:
+        parser.error("--limit must be zero or positive")
     entities = discover_entities()
     validation_errors = validate_entities(entities)
     if validation_errors:
@@ -483,8 +678,16 @@ def main() -> int:
         return 1
     payload = payloads[0]
     payload["signals"] = [record for item in payloads for record in item["signals"]]
+    if args.limit:
+        payload["signals"] = payload["signals"][:args.limit]
     payload["signal_count"] = len(payload["signals"])
-    print(canonical_json(payload), end="")
+    serialized = canonical_json(payload)
+    if args.output:
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        args.output.write_text(serialized, encoding="utf-8")
+        print(f"wrote {args.output}")
+    else:
+        print(serialized, end="")
     return 0
 
 

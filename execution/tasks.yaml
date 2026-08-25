@@ -649,7 +649,7 @@ tasks:
   - id: SM-018
     title: Export an orchestration-compatible semantic DTO
     phase: 9
-    status: ready
+    status: in-progress
     depends_on: [SM-017]
     issue: https://github.com/masa-san-jp/self-model-notes/issues/40
     allowed_paths:

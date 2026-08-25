@@ -1,22 +1,54 @@
 {
-  "schema": "urn:self-model-notes:research-signals:v1",
-  "subject": "subject/fixture",
-  "as_of": "2026-08-04",
-  "purpose": "artistic-research",
-  "source_repository": "masa-san-jp/self-model-notes",
-  "source_commit": "7f1f371486fe983f0bcfefbbf92a5df1326dac7b",
-  "research_signals": {
-    "seeks": [],
-    "protects": [],
-    "avoids": [],
-    "reacts_against": [],
-    "drawn_toward": [],
-    "influenced_by": [],
-    "tensions": [],
-    "recurring_patterns": [],
-    "emotional_material": [],
-    "raw_voice_refs": [],
-    "certainty": "unknown",
-    "evidence_refs": []
+  "contract_version": "normalized-research-signal/v1",
+  "signal_id": "self:claim:fixture",
+  "signal_kind": "self",
+  "source": {
+    "repository": "self-model",
+    "commit": "7f1f371486fe983f0bcfefbbf92a5df1326dac7b",
+    "entity_ids": ["claim/fixture"],
+    "locators": ["self-model://claim/fixture"]
+  },
+  "statement": "synthetic fixture signal",
+  "evidence_refs": [
+    {
+      "locator": "self-model://claim/fixture#evidence",
+      "kind": "derived",
+      "entity_id": "claim/fixture"
+    }
+  ],
+  "certainty": {
+    "level": "unknown",
+    "basis": "Derived Claim claim/fixture with confidence unknown."
+  },
+  "unknowns": ["confidence is unknown"],
+  "constraints": ["Use only for artistic-research under approved-derived-only consent."],
+  "validity": {
+    "status": "valid",
+    "checked_at": "2026-08-11T00:00:00+09:00"
+  },
+  "freshness": {
+    "status": "unknown",
+    "retrieved_at": "2026-08-11T00:00:00+09:00",
+    "revalidate_at": "2026-08-11T00:00:00+09:00"
+  },
+  "adapter": {
+    "name": "self-model-export",
+    "version": "1.0.0"
+  },
+  "generated_at": "2026-08-11T00:00:00+09:00",
+  "domain": {
+    "self_model": {
+      "consent_scope": "approved-derived-only",
+      "export_permitted": true,
+      "seeks": [],
+      "protects": [],
+      "avoids": [],
+      "tensions": [],
+      "recurring_patterns": [],
+      "raw_voice_locator": "self-model://claim/fixture#raw-voice-not-exported",
+      "traits": [],
+      "states": [],
+      "contexts": []
+    }
   }
 }
