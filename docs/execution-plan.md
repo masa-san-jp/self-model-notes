@@ -57,3 +57,13 @@
 
 Issue #1の第1マイルストーン受入条件を`docs/acceptance-matrix.md`でテスト・成果物へ対応づけ、全行が自動または証拠付きreviewでgreenになった時点で基盤完成とする。
 
+## Harness CLI contract
+
+Phase 10以降の実行taskは、execution/tasks.yamlを直接解釈せず、次のread-only selectorを入口にする。
+
+    python3 tools/task_harness.py validate
+    python3 tools/task_harness.py next --json
+
+validateが失敗したqueueは実行対象にしてはならない。nextは依存がdoneであるready taskのうち、IDの数値が最小の1件だけを返す。選択可能なtaskがない場合は、taskをnullにしたJSONを返し、終了コード3で終了する。検証エラーは終了コード2とし、ソート済みで機械的に比較可能なエラーだけをstderrへ出力する。
+
+CLIはqueueを読み取るだけで、Git、ネットワーク、queueファイルへの書き込みを行わない。JSONは固定キーを持つcanonical形式とし、entity本文、raw voice、秘密、認証情報、絶対パスを出力しない。
