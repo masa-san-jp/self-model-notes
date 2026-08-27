@@ -1132,7 +1132,7 @@ tasks:
   - id: SM-027
     title: Make the agent runtime entrypoint deterministic
     phase: 10
-    status: ready
+    status: in-progress
     depends_on: [SM-026]
     issue: https://github.com/masa-san-jp/self-model-notes/issues/72
     allowed_paths:
@@ -1151,7 +1151,14 @@ tasks:
       - .github/workflows/validate.yml
       - .githooks/pre-commit
       - execution/tasks.yaml
-    claim: null
+    claim:
+      actor: codex-retry
+      base: 8098620768ab7b479b830b19d242724ff8ed1259
+      branch: agent/sm-027-codex-retry
+      remote: origin
+      lock_ref: refs/heads/harness-lock/sm-027
+      claimed_at: '2026-08-27T08:08:58.910459000Z'
+
     acceptance:
       - A single repository-owned runtime entrypoint runs tools/task_harness.py and all repository tools without shell activation
       - "Runtime selection is deterministic: prefer the repository .venv when it can import PyYAML, otherwise use the current Python when it can import PyYAML"
