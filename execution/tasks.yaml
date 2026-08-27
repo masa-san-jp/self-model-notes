@@ -1141,6 +1141,7 @@ tasks:
       - tests/test_agent_runtime.py
       - tests/test_task_harness.py
       - tests/test_cli.py
+      - tests/test_execution_tasks.py
       - AGENTS.md
       - README.md
       - docs/execution-plan.md
@@ -1157,15 +1158,15 @@ tasks:
       - Runtime bootstrap uses only the standard library before interpreter selection and performs no network access or package installation during normal invocation
       - If no usable interpreter exists, the entrypoint fails closed with a stable actionable error and no secrets, environment values, entity content, or absolute paths
       - The entrypoint re-executes the selected interpreter so sys.executable, subprocesses, exit codes, and signals reflect the selected runtime
-      - Trusted-base verify-pr executes the runtime entrypoint and harness from the trusted base, so candidate changes cannot replace runtime selection or policy code
-      - AGENTS.md, README, execution plan, operations runbook, investigation docs, other-personas docs, pre-commit, and CI use the canonical entrypoint for repository Python commands
+      - After the runtime exists in trusted base, verify-pr executes the runtime entrypoint and harness from trusted base; SM-027 is the explicit bootstrap PR that uses the pre-existing trusted-base task_harness directly
+      - AGENTS.md, README, execution plan, operations runbook, investigation docs, other-personas docs, pre-commit, and CI use the canonical entrypoint for repository Python commands, with the explicit SM-027 trusted-base bootstrap exception
       - Safe check execution and nested verify detection remain shell=False and fail closed
       - Tests cover project-venv preference, current-interpreter fallback, missing-runtime failure, canonical harness invocation, and trusted-base path rewriting
       - Existing entity behavior, generated outputs, privacy rules, and all existing checks remain unchanged
     checks:
       - python3 tools/agent_runtime.py tools/task_harness.py validate
-      - python3 -m unittest tests.test_agent_runtime tests.test_task_harness tests.test_cli
-      - python3 -m unittest discover -s tests -p "test_*.py"
+      - python3 tools/agent_runtime.py -m unittest tests.test_agent_runtime tests.test_task_harness tests.test_cli
+      - python3 tools/agent_runtime.py -m unittest discover -s tests -p "test_*.py"
       - python3 tools/agent_runtime.py tools/build_graph.py --check
       - python3 tools/agent_runtime.py tools/audit.py --check
       - git diff --check
