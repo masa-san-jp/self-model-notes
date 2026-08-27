@@ -283,7 +283,12 @@ class TaskHarnessLifecycleTests(unittest.TestCase):
         first = context_task("SM-021", queue_path=fixture.repo / "execution/tasks.yaml")
         second = context_task("SM-021", queue_path=fixture.repo / "execution/tasks.yaml")
         self.assertEqual(first, second)
-        self.assertEqual("in-progress", task_harness.load_queue(fixture.repo / "execution/tasks.yaml")["tasks"][-6]["status"])
+        claimed_task = next(
+            task
+            for task in task_harness.load_queue(fixture.repo / "execution/tasks.yaml")["tasks"]
+            if task["id"] == "SM-021"
+        )
+        self.assertEqual("in-progress", claimed_task["status"])
 
     def test_concurrent_claims_have_exactly_one_winner(self):
         fixture = TemporaryRemote(self)
@@ -728,6 +733,27 @@ class CompletionRemote:
 
 
 class CheckAndCompletionTests(unittest.TestCase):
+    def test_agent_runtime_nested_verify_is_detected(self):
+        self.assertTrue(
+            task_harness._is_nested_verify(
+                [
+                    "python3",
+                    "tools/agent_runtime.py",
+                    "tools/task_harness.py",
+                    "verify",
+                    "SM-023",
+                    "--json",
+                ],
+                "SM-023",
+            )
+        )
+        self.assertFalse(
+            task_harness._is_nested_verify(
+                ["python3", "tools/agent_runtime.py", "tools/build_graph.py", "--check"],
+                "SM-023",
+            )
+        )
+
     def test_safe_check_parser_rejects_shell_and_assignment_syntax(self):
         self.assertEqual(["python3", "-c", "pass"], task_harness._safe_check_argv("python3 -c pass"))
         for command in (
@@ -928,6 +954,19 @@ class PolicyCandidate:
 
 
 class PolicyVerifierTests(unittest.TestCase):
+    def test_trusted_policy_rewrites_runtime_and_harness_paths(self):
+        rewritten = task_harness._trusted_policy_argv(
+            [
+                "python3",
+                "tools/agent_runtime.py",
+                "tools/task_harness.py",
+                "verify-pr",
+            ]
+        )
+        self.assertEqual("python3", rewritten[0])
+        self.assertEqual(str(ROOT / "tools" / "agent_runtime.py"), rewritten[1])
+        self.assertEqual(str(ROOT / "tools" / "task_harness.py"), rewritten[2])
+
     def test_valid_lifecycle_uses_base_contract_and_runs_checks(self):
         fixture = PolicyCandidate(self)
         fixture.claim()

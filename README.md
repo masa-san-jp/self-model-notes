@@ -43,17 +43,17 @@ data/              決定論的な生成物
 overviews/         coverage等の人間向け生成物
 ```
 
-`data/self-models/subject/<slug>.json` と `.md` はGit管理するcurrent snapshotです。entityをcommitした後に `python3 tools/bundle.py --all` で再生成し、`python3 tools/bundle.py --all --check` でJSON/Markdownのstalenessを確認します。過去snapshotは別名fileではなくGit historyで比較します。
+`data/self-models/subject/<slug>.json` と `.md` はGit管理するcurrent snapshotです。entityをcommitした後に `python3 tools/agent_runtime.py tools/bundle.py --all` で再生成し、`python3 tools/agent_runtime.py tools/bundle.py --all --check` でJSON/Markdownのstalenessを確認します。過去snapshotは別名fileではなくGit historyで比較します。
 
 ## 最小コマンド
 
 ```bash
 python3 -m pip install -e .
-python3 tools/new_entity.py subject sample-subject
-python3 tools/build_graph.py --check
-python3 -m unittest discover -s tests -p "test_*.py"
-python3 tools/build_graph.py
-python3 tools/audit.py
+python3 tools/agent_runtime.py tools/new_entity.py subject sample-subject
+python3 tools/agent_runtime.py tools/build_graph.py --check
+python3 tools/agent_runtime.py -m unittest discover -s tests -p "test_*.py"
+python3 tools/agent_runtime.py tools/build_graph.py
+python3 tools/agent_runtime.py tools/audit.py
 ```
 
 ## Agent harness
@@ -61,16 +61,18 @@ python3 tools/audit.py
 Phase 10の実装taskは、次のライフサイクルを正規経路として実行する。
 
 ```bash
-python3 tools/task_harness.py validate
-python3 tools/task_harness.py next --json
-python3 tools/task_harness.py claim SM-NNN --actor <actor> --remote origin --base <sha> --json
-python3 tools/task_harness.py context SM-NNN --json
-python3 tools/task_harness.py verify SM-NNN --json
-python3 tools/task_harness.py complete SM-NNN --pr <number> --commit <sha> --json
-python3 tools/task_harness.py release SM-NNN --actor <actor> --remote origin --json
+python3 tools/agent_runtime.py tools/task_harness.py validate
+python3 tools/agent_runtime.py tools/task_harness.py next --json
+python3 tools/agent_runtime.py tools/task_harness.py claim SM-NNN --actor <actor> --remote origin --base <sha> --json
+python3 tools/agent_runtime.py tools/task_harness.py context SM-NNN --json
+python3 tools/agent_runtime.py tools/task_harness.py verify SM-NNN --json
+python3 tools/agent_runtime.py tools/task_harness.py complete SM-NNN --pr <number> --commit <sha> --json
+python3 tools/agent_runtime.py tools/task_harness.py release SM-NNN --actor <actor> --remote origin --json
 ```
 
 `execution/tasks.yaml`が機械可読のtask SSOTで、Issueに登録されていないtaskは実行対象になりません。selectorは最低IDのready taskだけを返します。claimは`refs/heads/harness-lock/sm-nnn`と`agent/sm-nnn-<actor>`を取得し、verifyは許可pathとchecksを検査します。completeはPR番号・HEAD・evidenceを対象taskだけへ記録し、releaseはremote mainへのmerge確認後に該当lockだけを削除します。
+
+すべてのリポジトリPythonコマンドは`tools/agent_runtime.py`を通すため、エージェントや人間が仮想環境をactivateする必要はありません。入口はPyYAMLをimportできるプロジェクト`.venv`を優先し、無ければ現在のPythonを使います。依存関係が利用できない場合は、installやnetwork accessを行わず、安定したエラーで停止します。
 
 PRの`harness-policy`はbase SHAのtrusted-baseを実行系の正本としてcandidateを検査します。候補側のharness、queue contract、依存、stop condition、check、evidence、許可外pathの改変でtrusted policyを弱めることはできません。出力は本文、raw voice、credentials、環境値、絶対pathを含みません。利用者を実行エージェントに限定する脅威モデルでは、このtrusted-base CI検証を必須境界とし、GitHubのrequired merge gateは任意の運用強化とします。Issue #60にこの判断を記録します。
 SM-026完了後は、依存済みのready taskがないためdispatchは終了します。

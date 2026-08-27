@@ -1,7 +1,7 @@
 #!/usr/bin/env sh
 set -eu
-python3 tools/build_graph.py --check
-python3 -m unittest discover -s tests -p "test_*.py"
-python3 tools/audit.py --dry-run
-python3 tools/audit.py --check
-python3 tools/bundle.py --all --check
+python3 tools/agent_runtime.py tools/build_graph.py --check
+python3 tools/agent_runtime.py -m unittest discover -s tests -p "test_*.py"
+python3 tools/agent_runtime.py tools/audit.py --dry-run
+python3 tools/agent_runtime.py tools/audit.py --check
+python3 tools/agent_runtime.py tools/bundle.py --all --check

@@ -61,30 +61,32 @@ Issue #1の第1マイルストーン受入条件を`docs/acceptance-matrix.md`�
 
 Phase 10以降の実行taskは、execution/tasks.yamlを直接解釈せず、次のread-only selectorを入口にする。
 
-    python3 tools/task_harness.py validate
-    python3 tools/task_harness.py next --json
+    python3 tools/agent_runtime.py tools/task_harness.py validate
+    python3 tools/agent_runtime.py tools/task_harness.py next --json
 
 validateが失敗したqueueは実行対象にしてはならない。nextは依存がdoneであるready taskのうち、IDの数値が最小の1件だけを返す。選択可能なtaskがない場合は、taskをnullにしたJSONを返し、終了コード3で終了する。検証エラーは終了コード2とし、ソート済みで機械的に比較可能なエラーだけをstderrへ出力する。
 
 CLIはqueueを読み取るだけで、Git、ネットワーク、queueファイルへの書き込みを行わない。JSONは固定キーを持つcanonical形式とし、entity本文、raw voice、秘密、認証情報、絶対パスを出力しない。
 
+`tools/agent_runtime.py`はリポジトリPythonの単一入口である。入口自体は標準ライブラリだけで起動し、PyYAMLをimportできる`.venv`を優先して選び、無ければ現在のPythonを使う。エージェントはactivate、依存関係のinstall、network accessを通常のtask実行に追加してはならない。
+
 SM-021以降のライフサイクル操作は、選択したtaskだけを対象に次のCLIを使う。
 
-    python3 tools/task_harness.py claim SM-NNN --actor ACTOR --remote REMOTE --base SHA --json
-    python3 tools/task_harness.py context SM-NNN --json
-    python3 tools/task_harness.py release SM-NNN --actor ACTOR --remote REMOTE --json
+    python3 tools/agent_runtime.py tools/task_harness.py claim SM-NNN --actor ACTOR --remote REMOTE --base SHA --json
+    python3 tools/agent_runtime.py tools/task_harness.py context SM-NNN --json
+    python3 tools/agent_runtime.py tools/task_harness.py release SM-NNN --actor ACTOR --remote REMOTE --json
 
 claimは固定ref `refs/heads/harness-lock/sm-NNN` をnon-force pushで取得し、成功時だけ `agent/sm-NNN-actor` branchとqueueの `in-progress` claimを作る。失敗時はqueue bytes、開始branch、既存lockを保持する。releaseはremote main上のdone taskと証拠、actor、branch、lock payloadの一致を確認してから、該当lockだけを削除する。
 
 変更pathのguardは、active claimのbaseからHEADまでのcommit差分に加え、作業中のstage済み・未stage・untracked差分を検査する。rename/copyはsourceとdestinationの両方を対象とし、allowed_pathsにないpathを1件でも検出したら終了コード4で停止する。
 
-    python3 tools/task_harness.py verify-paths SM-NNN --base SHA --json
-    python3 tools/task_harness.py verify-paths SM-NNN --base SHA --committed-only --json
+    python3 tools/agent_runtime.py tools/task_harness.py verify-paths SM-NNN --base SHA --json
+    python3 tools/agent_runtime.py tools/task_harness.py verify-paths SM-NNN --base SHA --committed-only --json
 
 active claimのtaskを完了するときは、宣言されたchecksを順序どおり検証した同じ実行で、次のcompleteを使う。completeはPR番号と現在HEADのcommitを要求し、成功した場合だけstatus、claim、evidenceを同一task block内で更新する。
 
-    python3 tools/task_harness.py verify SM-NNN --json
-    python3 tools/task_harness.py complete SM-NNN --pr NUMBER --commit SHA --json
+    python3 tools/agent_runtime.py tools/task_harness.py verify SM-NNN --json
+    python3 tools/agent_runtime.py tools/task_harness.py complete SM-NNN --pr NUMBER --commit SHA --json
 
 ## PR policy gate
 
@@ -101,7 +103,7 @@ python3 trusted-base/tools/task_harness.py verify-pr \
   --json
 ```
 
-`verify-pr`は、PR branchとtitleのtask ID一致、full SHAとancestor、1 taskだけのqueue lifecycle、readyからin-progressを経たdone遷移、base contractとの差分、committed-only path guard、base側checksの順序実行を検証する。候補がharness、queue contract、testを変更しても、policy判定の実体はtrusted-baseから実行される。旧baseにこのCLIがないbootstrap PRだけはpolicy jobを明示的に通過し、次のPRから強制される。
+`verify-pr`は、PR branchとtitleのtask ID一致、full SHAとancestor、1 taskだけのqueue lifecycle、readyからin-progressを経たdone遷移、base contractとの差分、committed-only path guard、base側checksの順序実行を検証する。候補がharness、queue contract、testを変更しても、policy判定の実体はtrusted-baseから実行される。SM-027はruntime入口を追加するbootstrap PRなので、baseにruntimeが無い間だけtrusted-baseの`task_harness.py`を直接実行する。runtimeがmainへ入った後のPRはtrusted-baseの`agent_runtime.py`経由で検証する。
 
 ## Full harness lifecycle proof
 
