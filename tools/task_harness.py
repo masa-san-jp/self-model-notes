@@ -1179,10 +1179,16 @@ def _safe_check_argv(command: str) -> list[str]:
 
 
 def _is_nested_verify(argv: list[str], task_id: str) -> bool:
-    if len(argv) < 4 or argv[2] != "verify" or argv[3] != task_id:
+    if argv[0] not in {"python", "python3"}:
         return False
-    return argv[0] in {"python", "python3"} and argv[1].replace("\\", "/").endswith(
-        "tools/task_harness.py"
+    if len(argv) >= 4 and argv[2] == "verify" and argv[3] == task_id:
+        return argv[1].replace("\\", "/").endswith("tools/task_harness.py")
+    return (
+        len(argv) >= 5
+        and argv[1].replace("\\", "/").endswith("tools/agent_runtime.py")
+        and argv[2].replace("\\", "/").endswith("tools/task_harness.py")
+        and argv[3] == "verify"
+        and argv[4] == task_id
     )
 
 
@@ -1378,7 +1384,7 @@ def complete_task(
     if task["evidence"]:
         raise HarnessError("EVIDENCE_ALREADY_PRESENT", "task already has evidence", CLAIM_INVALID)
     evidence_checks = [
-        f"python3 tools/task_harness.py verify-paths {task_id} --json — passed"
+        f"python3 tools/agent_runtime.py tools/task_harness.py verify-paths {task_id} --json — passed"
     ] + [f"{result['command']} — passed" for result in verification["checks"]]
     _completion_mutation(queue_path, queue, task_id, pr, commit, evidence_checks)
     return {
@@ -1427,11 +1433,14 @@ def _trusted_policy_argv(argv: list[str]) -> list[str]:
     if "verify-pr" not in argv:
         return argv
     transformed = list(argv)
+    trusted_runtime = str(ROOT / "tools" / "agent_runtime.py")
     trusted_script = str(ROOT / "tools" / "task_harness.py")
     for index, token in enumerate(transformed):
-        if token.replace("\\", "/").endswith("tools/task_harness.py"):
+        normalized = token.replace("\\", "/")
+        if normalized.endswith("tools/agent_runtime.py"):
+            transformed[index] = trusted_runtime
+        elif normalized.endswith("tools/task_harness.py"):
             transformed[index] = trusted_script
-            break
     return transformed
 
 

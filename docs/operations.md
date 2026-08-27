@@ -2,6 +2,8 @@
 
 この文書は、匿名化されたSelf Model KBを安全に更新・検証・復旧するための最小手順です。原則は「正本は`entities/`、生成物はコマンドで再生成、同意はexport時に再検証」です。
 
+リポジトリ内のPython実行はすべて`python3 tools/agent_runtime.py`を入口にする。この入口がPyYAMLをimportできる`.venv`を自動選択するため、activateや実行環境の判断は不要である。依存関係が無い場合はinstallやnetwork accessを行わず、fail closedする。
+
 ## 通常の実行
 
 ### Harness task lifecycle
@@ -9,9 +11,9 @@
 Phase 10のtaskは、queueを直接編集して開始せず、まずselectorとcontextで対象を確認する。
 
 ```bash
-python3 tools/task_harness.py next --json
-python3 tools/task_harness.py context SM-NNN --json
-python3 tools/task_harness.py claim SM-NNN --actor agent-slug --remote origin --base $(git rev-parse HEAD) --json
+python3 tools/agent_runtime.py tools/task_harness.py next --json
+python3 tools/agent_runtime.py tools/task_harness.py context SM-NNN --json
+python3 tools/agent_runtime.py tools/task_harness.py claim SM-NNN --actor agent-slug --remote origin --base $(git rev-parse HEAD) --json
 ```
 
 claim成功後は表示されたagent branchで作業する。同じtaskやshared-lock、重複pathのlockがある場合は開始せず、エラーコードを記録する。queueにentity本文、raw voice、秘密、認証情報を入れない。
@@ -19,7 +21,7 @@ claim成功後は表示されたagent branchで作業する。同じtaskやshare
 完了PRがremote mainへ反映された後、同じactorとbranchでreleaseする。
 
 ```bash
-python3 tools/task_harness.py release SM-NNN --actor agent-slug --remote origin --json
+python3 tools/agent_runtime.py tools/task_harness.py release SM-NNN --actor agent-slug --remote origin --json
 ```
 
 releaseはremote mainのdone/evidence、lock payload、actor、branchを検証する。検証に失敗した場合はlockを削除せず、原因を修正して再実行する。
@@ -27,8 +29,8 @@ releaseはremote mainのdone/evidence、lock payload、actor、branchを検証�
 作業中の変更は、PR作成前にallowed path guardで確認する。CIではcommitted-onlyを使い、ローカルでは未stage・stage済み・untrackedも含める。
 
 ```bash
-python3 tools/task_harness.py verify-paths SM-NNN --base <claim-base> --json
-python3 tools/task_harness.py verify-paths SM-NNN --base <claim-base> --committed-only --json
+python3 tools/agent_runtime.py tools/task_harness.py verify-paths SM-NNN --base <claim-base> --json
+python3 tools/agent_runtime.py tools/task_harness.py verify-paths SM-NNN --base <claim-base> --committed-only --json
 ```
 
 終了コード4は許可外pathの検出、終了コード2はqueue・claim・Git状態の不正を表す。出力にfile内容、entity本文、raw voice、秘密、認証情報、絶対pathを含めない。
@@ -36,15 +38,15 @@ python3 tools/task_harness.py verify-paths SM-NNN --base <claim-base> --committe
 verifyはchecksを宣言順にshellなしで実行し、最初の失敗で停止する。成功後、worktreeをcleanにしてから現在HEADとPR番号を指定してcompleteする。
 
 ```bash
-python3 tools/task_harness.py verify SM-NNN --json
-python3 tools/task_harness.py complete SM-NNN --pr <number> --commit <head-sha> --json
+python3 tools/agent_runtime.py tools/task_harness.py verify SM-NNN --json
+python3 tools/agent_runtime.py tools/task_harness.py complete SM-NNN --pr <number> --commit <head-sha> --json
 ```
 
 completeはqueueの対象taskだけをatomic replaceで更新する。失敗時はqueue bytesとactive claimを保持し、mergeやremote lockのreleaseは行わない。
 
 ### PR policy gate
 
-GitHub Actionsの`harness-policy` jobは、`pull_request`でbase SHAを`trusted-base`、head SHAを`candidate`へ別々にcheckoutする。`trusted-base/tools/task_harness.py verify-pr`へcandidateのpathとGitHubが提供するbase/head/ref/titleだけを渡す。権限は`contents: read`に限定し、PR本文、write API、secrets、candidateからの書き込みを使わない。
+GitHub Actionsの`harness-policy` jobは、`pull_request`でbase SHAを`trusted-base`、head SHAを`candidate`へ別々にcheckoutする。通常は`trusted-base/tools/agent_runtime.py tools/task_harness.py verify-pr`へcandidateのpathとGitHubが提供するbase/head/ref/titleだけを渡す。runtime入口を追加するSM-027のbootstrap PRだけは、baseにruntimeが無いため`trusted-base/tools/task_harness.py verify-pr`を直接使う。権限は`contents: read`に限定し、PR本文、write API、secrets、candidateからの書き込みを使わない。
 
 ```bash
 python3 trusted-base/tools/task_harness.py verify-pr \
@@ -74,26 +76,26 @@ E2E fixtureは実在の人物、直接識別情報、raw voice、credential、to
 2. 新しいentityはtemplateから作成し、frontmatterを編集する。
 
    ```bash
-   python3 tools/new_entity.py event <slug> --subject subject/<id>
+   python3 tools/agent_runtime.py tools/new_entity.py event <slug> --subject subject/<id>
    ```
 
 3. loader、validator、graph、全テスト、soft audit、audit生成物のstalenessを順に確認する。
 
    ```bash
-   python3 tools/build_graph.py --check
-   python3 -m unittest discover -s tests -p "test_*.py"
-   python3 tools/audit.py --dry-run
-   python3 tools/audit.py --check
-   python3 tools/bundle.py --all --check
+   python3 tools/agent_runtime.py tools/build_graph.py --check
+   python3 tools/agent_runtime.py -m unittest discover -s tests -p "test_*.py"
+   python3 tools/agent_runtime.py tools/audit.py --dry-run
+   python3 tools/agent_runtime.py tools/audit.py --check
+   python3 tools/agent_runtime.py tools/bundle.py --all --check
    ```
 
 4. entityを追加・改訂した場合だけ、生成物を再生成して差分を確認する。
 
    ```bash
-   python3 tools/build_graph.py
-   python3 tools/build_self_model.py --subject subject/<id>
-   python3 tools/bundle.py --subject subject/<id>
-   python3 tools/bundle.py --all --check
+   python3 tools/agent_runtime.py tools/build_graph.py
+   python3 tools/agent_runtime.py tools/build_self_model.py --subject subject/<id>
+   python3 tools/agent_runtime.py tools/bundle.py --subject subject/<id>
+   python3 tools/agent_runtime.py tools/bundle.py --all --check
    ```
 
    entityを先にcommitし、JSON/Markdownを再生成して差分と機微情報を確認し、artifactを別commitする。`source_commit`は対象Subjectのcanonical entityだけから算出され、artifact commit自身は参照しない。
@@ -101,7 +103,7 @@ E2E fixtureは実在の人物、直接識別情報、raw voice、credential、to
 5. exportは目的と操作を明示する。Sourceが1件でも同意不備なら全体がdenyされる。
 
    ```bash
-   python3 tools/export_signals.py \
+   python3 tools/agent_runtime.py tools/export_signals.py \
      --subject subject/<id> \
      --purpose artistic-research \
      --operation export-signals
@@ -109,8 +111,8 @@ E2E fixtureは実在の人物、直接識別情報、raw voice、credential、to
 
 ## 失敗時の復旧
 
-- `build_graph.py --check`がstaleを報告したら、`data/`や`overviews/`を手編集せず、正本entityを確認して`python3 tools/build_graph.py`を再実行する。
-- `audit.py --check`がstaleを報告したら、`data/audit.json`を手編集せず、正本entityを確認して`python3 tools/audit.py`を再実行する。`--check`自体はファイルを書き換えない。
+- `build_graph.py --check`がstaleを報告したら、`data/`や`overviews/`を手編集せず、正本entityを確認して`python3 tools/agent_runtime.py tools/build_graph.py`を再実行する。
+- `audit.py --check`がstaleを報告したら、`data/audit.json`を手編集せず、正本entityを確認して`python3 tools/agent_runtime.py tools/audit.py`を再実行する。`--check`自体はファイルを書き換えない。
 - Self Modelやbundleが古い場合も、生成JSON/Markdownを直接直さず、対象Subjectのbuildコマンドを再実行する。
 - `tools/build_self_model.py --check` はJSONだけ、`tools/bundle.py --subject ... --check` はJSONとMarkdown、`tools/bundle.py --all --check` は全active SubjectをID順に検証する。stale/missing時はrepair commandを表示するが、本文やraw voiceは表示しない。
 - canonical entityに未commit差分がある場合はsnapshot生成・checkを行わず、対象pathだけを報告してentity commitを要求する。artifactだけの未commit差分はcheck対象として許可する。

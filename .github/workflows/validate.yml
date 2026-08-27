@@ -79,18 +79,18 @@ jobs:
           python-version: "3.12"
       - run: python3 -m pip install -e .
       - name: Structural validation and generated-data freshness
-        run: python3 tools/build_graph.py --check
+        run: python3 tools/agent_runtime.py tools/build_graph.py --check
       - name: Tests
-        run: python3 -m unittest discover -s tests -p "test_*.py"
+        run: python3 tools/agent_runtime.py -m unittest discover -s tests -p "test_*.py"
       - name: End-to-end anonymized fixture
-        run: python3 -m unittest tests.test_e2e
+        run: python3 tools/agent_runtime.py -m unittest tests.test_e2e
       - name: Soft audit
-        run: python3 tools/audit.py --dry-run
+        run: python3 tools/agent_runtime.py tools/audit.py --dry-run
       - name: Audit artifact freshness
-        run: python3 tools/audit.py --check
+        run: python3 tools/agent_runtime.py tools/audit.py --check
       - name: Self Model artifact freshness
-        run: python3 tools/bundle.py --all --check
+        run: python3 tools/agent_runtime.py tools/bundle.py --all --check
       - name: Reproducible generated outputs
         run: |
-          python3 tools/build_graph.py
+          python3 tools/agent_runtime.py tools/build_graph.py
           git diff --exit-code -- data/ overviews/coverage.md
