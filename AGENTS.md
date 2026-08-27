@@ -69,10 +69,10 @@ inspect → decide → edit → test → regenerate → diff → report
 ## 6. 検証
 
 ```bash
-python3 tools/build_graph.py --check
-python3 -m unittest discover -s tests -p "test_*.py"
-python3 tools/build_graph.py
-python3 tools/audit.py --dry-run
+python3 tools/agent_runtime.py tools/build_graph.py --check
+python3 tools/agent_runtime.py -m unittest discover -s tests -p "test_*.py"
+python3 tools/agent_runtime.py tools/build_graph.py
+python3 tools/agent_runtime.py tools/audit.py --dry-run
 git diff --exit-code -- data/ overviews/coverage.md
 ```
 
@@ -104,16 +104,18 @@ git diff --exit-code -- data/ overviews/coverage.md
 Phase 10のtaskは、queueを直接解釈・編集せず、次のCLIを実行入口とする。
 
 ```bash
-python3 tools/task_harness.py validate
-python3 tools/task_harness.py next --json
-python3 tools/task_harness.py claim SM-NNN --actor <actor> --remote origin --base <sha> --json
-python3 tools/task_harness.py context SM-NNN --json
-python3 tools/task_harness.py verify SM-NNN --json
-python3 tools/task_harness.py complete SM-NNN --pr <number> --commit <sha> --json
-python3 tools/task_harness.py release SM-NNN --actor <actor> --remote origin --json
+python3 tools/agent_runtime.py tools/task_harness.py validate
+python3 tools/agent_runtime.py tools/task_harness.py next --json
+python3 tools/agent_runtime.py tools/task_harness.py claim SM-NNN --actor <actor> --remote origin --base <sha> --json
+python3 tools/agent_runtime.py tools/task_harness.py context SM-NNN --json
+python3 tools/agent_runtime.py tools/task_harness.py verify SM-NNN --json
+python3 tools/agent_runtime.py tools/task_harness.py complete SM-NNN --pr <number> --commit <sha> --json
+python3 tools/agent_runtime.py tools/task_harness.py release SM-NNN --actor <actor> --remote origin --json
 ```
 
 `next`は依存がdoneの最低IDを1件だけ返し、候補がない場合は終了コード3、queue・Git・claimの不正は2、許可外pathは4、宣言checkの失敗は5で終了する。claimは固定lock ref `refs/heads/harness-lock/sm-nnn` と branch `agent/sm-nnn-<actor>`を作り、contextとJSON evidenceはentity本文、raw voice、秘密、認証情報、環境値、絶対pathを出力しない。verifyは宣言順のcheckをshellなしで実行し、completeは現在HEADとPR番号を検証してから対象taskだけをatomic更新する。releaseはremote mainのdone/evidenceとactor・branch・lock payloadを確認してから該当lockだけを削除する。
+
+`tools/agent_runtime.py`がリポジトリPythonの唯一の実行入口である。エージェントは仮想環境をactivateせず、この入口を通してツール・テスト・harnessを実行する。入口は標準ライブラリだけで起動し、PyYAMLをimportできるリポジトリ内`.venv`を優先し、無ければ現在のPythonへfallbackする。依存関係のinstallやnetwork accessは通常実行に含めない。
 
 PRでは`pull_request`のbase SHAをtrusted-base、head SHAをcandidateとして別checkoutし、trusted-baseの`verify-pr`でbranch/title/task ID、base/head、contract、lifecycle、evidence、allowed paths、checksを検証する。旧baseにverify-prがないbootstrap PRだけはworkflowが明示的に通過させる。手動でqueueを直す操作は通常経路ではなく、災害復旧時に観測事実と影響を記録する場合に限る。Issueに登録されていないtaskはdispatchableではない。
 
