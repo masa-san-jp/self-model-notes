@@ -1128,3 +1128,51 @@ tasks:
           - "python3 tools/bundle.py --all --check — passed"
           - "git diff --check — passed"
           - "git diff --exit-code -- data/ overviews/coverage.md — passed"
+
+  - id: SM-027
+    title: Make the agent runtime entrypoint deterministic
+    phase: 10
+    status: ready
+    depends_on: [SM-026]
+    issue: https://github.com/masa-san-jp/self-model-notes/issues/72
+    allowed_paths:
+      - tools/agent_runtime.py
+      - tools/task_harness.py
+      - tests/test_agent_runtime.py
+      - tests/test_task_harness.py
+      - tests/test_cli.py
+      - AGENTS.md
+      - README.md
+      - docs/execution-plan.md
+      - docs/operations.md
+      - docs/investigation-task.md
+      - docs/for-other-personas.md
+      - .github/workflows/validate.yml
+      - .githooks/pre-commit
+      - execution/tasks.yaml
+    claim: null
+    acceptance:
+      - A single repository-owned runtime entrypoint runs tools/task_harness.py and all repository tools without shell activation
+      - Runtime selection is deterministic: prefer the repository .venv when it can import PyYAML, otherwise use the current Python when it can import PyYAML
+      - Runtime bootstrap uses only the standard library before interpreter selection and performs no network access or package installation during normal invocation
+      - If no usable interpreter exists, the entrypoint fails closed with a stable actionable error and no secrets, environment values, entity content, or absolute paths
+      - The entrypoint re-executes the selected interpreter so sys.executable, subprocesses, exit codes, and signals reflect the selected runtime
+      - Trusted-base verify-pr executes the runtime entrypoint and harness from the trusted base, so candidate changes cannot replace runtime selection or policy code
+      - AGENTS.md, README, execution plan, operations runbook, investigation docs, other-personas docs, pre-commit, and CI use the canonical entrypoint for repository Python commands
+      - Safe check execution and nested verify detection remain shell=False and fail closed
+      - Tests cover project-venv preference, current-interpreter fallback, missing-runtime failure, canonical harness invocation, and trusted-base path rewriting
+      - Existing entity behavior, generated outputs, privacy rules, and all existing checks remain unchanged
+    checks:
+      - python3 tools/agent_runtime.py tools/task_harness.py validate
+      - python3 -m unittest tests.test_agent_runtime tests.test_task_harness tests.test_cli
+      - python3 -m unittest discover -s tests -p "test_*.py"
+      - python3 tools/agent_runtime.py tools/build_graph.py --check
+      - python3 tools/agent_runtime.py tools/audit.py --check
+      - git diff --check
+    stop_if:
+      - A core schema, closed vocabulary, consent, privacy, or export rule must change
+      - Runtime selection requires a new third-party dependency, network access, or repository secrets
+      - Candidate code must be executed to establish trusted-base policy
+      - A path outside this allowance is required
+      - Another agent has conflicting changes in an allowed path
+    evidence: []
