@@ -1153,7 +1153,7 @@ tasks:
     claim: null
     acceptance:
       - A single repository-owned runtime entrypoint runs tools/task_harness.py and all repository tools without shell activation
-      - Runtime selection is deterministic: prefer the repository .venv when it can import PyYAML, otherwise use the current Python when it can import PyYAML
+      - "Runtime selection is deterministic: prefer the repository .venv when it can import PyYAML, otherwise use the current Python when it can import PyYAML"
       - Runtime bootstrap uses only the standard library before interpreter selection and performs no network access or package installation during normal invocation
       - If no usable interpreter exists, the entrypoint fails closed with a stable actionable error and no secrets, environment values, entity content, or absolute paths
       - The entrypoint re-executes the selected interpreter so sys.executable, subprocesses, exit codes, and signals reflect the selected runtime
