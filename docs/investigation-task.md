@@ -18,7 +18,7 @@
 ## 2. Eventを作る
 
 ```bash
-python3 tools/new_entity.py event <slug> --subject subject/<id>
+python3 tools/agent_runtime.py tools/new_entity.py event <slug> --subject subject/<id>
 ```
 
 1出来事に限定し、trigger、observed facts、raw voice、action、immediate outcome、source refsを分ける。
@@ -35,10 +35,10 @@ python3 tools/new_entity.py event <slug> --subject subject/<id>
 ## 5. 検証
 
 ```bash
-python3 tools/build_graph.py --check
-python3 -m unittest discover -s tests -p "test_*.py"
-python3 tools/build_graph.py
-python3 tools/audit.py --subject subject/<id>
+python3 tools/agent_runtime.py tools/build_graph.py --check
+python3 tools/agent_runtime.py -m unittest discover -s tests -p "test_*.py"
+python3 tools/agent_runtime.py tools/build_graph.py
+python3 tools/agent_runtime.py tools/audit.py --subject subject/<id>
 ```
 
 運用時の復旧・並行作業・生成物の扱いは[`docs/operations.md`](operations.md)に従う。生成物を手編集して検証を通すことはしない。

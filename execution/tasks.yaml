@@ -1132,7 +1132,7 @@ tasks:
   - id: SM-027
     title: Make the agent runtime entrypoint deterministic
     phase: 10
-    status: ready
+    status: done
     depends_on: [SM-026]
     issue: https://github.com/masa-san-jp/self-model-notes/issues/72
     allowed_paths:
@@ -1152,6 +1152,7 @@ tasks:
       - .githooks/pre-commit
       - execution/tasks.yaml
     claim: null
+
     acceptance:
       - A single repository-owned runtime entrypoint runs tools/task_harness.py and all repository tools without shell activation
       - "Runtime selection is deterministic: prefer the repository .venv when it can import PyYAML, otherwise use the current Python when it can import PyYAML"
@@ -1176,4 +1177,15 @@ tasks:
       - Candidate code must be executed to establish trusted-base policy
       - A path outside this allowance is required
       - Another agent has conflicting changes in an allowed path
-    evidence: []
+    evidence:
+      - pr: 73
+        commit: 323da125803b5412d2699191f12fef8773a0818b
+        checks:
+          - "python3 tools/agent_runtime.py tools/task_harness.py verify-paths SM-027 --json — passed"
+          - "python3 tools/agent_runtime.py tools/task_harness.py validate — passed"
+          - "python3 tools/agent_runtime.py -m unittest tests.test_agent_runtime tests.test_task_harness tests.test_cli — passed"
+          - "python3 tools/agent_runtime.py -m unittest discover -s tests -p \"test_*.py\" — passed"
+          - "python3 tools/agent_runtime.py tools/build_graph.py --check — passed"
+          - "python3 tools/agent_runtime.py tools/audit.py --check — passed"
+          - "git diff --check — passed"
+
