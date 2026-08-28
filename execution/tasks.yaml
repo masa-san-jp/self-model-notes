@@ -1189,3 +1189,39 @@ tasks:
           - "python3 tools/agent_runtime.py tools/audit.py --check — passed"
           - "git diff --check — passed"
 
+  - id: SM-028
+    title: Clarify repository entrypoints and user-facing status
+    phase: 10
+    status: ready
+    depends_on: [SM-027]
+    issue: https://github.com/masa-san-jp/self-model-notes/issues/74
+    allowed_paths:
+      - README.md
+      - pyproject.toml
+      - execution/tasks.yaml
+      - tests/test_execution_tasks.py
+    claim: null
+
+    acceptance:
+      - README states what the repository is and is not, who uses it, and the canonical first commands
+      - README distinguishes one-time dependency bootstrap from normal agent execution and clearly states that virtualenv activation is unnecessary
+      - README commands match the actual CLI, required Python version, dependency behavior, generated-output workflow, and exit behavior
+      - README explains that personal data is consent-gated, raw voice and direct identifiers are not exported, and fixtures are synthetic and anonymous
+      - README accurately reports the current queue state and that parent live-private E2E state is not a child repository completion condition
+      - Package metadata and GitHub repository Description provide a concise accurate summary
+      - Queue and execution-task tests remain valid after registration
+      - No entity, schema, consent, privacy, export, or runtime behavior changes
+    checks:
+      - python3 tools/agent_runtime.py tools/task_harness.py validate
+      - python3 tools/agent_runtime.py -m unittest tests.test_execution_tasks
+      - python3 tools/agent_runtime.py -m unittest discover -s tests -p "test_*.py"
+      - python3 tools/agent_runtime.py tools/build_graph.py --check
+      - python3 tools/agent_runtime.py tools/audit.py --check
+      - python3 tools/agent_runtime.py tools/bundle.py --all --check
+      - git diff --check
+      - git diff --exit-code -- data/ overviews/coverage.md
+    stop_if:
+      - A core schema, entity, consent, privacy, export, or runtime behavior must change
+      - README would promise an unimplemented command or service
+      - A path outside the allowance is required
+    evidence: []
