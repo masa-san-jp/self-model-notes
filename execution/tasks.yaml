@@ -1192,7 +1192,7 @@ tasks:
   - id: SM-028
     title: Clarify repository entrypoints and user-facing status
     phase: 10
-    status: ready
+    status: done
     depends_on: [SM-027]
     issue: https://github.com/masa-san-jp/self-model-notes/issues/74
     allowed_paths:
@@ -1201,6 +1201,7 @@ tasks:
       - execution/tasks.yaml
       - tests/test_execution_tasks.py
     claim: null
+
 
     acceptance:
       - README states what the repository is and is not, who uses it, and the canonical first commands
@@ -1224,4 +1225,17 @@ tasks:
       - A core schema, entity, consent, privacy, export, or runtime behavior must change
       - README would promise an unimplemented command or service
       - A path outside the allowance is required
-    evidence: []
+    evidence:
+      - pr: 75
+        commit: 271b68ff98c02c3c6559594256e37ef01728a6b8
+        checks:
+          - "python3 tools/agent_runtime.py tools/task_harness.py verify-paths SM-028 --json — passed"
+          - "python3 tools/agent_runtime.py tools/task_harness.py validate — passed"
+          - "python3 tools/agent_runtime.py -m unittest tests.test_execution_tasks — passed"
+          - "python3 tools/agent_runtime.py -m unittest discover -s tests -p \"test_*.py\" — passed"
+          - "python3 tools/agent_runtime.py tools/build_graph.py --check — passed"
+          - "python3 tools/agent_runtime.py tools/audit.py --check — passed"
+          - "python3 tools/agent_runtime.py tools/bundle.py --all --check — passed"
+          - "git diff --check — passed"
+          - "git diff --exit-code -- data/ overviews/coverage.md — passed"
+
