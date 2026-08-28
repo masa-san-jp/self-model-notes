@@ -5,10 +5,9 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "self-model-notes"
 version = "0.1.0"
-description = "Evidence-traceable dynamic Self Model knowledge base"
+description = "Consent-gated Self Model knowledge base with deterministic exports and an autonomous agent harness"
 requires-python = ">=3.11"
 dependencies = ["PyYAML>=6.0,<7"]
 
 [tool.setuptools]
 py-modules = []
-
