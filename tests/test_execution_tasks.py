@@ -29,6 +29,7 @@ EXPECTED_DEPENDENCIES = {
     "SM-025": ["SM-024"],
     "SM-026": ["SM-025"],
     "SM-027": ["SM-026"],
+    "SM-028": ["SM-027"],
 }
 
 HARNESS_ISSUES = {
@@ -36,6 +37,7 @@ HARNESS_ISSUES = {
     for index, number in zip(range(19, 27), range(53, 61))
 }
 HARNESS_ISSUES["SM-027"] = "https://github.com/masa-san-jp/self-model-notes/issues/72"
+HARNESS_ISSUES["SM-028"] = "https://github.com/masa-san-jp/self-model-notes/issues/74"
 
 
 def load_queue() -> dict:
@@ -57,7 +59,7 @@ class ExecutionTaskQueueTests(unittest.TestCase):
         self.assertEqual(3, self.queue["version"])
         ids = [task["id"] for task in self.tasks]
         self.assertEqual(len(ids), len(set(ids)))
-        self.assertEqual([f"SM-{index:03d}" for index in range(1, 28)], ids)
+        self.assertEqual([f"SM-{index:03d}" for index in range(1, 29)], ids)
 
     def test_dependencies_are_existing_and_acyclic_by_id(self):
         for task in self.tasks:
@@ -149,6 +151,8 @@ class ExecutionTaskQueueTests(unittest.TestCase):
                 self.assertEqual(["SM-026"], [task["id"] for task in selectable_tasks(self.queue)])
             elif self.by_id["SM-027"]["status"] == "ready":
                 self.assertEqual(["SM-027"], [task["id"] for task in selectable_tasks(self.queue)])
+            elif self.by_id["SM-028"]["status"] == "ready":
+                self.assertEqual(["SM-028"], [task["id"] for task in selectable_tasks(self.queue)])
             else:
                 self.assertEqual([], [task["id"] for task in selectable_tasks(self.queue)])
         else:
