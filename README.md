@@ -4,6 +4,19 @@
 
 要件の正本は [Issue #1](https://github.com/masa-san-jp/self-model-notes/issues/1) です。READMEや設計文書と矛盾する場合はIssue #1を正とします。
 
+## 利用者向けの入口
+
+このリポジトリは、対象者を固定的な性格タイプへ分類する診断ツールではありません。観測事実、根拠、解釈、同意範囲を分けて保持し、明示された範囲だけを調査用の信号へ書き出すナレッジベースです。
+
+| したいこと | 入口 |
+| --- | --- |
+| 現在の自己モデルを読む | [`entities/`](entities/)、[`overviews/`](overviews/)、生成済みの `data/` |
+| 1件の観測や主張を追加する | [`docs/investigation-task.md`](docs/investigation-task.md)、[`docs/schema.md`](docs/schema.md) |
+| 他のリポジトリへ渡せる信号を確認する | `normalized-research-signal/v1` と [`docs/ecosystem-architecture.md`](docs/ecosystem-architecture.md) |
+| エージェントとして作業する | [`AGENTS.md`](AGENTS.md)、[`execution/tasks.yaml`](execution/tasks.yaml) |
+
+`PRIVATE_RAW`、`RESTRICTED`、認証情報、直接識別情報、同意範囲外の原文は保存・exportしません。確証のない内容は `unknown` や仮説として残し、心理診断や重大な判断には使いません。
+
 ## 体系
 
 ```text

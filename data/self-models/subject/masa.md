@@ -5,7 +5,7 @@
 ## Snapshot
 
 - As of: 2026-08-13
-- Source commit: `c6275f3ae9a93fe8ac925ab1e0886a8f8bdde683`
+- Source commit: `924a58d2176243a37857e7882bfca407c5189ca4`
 - Derived from: `claim/challenge-is-inherently-irrational`, `claim/close-but-cannot-reach`, `claim/proximity-drives-attention`, `event/watching-a-struggle-20260813`, `source/consent-20260813`, `source/interview-20260813`, `subject/masa`
 
 ## Observations
