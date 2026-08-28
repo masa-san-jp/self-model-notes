@@ -1,67 +1,94 @@
 # self-model-notes
 
-人を固定的な性格タイプとして分類せず、観測された出来事から、感情・内的動機・条件付き行動原理・葛藤を根拠付きで更新する Self Model Knowledge Base。
+本人を固定的な性格タイプへ分類せず、同意を得た観測から、根拠・反証・不確実性を残したままSelf Modelを更新するKnowledge Baseです。決定論的なbundle生成と、Claude Code / Codexなどの実行エージェント向けtask harnessを含みます。
 
-要件の正本は [Issue #1](https://github.com/masa-san-jp/self-model-notes/issues/1) です。READMEや設計文書と矛盾する場合はIssue #1を正とします。
+## これは何か
 
-## 体系
-
-```text
-Source / Raw Evidence
-        ↓
-Observation / Event
-        ↓
-Claim / Hypothesis
-        ↓
-Repeated Pattern
-        ↓
-Derived Self Model
-        ↓
-Research Signals
-```
-
-正本は `entities/` のMarkdown frontmatterです。`data/` と `overviews/coverage.md` は生成物であり、手で編集しません。
-
-## 入口
-
-- 実装者: [AGENTS.md](AGENTS.md) → [docs/schema.md](docs/schema.md) → [docs/execution-plan.md](docs/execution-plan.md)
-- 調査・記録担当: [docs/investigation-task.md](docs/investigation-task.md)
-- 利用者: [docs/for-other-personas.md](docs/for-other-personas.md)
-- エコシステム: [docs/ecosystem-architecture.md](docs/ecosystem-architecture.md)
-- 機械可読タスク: [execution/tasks.yaml](execution/tasks.yaml)
-
-## ディレクトリ
+このリポジトリは、次の記録を安全に積み上げて派生モデルと研究用signalを生成します。
 
 ```text
-entities/          Subject / Source / Event / Claim / Pattern / Measurement の正本
-config/            閉じた語彙・Drive Systems・Context・Confidence
-docs/              スキーマ、分析、取得、倫理、相互運用、実行計画
-execution/         エージェントが順に消化する機械可読タスク
-tools/             作成、検証、監査、派生モデル、bundle、export
-tests/             単体・統合・禁止事項テストと匿名fixture
-data/              決定論的な生成物
-overviews/         coverage等の人間向け生成物
+Source → Event → Claim → Pattern → Derived Self Model → Research Signal
 ```
 
-`data/self-models/subject/<slug>.json` と `.md` はGit管理するcurrent snapshotです。entityをcommitした後に `python3 tools/agent_runtime.py tools/bundle.py --all` で再生成し、`python3 tools/agent_runtime.py tools/bundle.py --all --check` でJSON/Markdownのstalenessを確認します。過去snapshotは別名fileではなくGit historyで比較します。
+- 正本は`entities/`のMarkdown frontmatterです。
+- `data/`と`overviews/`はツールが生成するsnapshotです。直接編集しません。
+- exportはSourceごとの同意を再確認し、raw voice本文や直接識別情報を出力しません。
+- 診断、疾患推定、雇用判断、将来行動の確定予測には使いません。
 
-## 最小コマンド
+要件の正本は[Issue #1](https://github.com/masa-san-jp/self-model-notes/issues/1)です。詳細な作業契約は[AGENTS.md](AGENTS.md)、データ設計は[docs/schema.md](docs/schema.md)を参照してください。
+
+## 誰が使うか
+
+- 実行エージェント：`tools/agent_runtime.py`を唯一のPython入口として、taskの選択・検証・完了を行います。
+- 記録・調査担当：同意範囲を確認して`entities/`を更新し、生成物と検証結果を確認します。
+- 下流の研究・制作システム：同意済みの`export_signals.py`出力だけを読み取ります。
+
+親orchestrationのlive-private実行結果（その時点のデータ件数など）は、このリポジトリの実装完了条件ではありません。実行時に不足があれば、harnessは不足状態を隠さず停止します。
+
+## 最初に使う
+
+### 前提
+
+- Python 3.11以上
+- Git
+- PyYAML 6.x
+
+通常の実行で仮想環境をactivateする必要はありません。すべて次の入口から実行してください。
 
 ```bash
-python3 -m pip install -e .
-python3 tools/agent_runtime.py tools/new_entity.py subject sample-subject
-python3 tools/agent_runtime.py tools/build_graph.py --check
-python3 tools/agent_runtime.py -m unittest discover -s tests -p "test_*.py"
-python3 tools/agent_runtime.py tools/build_graph.py
-python3 tools/agent_runtime.py tools/audit.py
+python3 tools/agent_runtime.py <python-arguments>
 ```
 
-## Agent harness
+入口は、PyYAMLをimportできるリポジトリ内`.venv/bin/python`を優先し、なければ現在のPythonへfallbackします。installやnetwork accessは行いません。どちらのPythonにもPyYAMLが無い場合は、安定したエラーで停止します。
 
-Phase 10の実装taskは、次のライフサイクルを正規経路として実行する。
+### 初回だけの依存関係準備
+
+現在のPythonでPyYAMLを使えるなら、この手順は不要です。使えない場合だけ、開発環境で一度実行します。
+
+```bash
+python3 -m venv .venv
+.venv/bin/python -m pip install -e .
+```
+
+以後のエージェント実行では、activateや毎回のinstallは不要です。
+
+### まず確認するコマンド
 
 ```bash
 python3 tools/agent_runtime.py tools/task_harness.py validate
+python3 tools/agent_runtime.py tools/task_harness.py next --json
+python3 tools/agent_runtime.py -m unittest discover -s tests -p "test_*.py"
+```
+
+`next --json`がtaskを返せば作業対象があります。候補が無い場合の終了コード`3`は異常ではなく、現在実行できるtaskが無いという正常な結果です。queue不正は`2`、許可外pathは`4`、宣言checkの失敗は`5`です。
+
+## 記録を読む・生成する
+
+```bash
+python3 tools/agent_runtime.py tools/bundle.py --subject subject/<id>
+python3 tools/agent_runtime.py tools/bundle.py --all --check
+python3 tools/agent_runtime.py tools/export_signals.py \
+  --subject subject/<id> \
+  --purpose artistic-research \
+  --operation export-signals
+```
+
+新しいentityはtemplateから作成し、frontmatterを埋めます。`entities/`が正本であり、生成後にsnapshotのstalenessを確認します。
+
+```bash
+python3 tools/agent_runtime.py tools/new_entity.py event <slug> --subject subject/<id>
+python3 tools/agent_runtime.py tools/build_graph.py
+python3 tools/agent_runtime.py tools/bundle.py --all
+python3 tools/agent_runtime.py tools/bundle.py --all --check
+```
+
+exportは目的と操作の両方を明示し、Sourceの同意が1件でも不足していれば全体をdenyします。
+
+## エージェントのtask実行
+
+Phase 10の実装taskは、`execution/tasks.yaml`を直接解釈・編集せず、次の順序でharnessを使います。
+
+```bash
 python3 tools/agent_runtime.py tools/task_harness.py next --json
 python3 tools/agent_runtime.py tools/task_harness.py claim SM-NNN --actor <actor> --remote origin --base <sha> --json
 python3 tools/agent_runtime.py tools/task_harness.py context SM-NNN --json
@@ -70,19 +97,30 @@ python3 tools/agent_runtime.py tools/task_harness.py complete SM-NNN --pr <numbe
 python3 tools/agent_runtime.py tools/task_harness.py release SM-NNN --actor <actor> --remote origin --json
 ```
 
-`execution/tasks.yaml`が機械可読のtask SSOTで、Issueに登録されていないtaskは実行対象になりません。selectorは最低IDのready taskだけを返します。claimは`refs/heads/harness-lock/sm-nnn`と`agent/sm-nnn-<actor>`を取得し、verifyは許可pathとchecksを検査します。completeはPR番号・HEAD・evidenceを対象taskだけへ記録し、releaseはremote mainへのmerge確認後に該当lockだけを削除します。
+1 task、1 agent、1 branch、1 PRが基本です。Issueに登録されていないtaskは実行しません。詳細なpath制限、claim lock、trusted-base検証、復旧手順は[docs/operations.md](docs/operations.md)を参照してください。
 
-すべてのリポジトリPythonコマンドは`tools/agent_runtime.py`を通すため、エージェントや人間が仮想環境をactivateする必要はありません。入口はPyYAMLをimportできるプロジェクト`.venv`を優先し、無ければ現在のPythonを使います。依存関係が利用できない場合は、installやnetwork accessを行わず、安定したエラーで停止します。
+## ディレクトリ
 
-PRの`harness-policy`はbase SHAのtrusted-baseを実行系の正本としてcandidateを検査します。候補側のharness、queue contract、依存、stop condition、check、evidence、許可外pathの改変でtrusted policyを弱めることはできません。出力は本文、raw voice、credentials、環境値、絶対pathを含みません。利用者を実行エージェントに限定する脅威モデルでは、このtrusted-base CI検証を必須境界とし、GitHubのrequired merge gateは任意の運用強化とします。Issue #60にこの判断を記録します。
-SM-026完了後は、依存済みのready taskがないためdispatchは終了します。
+```text
+entities/          Subject / Source / Event / Claim / Pattern / Measurementの正本
+config/            閉じた語彙、Drive Systems、Context、Confidence
+docs/              schema、分析、取得、倫理、相互運用、実行計画
+execution/         エージェントが順に消化する機械可読task
+tools/             作成、検証、監査、bundle、export
+tests/             単体・統合・禁止事項テストと匿名fixture
+data/              決定論的な生成snapshot
+overviews/         coverageなどの生成文書
+```
 
-## 原則
+## 現在の状態
 
-- 原文・観測事実・解釈を混ぜない。
-- Claimは根拠、反証、代替説明、確信度を持つ。
-- Unknownを推測で埋めない。
-- Trait / State / Contextを分離する。
-- 正式尺度がなければ尺度得点を作らない。
-- 同意範囲外のデータをexportしない。
-- 心理診断、精神疾患推定、重大な人事判断には使わない。
+自律task harnessと、仮想環境を自動選択するruntime entrypointは`main`にあります。登録済みtaskの実行可能性は、次のコマンドの結果を正本とします。
+
+```bash
+python3 tools/agent_runtime.py tools/task_harness.py validate
+python3 tools/agent_runtime.py tools/task_harness.py next --json
+```
+
+GitHub ActionsはPRの独立したbackstopです。agent-only脅威モデルでは、trusted-baseのローカルharness検証が正規境界であり、GitHubのrequired merge gateは任意の運用強化です。
+
+この判断は[Issue #60](https://github.com/masa-san-jp/self-model-notes/issues/60)に記録したSM-026の方針です。費用、公開範囲、branch protectionなどの設定変更は、このリポジトリの実行エージェントが独断で行いません。
