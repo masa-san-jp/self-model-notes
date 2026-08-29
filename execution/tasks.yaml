@@ -1242,14 +1242,21 @@ tasks:
   - id: SM-029
     title: Document sibling repositories and integration boundaries in README
     phase: 10
-    status: ready
+    status: in-progress
     depends_on: [SM-028]
     issue: https://github.com/masa-san-jp/self-model-notes/issues/77
     allowed_paths:
       - README.md
       - execution/tasks.yaml
       - tests/test_execution_tasks.py
-    claim: null
+    claim:
+      actor: codex
+      base: 8cbf630e21341c6f2a52ff35235a524c5c5e9779
+      branch: agent/sm-029-codex
+      remote: origin
+      lock_ref: refs/heads/harness-lock/sm-029
+      claimed_at: '2026-08-29T08:46:13.314574000Z'
+
     acceptance:
       - README links to self-model-notes, art-history-notes, marketing-trends-notes, agentic-art-research, agentic-art-production, and agentic-art-orchestration
       - README explains each repository's responsibility and its relationship to this repository
