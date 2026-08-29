@@ -1239,3 +1239,35 @@ tasks:
           - "git diff --check — passed"
           - "git diff --exit-code -- data/ overviews/coverage.md — passed"
 
+  - id: SM-029
+    title: Document sibling repositories and integration boundaries in README
+    phase: 10
+    status: ready
+    depends_on: [SM-028]
+    issue: https://github.com/masa-san-jp/self-model-notes/issues/77
+    allowed_paths:
+      - README.md
+      - execution/tasks.yaml
+      - tests/test_execution_tasks.py
+    claim: null
+    acceptance:
+      - README links to self-model-notes, art-history-notes, marketing-trends-notes, agentic-art-research, agentic-art-production, and agentic-art-orchestration
+      - README explains each repository's responsibility and its relationship to this repository
+      - README describes the boundaries between normalized signals, research handoff, production, and orchestration consistently with docs/ecosystem-architecture.md and the parent repository's published description
+      - README states that self-model-notes is the source of truth for personal data, sibling repositories do not own those entities, and raw voice and direct identifiers are not passed downstream
+      - Tests or deterministic checks validate the README links and relationship explanations
+      - No entity, schema, consent, privacy, export, or runtime behavior changes
+    checks:
+      - python3 tools/agent_runtime.py tools/task_harness.py validate
+      - python3 tools/agent_runtime.py -m unittest tests.test_execution_tasks
+      - python3 tools/agent_runtime.py -m unittest discover -s tests -p "test_*.py"
+      - python3 tools/agent_runtime.py tools/build_graph.py --check
+      - python3 tools/agent_runtime.py tools/audit.py --check
+      - python3 tools/agent_runtime.py tools/bundle.py --all --check
+      - git diff --check
+      - git diff --exit-code -- data/ overviews/coverage.md
+    stop_if:
+      - A core schema, entity, consent, privacy, export, or runtime behavior must change
+      - README would claim an unsupported cross-repository contract or data flow
+      - A path outside the allowance is required
+    evidence: []
