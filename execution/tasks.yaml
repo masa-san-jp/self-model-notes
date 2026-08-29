@@ -1242,20 +1242,14 @@ tasks:
   - id: SM-029
     title: Document sibling repositories and integration boundaries in README
     phase: 10
-    status: in-progress
+    status: done
     depends_on: [SM-028]
     issue: https://github.com/masa-san-jp/self-model-notes/issues/77
     allowed_paths:
       - README.md
       - execution/tasks.yaml
       - tests/test_execution_tasks.py
-    claim:
-      actor: codex
-      base: 8cbf630e21341c6f2a52ff35235a524c5c5e9779
-      branch: agent/sm-029-codex
-      remote: origin
-      lock_ref: refs/heads/harness-lock/sm-029
-      claimed_at: '2026-08-29T08:46:13.314574000Z'
+    claim: null
 
     acceptance:
       - README links to self-model-notes, art-history-notes, marketing-trends-notes, agentic-art-research, agentic-art-production, and agentic-art-orchestration
@@ -1277,4 +1271,17 @@ tasks:
       - A core schema, entity, consent, privacy, export, or runtime behavior must change
       - README would claim an unsupported cross-repository contract or data flow
       - A path outside the allowance is required
-    evidence: []
+    evidence:
+      - pr: 78
+        commit: 9895cd61fbf10fb5a05e8bc40e6eb51b6d5fc75c
+        checks:
+          - "python3 tools/agent_runtime.py tools/task_harness.py verify-paths SM-029 --json — passed"
+          - "python3 tools/agent_runtime.py tools/task_harness.py validate — passed"
+          - "python3 tools/agent_runtime.py -m unittest tests.test_execution_tasks — passed"
+          - "python3 tools/agent_runtime.py -m unittest discover -s tests -p \"test_*.py\" — passed"
+          - "python3 tools/agent_runtime.py tools/build_graph.py --check — passed"
+          - "python3 tools/agent_runtime.py tools/audit.py --check — passed"
+          - "python3 tools/agent_runtime.py tools/bundle.py --all --check — passed"
+          - "git diff --check — passed"
+          - "git diff --exit-code -- data/ overviews/coverage.md — passed"
+
