@@ -41,6 +41,15 @@ HARNESS_ISSUES["SM-027"] = "https://github.com/masa-san-jp/self-model-notes/issu
 HARNESS_ISSUES["SM-028"] = "https://github.com/masa-san-jp/self-model-notes/issues/74"
 HARNESS_ISSUES["SM-029"] = "https://github.com/masa-san-jp/self-model-notes/issues/77"
 
+SIBLING_REPOSITORY_LINKS = {
+    "self-model-notes": "https://github.com/masa-san-jp/self-model-notes",
+    "art-history-notes": "https://github.com/masa-san-jp/art-history-notes",
+    "marketing-trends-notes": "https://github.com/masa-san-jp/marketing-trends-notes",
+    "agentic-art-research": "https://github.com/masa-san-jp/agentic-art-research",
+    "agentic-art-production": "https://github.com/masa-san-jp/agentic-art-production",
+    "agentic-art-orchestration": "https://github.com/masa-san-jp/agentic-art-orchestration",
+}
+
 
 def load_queue() -> dict:
     with QUEUE.open(encoding="utf-8") as handle:
@@ -168,6 +177,23 @@ class ExecutionTaskQueueTests(unittest.TestCase):
                 with self.subTest(task=task["id"]):
                     self.assertEqual("done", task["status"])
                     self.assertTrue(task["evidence"])
+
+    def test_readme_documents_sibling_repositories_and_boundaries(self):
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        for name, url in SIBLING_REPOSITORY_LINKS.items():
+            with self.subTest(repository=name):
+                self.assertIn(f"[{name}]({url})", readme)
+        for phrase in (
+            "正本",
+            "normalized signal",
+            "research handoff",
+            "agentic-art-orchestration",
+            "docs/ecosystem-architecture.md",
+            "raw_voice",
+            "直接識別情報",
+        ):
+            with self.subTest(phrase=phrase):
+                self.assertIn(phrase, readme)
 
 
 if __name__ == "__main__":

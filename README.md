@@ -25,6 +25,32 @@ Source → Event → Claim → Pattern → Derived Self Model → Research Signa
 
 親orchestrationのlive-private実行結果（その時点のデータ件数など）は、このリポジトリの実装完了条件ではありません。実行時に不足があれば、harnessは不足状態を隠さず停止します。
 
+## 兄弟リポジトリとの関係
+
+このリポジトリは、本人に関するSource・Event・Claim・Pattern・Derivedの正本です。兄弟リポジトリはそれぞれ別の知識領域または実行段階を担当し、このリポジトリの`entities/`を直接の正本として共有・編集しません。リポジトリ間で渡すのは、目的と同意を確認したprivacy-safeなnormalized signalまたはresearch handoffです。
+
+| リポジトリ | 担当 | このリポジトリとの関係 |
+| --- | --- | --- |
+| [self-model-notes](https://github.com/masa-san-jp/self-model-notes) | 本人に関するEvidence-traceable Self Model | このリポジトリ自身。個人データとその根拠の正本を持つ |
+| [art-history-notes](https://github.com/masa-san-jp/art-history-notes) | 美術史の時代・地域・作家・作品・技法・文脈 | 個人推定を行わない、独立したart-history signalの上流 |
+| [marketing-trends-notes](https://github.com/masa-san-jp/marketing-trends-notes) | 市場変化・trend・practiceと新しい根拠 | 個人推定を行わない、独立したtrend/practice signalの上流 |
+| [agentic-art-research](https://github.com/masa-san-jp/agentic-art-research) | 複数signalを束ね、根拠付きresearch brief/traceを作るruntime | このリポジトリの`research_signals`を、他の上流signalとともに読む下流 |
+| [agentic-art-production](https://github.com/masa-san-jp/agentic-art-production) | 制作プロトコル、handoff、再開可能な実行・release gate | 検証済みのresearch handoffの先にある制作実行側。Self Modelの正本ではない |
+| [agentic-art-orchestration](https://github.com/masa-san-jp/agentic-art-orchestration) | 複数リポジトリのpin・gate・目的E2Eを調整する親側 | このリポジトリを含む各システムを横断して組み合わせるが、個人データの正本ではない |
+
+主な受け渡しは次の通りです。orchestrationはデータの所有者ではなく、各リポジトリの入力・検証・E2Eを調整します。
+
+```text
+self-model-notes ──────── research_signals ─┐
+art-history-notes ─────── art-history signals ├─→ agentic-art-research
+marketing-trends-notes ─ trend/practice ─────┘          │
+                                                        └─ research handoff → agentic-art-production
+
+agentic-art-orchestration ── 各リポジトリのpin・gate・目的E2Eを調整
+```
+
+詳細な責務とsignal境界は[docs/ecosystem-architecture.md](docs/ecosystem-architecture.md)を参照してください。下流へ渡るのは明示した目的のexportだけであり、`raw_voice`、直接識別情報、秘密、認証情報は渡しません。
+
 ## 最初に使う
 
 ### 前提
