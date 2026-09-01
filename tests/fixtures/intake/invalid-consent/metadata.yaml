@@ -1,0 +1,5 @@
+source_slug: conversation-no-consent-20260901
+subject: subject/fixture
+source_kind: conversation
+captured_at: "2026-09-01T10:00:00+09:00"
+locator: telegram://opaque-no-consent-fixture
