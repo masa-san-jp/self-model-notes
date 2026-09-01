@@ -1,0 +1,40 @@
+# Each event is explicitly separated so no event is inferred or merged.
+[event: planning]
+observed_at: "2026-08-30T09:05:00+09:00"
+precision: minute
+domain: creative-practice
+social: alone
+uncertainty: unknown
+control: self-directed
+fatigue: null
+stress: unknown
+trigger: deadline changed
+observed_fact: task order changed
+raw_voice: "自分で決め直したい"
+appraisal: []
+emotion: []
+body: []
+cognition: []
+action: plan changed
+immediate_outcome: resumed work
+delayed_outcome: []
+
+[event: review]
+observed_at: null
+precision: unknown
+domain: []
+social: one-to-one
+uncertainty: unknown
+control: shared
+fatigue: null
+stress: unknown
+trigger: null
+observed_fact: []
+raw_voice: []
+appraisal: []
+emotion: []
+body: []
+cognition: []
+action: []
+immediate_outcome: []
+delayed_outcome: []
