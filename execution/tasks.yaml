@@ -1288,7 +1288,7 @@ tasks:
   - id: SM-030
     title: Add deterministic conversation intake drafts with consent and privacy gates
     phase: 10
-    status: ready
+    status: done
     depends_on: [SM-029]
     issue: https://github.com/masa-san-jp/self-model-notes/issues/79
     allowed_paths:
@@ -1300,6 +1300,7 @@ tasks:
       - tests/fixtures/intake/**
       - execution/tasks.yaml
     claim: null
+
     acceptance:
       - A synthetic annotated conversation transcript and complete Source metadata deterministically produce one Source draft and one Event draft per explicit event block
       - Running intake twice with identical inputs produces byte-identical draft files and never writes the original transcript into a draft
@@ -1324,4 +1325,18 @@ tasks:
       - Free-form NLP, LLM inference, network access, credentials, or an external input connector is required
       - Existing entities must be rewritten or a Claim, Pattern, or Derived record must be generated
       - A path outside the allowance is required
-    evidence: []
+    evidence:
+      - pr: 80
+        commit: f95326d3b2146e7d8eea62be41e83f6fe472fa2c
+        checks:
+          - "python3 tools/agent_runtime.py tools/task_harness.py verify-paths SM-030 --json — passed"
+          - "python3 tools/agent_runtime.py tools/task_harness.py validate — passed"
+          - "python3 tools/agent_runtime.py -m unittest tests.test_intake_conversation tests.test_cli tests.test_execution_tasks — passed"
+          - "python3 tools/agent_runtime.py -m unittest discover -s tests -p \"test_*.py\" — passed"
+          - "python3 tools/agent_runtime.py tools/build_self_model.py --subject subject/masa --check — passed"
+          - "python3 tools/agent_runtime.py tools/bundle.py --all --check — passed"
+          - "python3 tools/agent_runtime.py tools/build_graph.py --check — passed"
+          - "python3 tools/agent_runtime.py tools/audit.py --check — passed"
+          - "git diff --check — passed"
+          - "git diff --exit-code -- data/ overviews/coverage.md — passed"
+
