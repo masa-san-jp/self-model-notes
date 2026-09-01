@@ -25,6 +25,7 @@ class CLITests(unittest.TestCase):
             "tools/build_self_model.py",
             "tools/bundle.py",
             "tools/export_signals.py",
+            "tools/intake_conversation.py",
         ):
             with self.subTest(script=script):
                 result = self.run_cli(script, "--help")

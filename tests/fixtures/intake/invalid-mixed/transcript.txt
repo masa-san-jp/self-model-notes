@@ -1,0 +1,11 @@
+[event: ambiguous]
+observed_at: "2026-08-30T09:05:00+09:00"
+precision: minute
+domain: creative-practice
+social: alone
+uncertainty: unknown
+control: self-directed
+fatigue: null
+stress: unknown
+trigger: first event trigger
+trigger: second event trigger
