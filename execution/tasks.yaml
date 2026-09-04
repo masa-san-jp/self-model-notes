@@ -1458,7 +1458,7 @@ tasks:
   - id: SM-034
     title: Separate runtime entities and artifacts by explicit profile root
     phase: 10
-    status: ready
+    status: done
     depends_on: [SM-033]
     issue: https://github.com/masa-san-jp/self-model-notes/issues/81
     allowed_paths:
@@ -1506,7 +1506,18 @@ tasks:
       - A core schema, consent rule, or normalized signal contract must change
       - A path outside the listed protocol files and synthetic fixtures is required
     claim: null
-    evidence: []
+
+    evidence:
+      - pr: 90
+        commit: b5435068463fd20a844f922667a34d3504d07e7f
+        checks:
+          - "python3 tools/agent_runtime.py tools/task_harness.py verify-paths SM-034 --json — passed"
+          - "python3 tools/agent_runtime.py tools/task_harness.py validate — passed"
+          - "python3 tools/agent_runtime.py -m unittest tests.test_profile_root tests.test_loader tests.test_build_graph tests.test_self_model tests.test_bundle tests.test_export_signals tests.test_audit tests.test_intake_conversation tests.test_cli tests.test_e2e tests.test_execution_tasks tests.test_task_harness — passed"
+          - "python3 tools/agent_runtime.py -m unittest discover -s tests -p \"test_*.py\" — passed"
+          - "python3 tools/agent_runtime.py tools/profile_root.py validate-repository --json — passed"
+          - "git diff --check — passed"
+
 
   - id: SM-035
     title: Add metadata-only profile migration and operational completion evidence

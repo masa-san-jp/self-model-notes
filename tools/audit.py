@@ -10,8 +10,22 @@ from typing import Any
 
 try:
     from kb import ROOT, canonical_json, discover_entities
+    from profile_root import (
+        ProfileRootError,
+        add_profile_root_argument,
+        atomic_write_text,
+        profile_root_error,
+        resolve_profile_root,
+    )
 except ModuleNotFoundError:  # Imported as tools.audit by the test suite.
     from tools.kb import ROOT, canonical_json, discover_entities
+    from tools.profile_root import (
+        ProfileRootError,
+        add_profile_root_argument,
+        atomic_write_text,
+        profile_root_error,
+        resolve_profile_root,
+    )
 
 
 def _list_refs(meta: dict[str, Any], field: str) -> list[str]:
@@ -167,13 +181,34 @@ def main() -> int:
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--dry-run", action="store_true")
     mode.add_argument("--check", action="store_true")
+    add_profile_root_argument(parser)
     args = parser.parse_args()
-    entities = discover_entities()
+    if args.profile_root is not None:
+        try:
+            layout = resolve_profile_root(args.profile_root)
+        except ProfileRootError as error:
+            profile_root_error(error)
+            return 2
+        output_root = layout.root
+        entity_root = layout.entity_root
+    elif args.dry_run or args.check:
+        # Read-only compatibility for the pre-migration tracked artifact.
+        output_root = ROOT
+        entity_root = ROOT / "entities"
+    else:
+        profile_root_error(
+            ProfileRootError(
+                "PROFILE_ROOT_REQUIRED",
+                "pass --profile-root for real profile reads and writes; repository fallback is read-only check mode",
+            )
+        )
+        return 2
+    entities = discover_entities(entity_root)
     report = audit_report(entities, args.subject)
     if args.dry_run:
         print(canonical_json(report), end="")
         return 0
-    path = ROOT / "data" / "audit.json"
+    path = output_root / "data" / "audit.json"
     if args.check:
         expected = canonical_json(report)
         if not audit_artifact_is_current(path, expected):
@@ -185,9 +220,12 @@ def main() -> int:
             return 1
         print("OK: data/audit.json is current")
         return 0
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(audit_json(entities, args.subject), encoding="utf-8")
-    print(f"built {path.relative_to(ROOT)}")
+    atomic_write_text(path, audit_json(entities, args.subject))
+    try:
+        display = path.relative_to(output_root)
+    except ValueError:
+        display = Path("<profile-output>")
+    print(f"built {display}")
     return 0
 
 

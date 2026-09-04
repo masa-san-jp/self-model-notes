@@ -17,6 +17,7 @@ import re
 import stat
 import subprocess
 import sys
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable
@@ -368,6 +369,49 @@ def profile_root_error(error: ProfileRootError, *, stream: Any = sys.stderr) -> 
     """Render only stable remediation, never the supplied absolute path."""
 
     print(f"ERROR {error.code}: {error.remediation}", file=stream)
+
+
+def atomic_write_text(path: Path, content: str) -> None:
+    """Write a generated text artifact without exposing a partial file."""
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary: str | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            newline="\n",
+            prefix=f".{path.name}.",
+            dir=path.parent,
+            delete=False,
+        ) as handle:
+            temporary = handle.name
+            handle.write(content)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary, path)
+        temporary = None
+    except OSError as exc:
+        raise ProfileRootError(
+            "PROFILE_OUTPUT_UNWRITABLE",
+            "profile output could not be written atomically; choose a writable profile root",
+        ) from exc
+    finally:
+        if temporary is not None:
+            try:
+                os.unlink(temporary)
+            except OSError:
+                pass
+
+
+def path_is_within(path: Path, root: Path) -> bool:
+    """Check containment after resolving an existing or proposed path."""
+
+    try:
+        path.resolve(strict=False).relative_to(root.resolve(strict=False))
+        return True
+    except (OSError, ValueError):
+        return False
 
 
 def validate_repository(
