@@ -1458,7 +1458,7 @@ tasks:
   - id: SM-034
     title: Separate runtime entities and artifacts by explicit profile root
     phase: 10
-    status: ready
+    status: in-progress
     depends_on: [SM-033]
     issue: https://github.com/masa-san-jp/self-model-notes/issues/81
     allowed_paths:
@@ -1505,7 +1505,14 @@ tasks:
       - A legacy tree must be deleted or migrated as part of this task
       - A core schema, consent rule, or normalized signal contract must change
       - A path outside the listed protocol files and synthetic fixtures is required
-    claim: null
+    claim:
+      actor: codex4
+      base: fcdbe5fd920a28a46d4e79223c8210b57e7a2fff
+      branch: agent/sm-034-codex4
+      remote: origin
+      lock_ref: refs/heads/harness-lock/sm-034
+      claimed_at: '2026-09-04T10:06:26.681210000Z'
+
     evidence: []
 
   - id: SM-035

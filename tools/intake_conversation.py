@@ -22,8 +22,22 @@ import yaml
 
 try:
     from kb import ID_RE, ROOT, vocabularies
+    from profile_root import (
+        ProfileRootError,
+        add_profile_root_argument,
+        path_is_within,
+        profile_root_error,
+        resolve_profile_root,
+    )
 except ModuleNotFoundError:  # Imported as tools.intake_conversation by tests.
     from tools.kb import ID_RE, ROOT, vocabularies
+    from tools.profile_root import (
+        ProfileRootError,
+        add_profile_root_argument,
+        path_is_within,
+        profile_root_error,
+        resolve_profile_root,
+    )
 
 
 SLUG_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
@@ -437,9 +451,14 @@ def _render_draft(meta: dict[str, Any]) -> str:
     return "---\n" + frontmatter + "---\n\n# Intake draft\n\nHuman review is required before adoption into canonical entities/.\n"
 
 
-def _write_drafts(output_dir: Path, drafts: list[tuple[str, str]]) -> list[Path]:
+def _write_drafts(
+    output_dir: Path,
+    drafts: list[tuple[str, str]],
+    *,
+    entity_root: Path = ROOT / "entities",
+) -> list[Path]:
     resolved_output = output_dir.resolve()
-    entity_root = (ROOT / "entities").resolve()
+    entity_root = entity_root.resolve()
     try:
         resolved_output.relative_to(entity_root)
     except ValueError:
@@ -469,7 +488,13 @@ def _write_drafts(output_dir: Path, drafts: list[tuple[str, str]]) -> list[Path]
     return [output_dir / name for name, _ in drafts]
 
 
-def generate_drafts(transcript_path: Path, metadata_path: Path, output_dir: Path) -> list[Path]:
+def generate_drafts(
+    transcript_path: Path,
+    metadata_path: Path,
+    output_dir: Path,
+    *,
+    profile_root: Path | None = None,
+) -> list[Path]:
     """Validate input and atomically write Source/Event draft files."""
 
     transcript = _read_text(transcript_path, label="transcript")
@@ -485,7 +510,15 @@ def generate_drafts(transcript_path: Path, metadata_path: Path, output_dir: Path
         )
         for event, event_meta in zip(events, event_metas)
     )
-    return _write_drafts(output_dir, drafts)
+    entity_root = ROOT / "entities"
+    if profile_root is not None:
+        layout = resolve_profile_root(profile_root)
+        if not path_is_within(output_dir, layout.data_root):
+            raise IntakeError(
+                "output-path-invalid: choose a draft directory inside the external profile data/ directory"
+            )
+        entity_root = layout.entity_root
+    return _write_drafts(output_dir, drafts, entity_root=entity_root)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -494,10 +527,27 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("transcript", type=Path, help="annotated UTF-8 transcript text file")
     parser.add_argument("--metadata", required=True, type=Path, help="Source metadata YAML/JSON file")
-    parser.add_argument("--output-dir", required=True, type=Path, help="draft output directory outside entities/")
+    parser.add_argument("--output-dir", required=True, type=Path, help="draft output directory inside external profile data/")
+    add_profile_root_argument(parser)
     args = parser.parse_args(argv)
+    if args.profile_root is None:
+        profile_root_error(
+            ProfileRootError(
+                "PROFILE_ROOT_REQUIRED",
+                "pass --profile-root for real profile intake; repository fallback is disabled",
+            )
+        )
+        return 2
     try:
-        paths = generate_drafts(args.transcript, args.metadata, args.output_dir)
+        paths = generate_drafts(
+            args.transcript,
+            args.metadata,
+            args.output_dir,
+            profile_root=args.profile_root,
+        )
+    except ProfileRootError as error:
+        profile_root_error(error)
+        return 2
     except IntakeError as error:
         print(f"intake rejected: {error}", file=sys.stderr)
         return 2
