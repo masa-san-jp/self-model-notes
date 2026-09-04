@@ -1343,7 +1343,7 @@ tasks:
   - id: SM-031
     title: Make fresh-clone agent environment setup explicit
     phase: 10
-    status: ready
+    status: done
     depends_on: [SM-030]
     issue: https://github.com/masa-san-jp/self-model-notes/issues/83
     allowed_paths:
@@ -1351,6 +1351,7 @@ tasks:
       - tests/test_agent_runtime.py
       - execution/tasks.yaml
     claim: null
+
     acceptance:
       - AGENTS documents a conditional fresh-clone setup using python3 -m venv .venv and .venv/bin/python -m pip install -e ., then uses the repository runtime entrypoint
       - Setup is explicit and does not run as an implicit network operation during normal task execution
@@ -1371,4 +1372,17 @@ tasks:
       - Dependency setup requires an unapproved external write, new third-party dependency, or repository secret
       - Existing entities or generated data must be changed for this documentation task
       - A path outside the allowance is required
-    evidence: []
+    evidence:
+      - pr: 85
+        commit: da703abf4faf61b4080dba77495a98163cbe1c44
+        checks:
+          - "python3 tools/agent_runtime.py tools/task_harness.py verify-paths SM-031 --json — passed"
+          - "python3 tools/agent_runtime.py tools/task_harness.py validate — passed"
+          - "python3 tools/agent_runtime.py -m unittest tests.test_agent_runtime tests.test_task_harness tests.test_cli — passed"
+          - "python3 tools/agent_runtime.py -m unittest discover -s tests -p \"test_*.py\" — passed"
+          - "python3 tools/agent_runtime.py tools/build_graph.py --check — passed"
+          - "python3 tools/agent_runtime.py tools/audit.py --check — passed"
+          - "python3 tools/agent_runtime.py tools/bundle.py --all --check — passed"
+          - "git diff --check — passed"
+          - "git diff --exit-code -- data/ overviews/coverage.md — passed"
+
