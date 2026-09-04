@@ -117,6 +117,17 @@ python3 tools/agent_runtime.py tools/task_harness.py release SM-NNN --actor <act
 
 `tools/agent_runtime.py`がリポジトリPythonの唯一の実行入口である。エージェントは仮想環境をactivateせず、この入口を通してツール・テスト・harnessを実行する。入口は標準ライブラリだけで起動し、PyYAMLをimportできるリポジトリ内`.venv`を優先し、無ければ現在のPythonへfallbackする。依存関係のinstallやnetwork accessは通常実行に含めない。
 
+### Fresh-clone environment
+
+fresh cloneで`.venv/bin/python`が無い、またはruntimeが`no Python interpreter with PyYAML is available`で停止した場合だけ、リポジトリ内に一度だけ開発環境を準備する。
+
+```bash
+python3 -m venv .venv
+.venv/bin/python -m pip install -e .
+```
+
+これはエージェントの通常task実行へ暗黙に含めない明示操作である。準備後はactivateせず、常に`python3 tools/agent_runtime.py ...`を使う。install、network access、credential、secretは通常のvalidate/next/claim/context/verify/complete/release経路へ持ち込まない。`.venv/`はrepositoryへcommitしない。
+
 PRでは`pull_request`のbase SHAをtrusted-base、head SHAをcandidateとして別checkoutし、trusted-baseの`verify-pr`でbranch/title/task ID、base/head、contract、lifecycle、evidence、allowed paths、checksを検証する。旧baseにverify-prがないbootstrap PRだけはworkflowが明示的に通過させる。手動でqueueを直す操作は通常経路ではなく、災害復旧時に観測事実と影響を記録する場合に限る。Issueに登録されていないtaskはdispatchableではない。
 
 SM-026では、利用者が実行エージェントだけである脅威モデルにおいて、trusted-base policyとCI検証を正規の実行境界とし、GitHubのrequired merge gateは任意の運用強化として扱う。この判断はIssue #60に記録し、費用や公開範囲を伴う設定変更を実行エージェントが選択・実施してはならない。

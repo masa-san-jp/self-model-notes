@@ -84,6 +84,17 @@ class AgentRuntimeTests(unittest.TestCase):
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertEqual("valid\n", result.stdout)
 
+    def test_agent_contract_documents_explicit_fresh_clone_setup(self):
+        contract = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
+
+        self.assertIn("python3 -m venv .venv", contract)
+        self.assertIn(".venv/bin/python -m pip install -e .", contract)
+        self.assertIn("install、network access、credential、secretは通常の", contract)
+        self.assertIn("python3 tools/agent_runtime.py", contract)
+        self.assertIn("秘密", contract)
+        self.assertIn("認証情報", contract)
+        self.assertIn("raw_voice", contract)
+
     def test_target_script_is_resolved_inside_repository(self):
         target = agent_runtime._target_argv(["tools/task_harness.py", "validate"])
         self.assertEqual(str(ROOT / "tools" / "task_harness.py"), target[0])
