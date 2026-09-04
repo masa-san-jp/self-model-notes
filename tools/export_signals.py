@@ -668,6 +668,7 @@ def main() -> int:
     if args.limit < 0:
         parser.error("--limit must be zero or positive")
     if args.profile_root is None:
+        print("Export denied", file=sys.stderr)
         profile_root_error(
             ProfileRootError(
                 "PROFILE_ROOT_REQUIRED",
