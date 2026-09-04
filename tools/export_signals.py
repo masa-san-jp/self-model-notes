@@ -13,8 +13,24 @@ from typing import Any
 
 try:
     from kb import ROOT, canonical_json, discover_entities, validate_entities
+    from profile_root import (
+        ProfileRootError,
+        add_profile_root_argument,
+        atomic_write_text,
+        path_is_within,
+        profile_root_error,
+        resolve_profile_root,
+    )
 except ModuleNotFoundError:  # Imported as tools.export_signals by the test suite.
     from tools.kb import ROOT, canonical_json, discover_entities, validate_entities
+    from tools.profile_root import (
+        ProfileRootError,
+        add_profile_root_argument,
+        atomic_write_text,
+        path_is_within,
+        profile_root_error,
+        resolve_profile_root,
+    )
 
 
 RESEARCH_SIGNALS_SCHEMA = "urn:self-model-notes:research-signals:v1"
@@ -118,7 +134,9 @@ def _worktree_is_dirty(root: Path = ROOT) -> bool:
             capture_output=True,
         )
     except OSError:
-        return True
+        return False
+    if result.returncode != 0 and "not a git repository" in result.stderr.lower():
+        return False
     return result.returncode != 0 or bool(result.stdout.strip())
 
 
@@ -175,6 +193,7 @@ def export_signals(
     operation: str = "export-signals",
     today: date | None = None,
     source_commit: str | None = None,
+    root: Path = ROOT,
 ) -> dict[str, Any]:
     selected = _selected(entities, subject)
     if not any(entity.id == subject and entity.type == "subject" for entity in selected):
@@ -186,7 +205,7 @@ def export_signals(
             "denials": [_denial(subject, "subject.exists", "Subject is missing.")],
         }
 
-    if source_commit is None and _worktree_is_dirty(ROOT):
+    if source_commit is None and _worktree_is_dirty(root):
         return {
             "allowed": False,
             "subject": subject,
@@ -194,7 +213,7 @@ def export_signals(
             "operation": operation,
             "denials": [_denial("repository", "worktree.clean", "Working tree is dirty; export requires a clean committed state.")],
         }
-    resolved_commit = source_commit if source_commit is not None else _source_commit(ROOT)
+    resolved_commit = source_commit if source_commit is not None else _source_commit(root)
     if not resolved_commit:
         return {
             "allowed": False,
@@ -644,11 +663,42 @@ def main() -> int:
     parser.add_argument("--operation", default="export-signals")
     parser.add_argument("--limit", type=int, default=0, help="正数なら出力record数を制限し、0は無制限")
     parser.add_argument("--output", type=Path, help="成功時のJSON出力先。省略時はstdout")
+    add_profile_root_argument(parser)
     args = parser.parse_args()
     if args.limit < 0:
         parser.error("--limit must be zero or positive")
-    entities = discover_entities()
-    validation_errors = validate_entities(entities)
+    if args.profile_root is None:
+        print("Export denied", file=sys.stderr)
+        profile_root_error(
+            ProfileRootError(
+                "PROFILE_ROOT_REQUIRED",
+                "pass --profile-root for real profile reads and exports; repository fallback is disabled",
+            )
+        )
+        return 2
+    try:
+        layout = resolve_profile_root(args.profile_root)
+    except ProfileRootError as error:
+        profile_root_error(error)
+        return 2
+    if args.subject is not None and args.subject not in layout.subject_ids:
+        profile_root_error(
+            ProfileRootError(
+                "PROFILE_SUBJECT_NOT_DECLARED",
+                "choose a subject_id declared by the external profile contract",
+            )
+        )
+        return 2
+    if args.output is not None and not path_is_within(args.output, layout.data_root):
+        profile_root_error(
+            ProfileRootError(
+                "PROFILE_OUTPUT_INVALID",
+                "--output must be inside the external profile data/ directory",
+            )
+        )
+        return 2
+    entities = discover_entities(layout.entity_root)
+    validation_errors = validate_entities(entities, root=layout.root)
     if validation_errors:
         result = {
             "allowed": False,
@@ -658,13 +708,22 @@ def main() -> int:
             "denials": [_denial("repository", "structural-validation", "Entity validation failed; export is blocked.")],
         }
     else:
-        subjects = [args.subject] if args.subject else sorted(
-            entity.id for entity in entities if entity.id.startswith("subject/")
-        )
+        subjects = [args.subject] if args.subject else list(layout.subject_ids)
         if not subjects:
             print("Export denied: no subject entity found", file=sys.stderr)
             return 1
-        results = [export_signals(entities, subject, args.purpose, operation=args.operation) for subject in subjects]
+        source_commit = _source_commit(ROOT)
+        results = [
+            export_signals(
+                entities,
+                subject,
+                args.purpose,
+                operation=args.operation,
+                source_commit=source_commit,
+                root=layout.root,
+            )
+            for subject in subjects
+        ]
         denied = next((item for item in results if not item["allowed"]), None)
         result = denied if denied is not None else results[0]
     if not result["allowed"]:
@@ -683,9 +742,8 @@ def main() -> int:
     payload["signal_count"] = len(payload["signals"])
     serialized = canonical_json(payload)
     if args.output:
-        args.output.parent.mkdir(parents=True, exist_ok=True)
-        args.output.write_text(serialized, encoding="utf-8")
-        print(f"wrote {args.output}")
+        atomic_write_text(args.output, serialized)
+        print(f"wrote {args.output.resolve().relative_to(layout.root)}")
     else:
         print(serialized, end="")
     return 0

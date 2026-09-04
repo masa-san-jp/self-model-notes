@@ -123,7 +123,15 @@ def _error(entity: Entity, field: str, message: str, remediation: str) -> Valida
     try:
         path = str(entity.path.relative_to(ROOT))
     except ValueError:
-        path = str(entity.path)
+        # External profile roots must never appear as absolute paths in a
+        # validation error.  Keep the canonical protocol-relative suffix.
+        parts = entity.path.parts
+        try:
+            entity_index = max(index for index, part in enumerate(parts) if part == "entities")
+        except ValueError:
+            path = "<external-entity>"
+        else:
+            path = str(Path(*parts[entity_index:]))
     return ValidationError(path, field, message, remediation)
 
 
@@ -313,7 +321,7 @@ def _validate_enum_value(entity: Entity, field: str, value: Any, allowed: Iterab
     return []
 
 
-def validate_entities(entities: list[Entity]) -> list[ValidationError]:
+def validate_entities(entities: list[Entity], root: Path = ROOT) -> list[ValidationError]:
     vocab = vocabularies()
     plurals = vocab["plural_paths"]
     by_id: dict[str, Entity] = {}
@@ -335,7 +343,7 @@ def validate_entities(entities: list[Entity]) -> list[ValidationError]:
         slug = entity.id.split("/", 1)[-1]
         expected = Path("entities") / plurals[entity.type] / f"{slug}.md"
         try:
-            actual = entity.path.relative_to(ROOT)
+            actual = entity.path.relative_to(root)
         except ValueError:
             actual = entity.path
         if actual != expected:

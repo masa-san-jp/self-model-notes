@@ -34,6 +34,23 @@ except ModuleNotFoundError:  # Imported as tools.bundle by the test suite.
         write_model,
     )
 
+try:
+    from profile_root import (
+        ProfileRootError,
+        add_profile_root_argument,
+        atomic_write_text,
+        profile_root_error,
+        resolve_profile_root,
+    )
+except ModuleNotFoundError:  # Imported as tools.bundle by the test suite.
+    from tools.profile_root import (
+        ProfileRootError,
+        add_profile_root_argument,
+        atomic_write_text,
+        profile_root_error,
+        resolve_profile_root,
+    )
+
 
 def bundle_path(subject_id: str, root: Path = ROOT) -> Path:
     kind, slug = subject_id.split("/", 1)
@@ -212,8 +229,7 @@ def render_bundle(model: dict[str, Any]) -> str:
 
 
 def write_bundle(content: str, path: Path) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(content, encoding="utf-8")
+    atomic_write_text(path, content)
 
 
 def _active_subject_ids(entities) -> list[str]:
@@ -224,16 +240,30 @@ def _active_subject_ids(entities) -> list[str]:
     )
 
 
-def _expected_artifacts(model: dict[str, Any]) -> dict[Path, str]:
+def _expected_artifacts(model: dict[str, Any], root: Path = ROOT) -> dict[Path, str]:
     subject_id = model["subject"]
     return {
-        model_path(subject_id): canonical_json(model),
-        bundle_path(subject_id): render_bundle(model),
+        model_path(subject_id, root): canonical_json(model),
+        bundle_path(subject_id, root): render_bundle(model),
     }
 
 
-def _build_models(entities, subject_ids: list[str]) -> list[dict[str, Any]]:
-    return [build_current_model(entities, subject_id) for subject_id in subject_ids]
+def _build_models(
+    entities,
+    subject_ids: list[str],
+    root: Path = ROOT,
+    *,
+    source_root: Path = ROOT,
+) -> list[dict[str, Any]]:
+    return [
+        build_current_model(
+            entities,
+            subject_id,
+            root,
+            source_root=source_root,
+        )
+        for subject_id in subject_ids
+    ]
 
 
 def main() -> int:
@@ -242,30 +272,52 @@ def main() -> int:
     group.add_argument("--subject")
     group.add_argument("--all", action="store_true")
     parser.add_argument("--check", action="store_true")
+    add_profile_root_argument(parser)
     args = parser.parse_args()
-    entities = _load_valid_entities()
+    if args.profile_root is not None:
+        try:
+            layout = resolve_profile_root(args.profile_root)
+        except ProfileRootError as error:
+            profile_root_error(error)
+            return 2
+        output_root = layout.root
+        entity_root = layout.entity_root
+    elif args.check:
+        output_root = ROOT
+        entity_root = ROOT / "entities"
+    else:
+        profile_root_error(
+            ProfileRootError(
+                "PROFILE_ROOT_REQUIRED",
+                "pass --profile-root for real profile reads and writes; repository fallback is read-only check mode",
+            )
+        )
+        return 2
+    entities = _load_valid_entities(root=output_root, entity_root=entity_root)
     subject_ids = _active_subject_ids(entities) if args.all else [args.subject]
     try:
-        models = _build_models(entities, subject_ids)
+        models = _build_models(entities, subject_ids, output_root, source_root=ROOT)
     except SnapshotError as error:
         print(f"ERROR {error}", file=sys.stderr)
         return 1
 
     expected = {}
     for model in models:
-        expected.update(_expected_artifacts(model))
+        expected.update(_expected_artifacts(model, output_root))
     if args.check:
         stale = stale_artifacts(expected)
         if stale:
             command = ".venv/bin/python tools/bundle.py --all" if args.all else f".venv/bin/python tools/bundle.py --subject {args.subject}"
-            report_stale_artifacts(stale, command)
+            if args.profile_root:
+                command += " --profile-root <external-profile>"
+            report_stale_artifacts(stale, command, output_root)
             return 1
         print(f"OK: {len(models)} subject bundle(s) are current")
         return 0
 
     for model in models:
-        write_model(model, model_path(model["subject"]))
-        write_bundle(render_bundle(model), bundle_path(model["subject"]))
+        write_model(model, model_path(model["subject"], output_root))
+        write_bundle(render_bundle(model), bundle_path(model["subject"], output_root))
     print(f"built {len(models)} subject bundle(s)")
     return 0
 
