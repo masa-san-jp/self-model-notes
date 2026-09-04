@@ -1,0 +1,5 @@
+contract_version: self-model-profile/v1
+profile_id: synthetic-fixture
+subject_ids:
+  - subject/fixture
+storage_scope: private
