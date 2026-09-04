@@ -1422,6 +1422,7 @@ tasks:
       - tools/profile_root.py
       - tests/fixtures/profile-root/**
       - tests/test_profile_root.py
+      - tests/test_execution_tasks.py
       - execution/tasks.yaml
     external_paths:
       - profile.yaml
