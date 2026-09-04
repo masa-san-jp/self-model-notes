@@ -52,6 +52,14 @@ inspect → decide → edit → test → regenerate → diff → report
 - 直接識別情報、秘密、認証情報、原文全文をfixtureへ入れない。
 - 診断名・疾患推定・雇用等の重大判断用スコアを実装しない。
 
+## 4.1 外部profile root
+
+- 実データの正本は、protocol repository外のprofile rootにある`profile.yaml`と`entities/`である。repository内`entities/`にはREADME、template、synthetic fixtureだけを置く。
+- profile.yamlはclosedな`self-model-profile/v1`契約とし、`storage_scope`は`external-local`に固定する。rootは明示した絶対pathでのみ解決し、repository、worktree、public projection、symlink aliasを拒否する。
+- 実データCLIは`--profile-root`を必須とし、環境変数・cwd・repository内legacy treeへfallbackしない。生成物は選択rootの`data/`と`overviews/`へatomicに書く。
+- `tools/migrate_profile.py plan`はrelative root marker、件数、SHA-256、generated digestだけを出力する。`apply`は明示approval file、new/empty destination、create-only、source-preservingを要求する。
+- 実n=1のmigrationはIssue #82の人間承認、destination、同意、retentionが揃うまで実行しない。SM-035のfixtureとテストはsynthetic temporary profileだけを使う。
+
 ## 5. 設計変更が必要な場合
 
 次の場合は実装せず停止する。
@@ -69,10 +77,10 @@ inspect → decide → edit → test → regenerate → diff → report
 ## 6. 検証
 
 ```bash
-python3 tools/agent_runtime.py tools/build_graph.py --check
+python3 tools/agent_runtime.py tools/build_graph.py --check --profile-root /absolute/path/to/profile
 python3 tools/agent_runtime.py -m unittest discover -s tests -p "test_*.py"
-python3 tools/agent_runtime.py tools/build_graph.py
-python3 tools/agent_runtime.py tools/audit.py --dry-run
+python3 tools/agent_runtime.py tools/build_graph.py --profile-root /absolute/path/to/profile
+python3 tools/agent_runtime.py tools/audit.py --dry-run --profile-root /absolute/path/to/profile
 git diff --exit-code -- data/ overviews/coverage.md
 ```
 

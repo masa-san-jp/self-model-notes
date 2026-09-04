@@ -1522,7 +1522,7 @@ tasks:
   - id: SM-035
     title: Add metadata-only profile migration and operational completion evidence
     phase: 10
-    status: ready
+    status: in-progress
     depends_on: [SM-034]
     issue: https://github.com/masa-san-jp/self-model-notes/issues/81
     allowed_paths:
@@ -1563,6 +1563,13 @@ tasks:
       - Real profile content must be printed, copied, moved, deleted, or sent externally
       - A destructive Git operation, release, or public visibility change is required
       - A path outside the listed protocol files and synthetic fixtures is required
-    claim: null
+    claim:
+      actor: codex6
+      base: a65811869ea6e820fc8aae8c6d13a58c720ea314
+      branch: agent/sm-035-codex6
+      remote: origin
+      lock_ref: refs/heads/harness-lock/sm-035
+      claimed_at: '2026-09-04T10:25:17.798532000Z'
+
 
     evidence: []
