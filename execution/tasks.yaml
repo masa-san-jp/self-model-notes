@@ -1,5 +1,5 @@
 version: 3
-updated_at: "2026-08-25"
+updated_at: "2026-09-04"
 policy:
   selection: lowest-ready-id
   unit: one-task-one-agent-one-pr
@@ -1386,3 +1386,159 @@ tasks:
           - "git diff --check — passed"
           - "git diff --exit-code -- data/ overviews/coverage.md — passed"
 
+  - id: SM-032
+    title: Register external profile-root contract task series
+    phase: 10
+    status: done
+    depends_on: [SM-031]
+    issue: https://github.com/masa-san-jp/self-model-notes/issues/81
+    allowed_paths:
+      - execution/tasks.yaml
+      - tests/test_execution_tasks.py
+    acceptance:
+      - Issue #81 is represented by four one-task-one-agent-one-PR tasks without reusing the completed SM-031 ID
+      - SM-033 is the only selectable next task and SM-034/SM-035 are dependency-gated
+      - Existing task IDs, dependencies, completion evidence, and harness policy remain unchanged
+    checks:
+      - python3 tools/agent_runtime.py tools/task_harness.py validate
+      - python3 tools/agent_runtime.py -m unittest tests.test_execution_tasks
+      - python3 tools/agent_runtime.py tools/task_harness.py next --json
+    stop_if:
+      - The existing SM-031 completion record would need to be rewritten
+      - The Issue #81 contract or dependency order must be changed beyond an ID-only collision repair
+      - A path outside execution/tasks.yaml or tests/test_execution_tasks.py is required
+    claim: null
+    evidence:
+      - note: "Queue registration is introduced by this change; the completion commit is recorded after the setup PR is created."
+
+  - id: SM-033
+    title: Define external profile-root contract and resolver
+    phase: 10
+    status: ready
+    depends_on: [SM-032]
+    issue: https://github.com/masa-san-jp/self-model-notes/issues/81
+    allowed_paths:
+      - config/profile-root-schema.yaml
+      - tools/profile_root.py
+      - tests/fixtures/profile-root/**
+      - tests/test_profile_root.py
+      - execution/tasks.yaml
+    external_paths:
+      - profile.yaml
+      - entities/**
+    acceptance:
+      - self-model-profile/v1 is a closed profile.yaml contract with explicit profile_id, subject_ids, and storage_scope
+      - External root resolution requires an explicit absolute existing normal directory and rejects repository overlap, aliases, and projection overlap
+      - Unknown fields, invalid profile IDs, subject mismatches, and invalid roots fail closed with stable remediation
+      - Synthetic fixtures exercise valid and invalid contracts without reading or writing the real n=1 profile
+    checks:
+      - python3 tools/agent_runtime.py tools/task_harness.py validate
+      - python3 tools/agent_runtime.py -m unittest tests.test_profile_root tests.test_execution_tasks
+      - python3 tools/agent_runtime.py -m unittest discover -s tests -p "test_*.py"
+      - git diff --check
+    stop_if:
+      - The implementation needs to read, copy, move, delete, or expose a real profile
+      - Core entity schema, consent vocabulary, or privacy semantics must be changed
+      - An implicit repository or environment fallback is required
+      - A path outside the listed protocol files and synthetic fixtures is required
+    claim: null
+    evidence: []
+
+  - id: SM-034
+    title: Separate runtime entities and artifacts by explicit profile root
+    phase: 10
+    status: ready
+    depends_on: [SM-033]
+    issue: https://github.com/masa-san-jp/self-model-notes/issues/81
+    allowed_paths:
+      - tools/profile_root.py
+      - tools/kb.py
+      - tools/build_graph.py
+      - tools/build_self_model.py
+      - tools/bundle.py
+      - tools/export_signals.py
+      - tools/audit.py
+      - tools/new_entity.py
+      - tools/intake_conversation.py
+      - tests/fixtures/profile-root/**
+      - tests/test_profile_root.py
+      - tests/test_loader.py
+      - tests/test_build_graph.py
+      - tests/test_self_model.py
+      - tests/test_bundle.py
+      - tests/test_export_signals.py
+      - tests/test_audit.py
+      - tests/test_cli.py
+      - tests/test_e2e.py
+      - tests/test_intake_conversation.py
+      - execution/tasks.yaml
+    external_paths:
+      - profile.yaml
+      - entities/**
+      - data/**
+      - overviews/**
+    acceptance:
+      - Every real-data CLI requires explicit --profile-root and reports stable fail-closed remediation when omitted or invalid
+      - Loaders read only the selected external entities and generators write only that root's data and overviews atomically
+      - Two synthetic profile roots remain isolated and repeated runs are byte-deterministic
+      - Normalized signal, consent, provenance, and epistemic values are preserved without absolute profile paths in output
+      - Repository entities are never used as an implicit real-data fallback in external-root mode
+    checks:
+      - python3 tools/agent_runtime.py tools/task_harness.py validate
+      - python3 tools/agent_runtime.py -m unittest tests.test_profile_root tests.test_migrate_profile tests.test_loader tests.test_build_graph tests.test_self_model tests.test_bundle tests.test_export_signals tests.test_audit tests.test_intake_conversation tests.test_cli tests.test_e2e tests.test_execution_tasks tests.test_task_harness
+      - python3 tools/agent_runtime.py -m unittest discover -s tests -p "test_*.py"
+      - python3 tools/agent_runtime.py tools/profile_root.py validate-repository --json
+      - git diff --check
+    stop_if:
+      - Real n=1 data or a public/Drive artifact must be accessed
+      - A legacy tree must be deleted or migrated as part of this task
+      - A core schema, consent rule, or normalized signal contract must change
+      - A path outside the listed protocol files and synthetic fixtures is required
+    claim: null
+    evidence: []
+
+  - id: SM-035
+    title: Add metadata-only profile migration and operational completion evidence
+    phase: 10
+    status: ready
+    depends_on: [SM-034]
+    issue: https://github.com/masa-san-jp/self-model-notes/issues/81
+    allowed_paths:
+      - tools/profile_root.py
+      - tools/migrate_profile.py
+      - AGENTS.md
+      - README.md
+      - docs/privacy-consent.md
+      - docs/operations.md
+      - docs/ecosystem-architecture.md
+      - docs/execution-plan.md
+      - entities/**/README.md
+      - tests/fixtures/profile-root/**
+      - tests/test_migrate_profile.py
+      - tests/test_profile_root.py
+      - tests/test_cli.py
+      - tests/test_execution_tasks.py
+      - execution/tasks.yaml
+    external_paths:
+      - profile.yaml
+      - entities/**
+      - data/**
+      - overviews/**
+    acceptance:
+      - migrate_profile plan is metadata-only and apply is explicit, create-only, source-preserving, and synthetic-temp-tested
+      - validate-repository reports BLOCKED_LEGACY_PROFILE for a tracked real record and PASS for protocol/template/synthetic-only trees
+      - Documentation gives an autonomous agent a complete inspect-to-release path and clearly stops at human-gated #82
+      - All Issue #81 acceptance and checks have observable evidence without changing real n=1 data, parent/sibling repos, or visibility
+    checks:
+      - python3 tools/agent_runtime.py tools/task_harness.py validate
+      - python3 tools/agent_runtime.py -m unittest tests.test_profile_root tests.test_migrate_profile tests.test_cli tests.test_execution_tasks
+      - python3 tools/agent_runtime.py -m unittest discover -s tests -p "test_*.py"
+      - python3 tools/agent_runtime.py tools/profile_root.py validate-repository --json
+      - git diff --check
+    stop_if:
+      - Human approval, destination, consent, or retention for real n=1 migration is missing
+      - Real profile content must be printed, copied, moved, deleted, or sent externally
+      - A destructive Git operation, release, or public visibility change is required
+      - A path outside the listed protocol files and synthetic fixtures is required
+    claim: null
+    evidence: []

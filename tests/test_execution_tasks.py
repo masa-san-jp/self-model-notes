@@ -33,6 +33,10 @@ EXPECTED_DEPENDENCIES = {
     "SM-029": ["SM-028"],
     "SM-030": ["SM-029"],
     "SM-031": ["SM-030"],
+    "SM-032": ["SM-031"],
+    "SM-033": ["SM-032"],
+    "SM-034": ["SM-033"],
+    "SM-035": ["SM-034"],
 }
 
 HARNESS_ISSUES = {
@@ -44,6 +48,8 @@ HARNESS_ISSUES["SM-028"] = "https://github.com/masa-san-jp/self-model-notes/issu
 HARNESS_ISSUES["SM-029"] = "https://github.com/masa-san-jp/self-model-notes/issues/77"
 HARNESS_ISSUES["SM-030"] = "https://github.com/masa-san-jp/self-model-notes/issues/79"
 HARNESS_ISSUES["SM-031"] = "https://github.com/masa-san-jp/self-model-notes/issues/83"
+for index in range(32, 36):
+    HARNESS_ISSUES[f"SM-{index:03d}"] = "https://github.com/masa-san-jp/self-model-notes/issues/81"
 
 SIBLING_REPOSITORY_LINKS = {
     "self-model-notes": "https://github.com/masa-san-jp/self-model-notes",
@@ -74,7 +80,7 @@ class ExecutionTaskQueueTests(unittest.TestCase):
         self.assertEqual(3, self.queue["version"])
         ids = [task["id"] for task in self.tasks]
         self.assertEqual(len(ids), len(set(ids)))
-        self.assertEqual([f"SM-{index:03d}" for index in range(1, 32)], ids)
+        self.assertEqual([f"SM-{index:03d}" for index in range(1, 36)], ids)
 
     def test_dependencies_are_existing_and_acyclic_by_id(self):
         for task in self.tasks:
@@ -175,6 +181,17 @@ class ExecutionTaskQueueTests(unittest.TestCase):
             elif self.by_id["SM-030"]["status"] == "done":
                 if self.by_id["SM-031"]["status"] == "ready":
                     self.assertEqual(["SM-031"], [task["id"] for task in selectable_tasks(self.queue)])
+                elif self.by_id["SM-032"]["status"] == "ready":
+                    self.assertEqual(["SM-032"], [task["id"] for task in selectable_tasks(self.queue)])
+                elif self.by_id["SM-032"]["status"] == "done":
+                    if self.by_id["SM-033"]["status"] == "ready":
+                        self.assertEqual(["SM-033"], [task["id"] for task in selectable_tasks(self.queue)])
+                    elif self.by_id["SM-034"]["status"] == "ready":
+                        self.assertEqual(["SM-034"], [task["id"] for task in selectable_tasks(self.queue)])
+                    elif self.by_id["SM-035"]["status"] == "ready":
+                        self.assertEqual(["SM-035"], [task["id"] for task in selectable_tasks(self.queue)])
+                    else:
+                        self.assertEqual([], [task["id"] for task in selectable_tasks(self.queue)])
                 else:
                     self.assertEqual([], [task["id"] for task in selectable_tasks(self.queue)])
             else:
