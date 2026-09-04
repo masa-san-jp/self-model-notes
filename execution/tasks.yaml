@@ -1414,7 +1414,7 @@ tasks:
   - id: SM-033
     title: Define external profile-root contract and resolver
     phase: 10
-    status: ready
+    status: in-progress
     depends_on: [SM-032]
     issue: https://github.com/masa-san-jp/self-model-notes/issues/81
     allowed_paths:
@@ -1442,7 +1442,14 @@ tasks:
       - Core entity schema, consent vocabulary, or privacy semantics must be changed
       - An implicit repository or environment fallback is required
       - A path outside the listed protocol files and synthetic fixtures is required
-    claim: null
+    claim:
+      actor: codex2
+      base: 0a76404cbf7cbf72e10ec5dcf246f1456f3e900d
+      branch: agent/sm-033-codex2
+      remote: origin
+      lock_ref: refs/heads/harness-lock/sm-033
+      claimed_at: '2026-09-04T09:57:49.717507000Z'
+
     evidence: []
 
   - id: SM-034
