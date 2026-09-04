@@ -1526,6 +1526,7 @@ tasks:
     depends_on: [SM-034]
     issue: https://github.com/masa-san-jp/self-model-notes/issues/81
     allowed_paths:
+      - config/profile-root-schema.yaml
       - tools/profile_root.py
       - tools/migrate_profile.py
       - AGENTS.md
@@ -1563,4 +1564,5 @@ tasks:
       - A destructive Git operation, release, or public visibility change is required
       - A path outside the listed protocol files and synthetic fixtures is required
     claim: null
+
     evidence: []

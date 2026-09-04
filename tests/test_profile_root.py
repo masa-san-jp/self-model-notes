@@ -34,7 +34,7 @@ class ProfileRootTests(unittest.TestCase):
             "contract_version: self-model-profile/v1\n"
             "profile_id: synthetic-e2e\n"
             "subject_ids: [subject/fixture]\n"
-            "storage_scope: private\n",
+            "storage_scope: external-local\n",
             encoding="utf-8",
         )
         return root
@@ -120,7 +120,7 @@ class ProfileRootTests(unittest.TestCase):
                 "contract_version: self-model-profile/v1\n"
                 "profile_id: synthetic-fixture\n"
                 "subject_ids: [subject/missing]\n"
-                "storage_scope: private\n"
+                "storage_scope: external-local\n"
                 "extra: forbidden\n",
                 encoding="utf-8",
             )
@@ -133,7 +133,7 @@ class ProfileRootTests(unittest.TestCase):
                 "contract_version: self-model-profile/v1\n"
                 "profile_id: synthetic-fixture\n"
                 "subject_ids: [subject/missing]\n"
-                "storage_scope: private\n",
+                "storage_scope: external-local\n",
                 encoding="utf-8",
             )
             with self.assertRaises(ProfileRootError) as mismatch:
