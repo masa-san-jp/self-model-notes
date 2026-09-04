@@ -1,0 +1,15 @@
+contract_version: self-model-profile/v1
+required_fields:
+  - contract_version
+  - profile_id
+  - subject_ids
+  - storage_scope
+allowed_fields:
+  - contract_version
+  - profile_id
+  - subject_ids
+  - storage_scope
+profile_id_pattern: '^[a-z0-9]+(?:-[a-z0-9]+)*$'
+subject_id_pattern: '^subject/[a-z0-9]+(?:-[a-z0-9]+)*$'
+storage_scopes:
+  - private

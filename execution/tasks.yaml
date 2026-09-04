@@ -1414,7 +1414,7 @@ tasks:
   - id: SM-033
     title: Define external profile-root contract and resolver
     phase: 10
-    status: ready
+    status: done
     depends_on: [SM-032]
     issue: https://github.com/masa-san-jp/self-model-notes/issues/81
     allowed_paths:
@@ -1443,7 +1443,17 @@ tasks:
       - An implicit repository or environment fallback is required
       - A path outside the listed protocol files and synthetic fixtures is required
     claim: null
-    evidence: []
+
+    evidence:
+      - pr: 88
+        commit: caed74aedbdd6bb93085d2f7b7d8427fb4436389
+        checks:
+          - "python3 tools/agent_runtime.py tools/task_harness.py verify-paths SM-033 --json — passed"
+          - "python3 tools/agent_runtime.py tools/task_harness.py validate — passed"
+          - "python3 tools/agent_runtime.py -m unittest tests.test_profile_root tests.test_execution_tasks — passed"
+          - "python3 tools/agent_runtime.py -m unittest discover -s tests -p \"test_*.py\" — passed"
+          - "git diff --check — passed"
+
 
   - id: SM-034
     title: Separate runtime entities and artifacts by explicit profile root
