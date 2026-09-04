@@ -26,6 +26,7 @@ class CLITests(unittest.TestCase):
             "tools/bundle.py",
             "tools/export_signals.py",
             "tools/intake_conversation.py",
+            "tools/migrate_profile.py",
         ):
             with self.subTest(script=script):
                 result = self.run_cli(script, "--help")
@@ -106,6 +107,8 @@ class CLITests(unittest.TestCase):
         self.assertIn("1 task、1 agent、1 branch、1 PR", runbook)
         self.assertIn("共有lock", runbook)
         self.assertIn("raw voice本文は既定でexportしない", runbook)
+        self.assertIn("--profile-root /absolute/path/to/profile", runbook)
+        self.assertIn("MIGRATION_DESTINATION_NOT_EMPTY", (ROOT / "tests" / "test_migrate_profile.py").read_text(encoding="utf-8"))
 
     def test_harness_policy_workflow_uses_trusted_read_only_checkouts(self):
         workflow = (ROOT / ".github" / "workflows" / "validate.yml").read_text(encoding="utf-8")

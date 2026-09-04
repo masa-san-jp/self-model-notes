@@ -9,6 +9,12 @@
 - export時にSourceの許可操作と目的を再検証する。
 - Unknownと回答拒否を推測で埋めない。
 
+## profile storage boundary
+
+canonicalなreal profile recordはprotocol repository外のprofile rootに保存し、`profile.yaml`の`storage_scope: external-local`でその境界を示す。profile.yamlは保存場所の契約であり、Sourceのconsentを与えるものではない。`entities/`のREADMEやsynthetic fixtureを実データの代用にしない。
+
+実データCLIは明示した`--profile-root`だけを読み書きし、repositoryや環境変数からprofileを推測しない。migrationのplanはmetadataだけを表示し、applyはsourceを削除・移動・上書きしない。実n=1のapplyは、Issue #82の人間承認、目的、保存先、retentionが確認されるまで実行しない。
+
 ## export判定
 
 全根拠Sourceについて以下を満たす場合のみ許可する。
@@ -32,4 +38,3 @@
 ## Incident対応
 
 機微情報をcommitした場合は通常の削除commitだけで済ませず、repository ownerへ即時報告し、履歴除去・credential rotation・利用停止を判断する。実行エージェントは独断で履歴改変しない。
-

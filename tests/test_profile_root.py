@@ -12,6 +12,7 @@ from tools.profile_root import (
     ROOT,
     ProfileRootError,
     resolve_profile_root,
+    validate_external_directory,
     validate_repository,
 )
 
@@ -54,6 +55,7 @@ class ProfileRootTests(unittest.TestCase):
 
             self.assertEqual(root.resolve(), layout.root)
             self.assertEqual(("subject/fixture",), layout.subject_ids)
+            self.assertEqual("external-local", layout.profile["storage_scope"])
             self.assertEqual(root.resolve() / "entities", layout.entity_root)
             self.assertEqual(root.resolve() / "data", layout.data_root)
             self.assertEqual(root.resolve() / "overviews", layout.overview_root)
@@ -145,6 +147,23 @@ class ProfileRootTests(unittest.TestCase):
         self.assertEqual("BLOCKED_LEGACY_PROFILE", result["status"])
         self.assertEqual(1, result["legacy_record_count"])
         self.assertEqual("PASS", validate_repository(tracked_paths=["entities/subjects/README.md"])["status"])
+
+    def test_validate_repository_scans_conservatively_without_git_index(self):
+        with tempfile.TemporaryDirectory(prefix="profile-root-test-") as directory:
+            repository = Path(directory)
+            legacy = repository / "entities" / "subjects" / "legacy.md"
+            legacy.parent.mkdir(parents=True)
+            legacy.write_text("synthetic legacy record", encoding="utf-8")
+            result = validate_repository(repository)
+            self.assertEqual("BLOCKED_LEGACY_PROFILE", result["status"])
+            self.assertEqual(1, result["legacy_record_count"])
+
+    def test_new_external_directory_guard_rejects_repository_overlap(self):
+        with tempfile.TemporaryDirectory(prefix="profile-root-test-") as directory:
+            parent = Path(directory)
+            with self.assertRaises(ProfileRootError) as error:
+                validate_external_directory(parent / "nested", repository_root=parent)
+            self.assertEqual("PROFILE_ROOT_REPOSITORY_OVERLAP", error.exception.code)
 
     def test_real_data_clis_fail_closed_without_explicit_profile_root(self):
         commands = (
