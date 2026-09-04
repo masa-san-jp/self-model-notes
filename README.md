@@ -10,12 +10,40 @@
 Source → Event → Claim → Pattern → Derived Self Model → Research Signal
 ```
 
-- 正本は`entities/`のMarkdown frontmatterです。
+- 選択した外部profile rootの`entities/`にあるMarkdown frontmatterが正本です。protocol repository内の`entities/`はREADME、template、synthetic fixtureだけを置きます。
 - `data/`と`overviews/`はツールが生成するsnapshotです。直接編集しません。
 - exportはSourceごとの同意を再確認し、raw voice本文や直接識別情報を出力しません。
 - 診断、疾患推定、雇用判断、将来行動の確定予測には使いません。
 
 要件の正本は[Issue #1](https://github.com/masa-san-jp/self-model-notes/issues/1)です。詳細な作業契約は[AGENTS.md](AGENTS.md)、データ設計は[docs/schema.md](docs/schema.md)を参照してください。
+
+## 外部profile rootと実行境界
+
+実データを扱うときは、`profile.yaml`とcanonical entityをprotocol repositoryの外に置きます。profile契約は`self-model-profile/v1`で、必須値は`contract_version`、`profile_id`、`subject_ids`、`storage_scope: external-local`です。profile rootは既存の通常ディレクトリで、repository、worktree、public projectionの外側でなければなりません。
+
+`build_graph.py`、`build_self_model.py`、`bundle.py`、`audit.py`、`export_signals.py`、`new_entity.py`、`intake_conversation.py`の実データ実行には、毎回明示的な絶対pathを渡します。環境変数やrepository内`entities/`への暗黙fallbackはありません。生成物は選択したrootの`data/`と`overviews/`だけへatomicに書かれます。
+
+```bash
+python3 tools/agent_runtime.py tools/build_graph.py --profile-root /absolute/path/to/profile
+python3 tools/agent_runtime.py tools/bundle.py --all --profile-root /absolute/path/to/profile
+python3 tools/agent_runtime.py tools/export_signals.py \
+  --subject subject/<id> --purpose artistic-research \
+  --operation export-signals --profile-root /absolute/path/to/profile
+```
+
+移行はまずmetadata-onlyのplanを確認し、apply時だけ明示したapproval fileを渡します。plan/applyは`profile.yaml`やentity本文を出力せず、既存destinationを上書きせず、sourceを削除・移動しません。実n=1のapplyは人間承認Issue [#82](https://github.com/masa-san-jp/self-model-notes/issues/82)が完了するまで停止します。
+
+```bash
+python3 tools/agent_runtime.py tools/migrate_profile.py plan \
+  --source /absolute/path/to/source-profile \
+  --destination /absolute/path/to/new-profile --json
+python3 tools/agent_runtime.py tools/migrate_profile.py apply \
+  --source /absolute/path/to/source-profile \
+  --destination /absolute/path/to/new-profile \
+  --approval-file /absolute/path/to/approval.yaml --json
+```
+
+移行前のrepositoryにlegacy recordが残る間は、`profile_root.py validate-repository --json`が`BLOCKED_LEGACY_PROFILE`を返します。これはデータを消す指示ではなく、人間承認の移行ゲートです。
 
 ## 誰が使うか
 
@@ -91,21 +119,22 @@ python3 tools/agent_runtime.py -m unittest discover -s tests -p "test_*.py"
 ## 記録を読む・生成する
 
 ```bash
-python3 tools/agent_runtime.py tools/bundle.py --subject subject/<id>
-python3 tools/agent_runtime.py tools/bundle.py --all --check
+python3 tools/agent_runtime.py tools/bundle.py --subject subject/<id> --profile-root /absolute/path/to/profile
+python3 tools/agent_runtime.py tools/bundle.py --all --check --profile-root /absolute/path/to/profile
 python3 tools/agent_runtime.py tools/export_signals.py \
   --subject subject/<id> \
   --purpose artistic-research \
-  --operation export-signals
+  --operation export-signals \
+  --profile-root /absolute/path/to/profile
 ```
 
-新しいentityはtemplateから作成し、frontmatterを埋めます。`entities/`が正本であり、生成後にsnapshotのstalenessを確認します。
+新しいentityはtemplateから作成し、frontmatterを埋めます。外部profile rootの`entities/`が正本であり、生成後にsnapshotのstalenessを確認します。
 
 ```bash
-python3 tools/agent_runtime.py tools/new_entity.py event <slug> --subject subject/<id>
-python3 tools/agent_runtime.py tools/build_graph.py
-python3 tools/agent_runtime.py tools/bundle.py --all
-python3 tools/agent_runtime.py tools/bundle.py --all --check
+python3 tools/agent_runtime.py tools/new_entity.py event <slug> --subject subject/<id> --profile-root /absolute/path/to/profile
+python3 tools/agent_runtime.py tools/build_graph.py --profile-root /absolute/path/to/profile
+python3 tools/agent_runtime.py tools/bundle.py --all --profile-root /absolute/path/to/profile
+python3 tools/agent_runtime.py tools/bundle.py --all --check --profile-root /absolute/path/to/profile
 ```
 
 exportは目的と操作の両方を明示し、Sourceの同意が1件でも不足していれば全体をdenyします。

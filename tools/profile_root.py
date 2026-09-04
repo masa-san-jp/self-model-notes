@@ -414,6 +414,79 @@ def path_is_within(path: Path, root: Path) -> bool:
         return False
 
 
+def validate_external_directory(
+    value: str | Path,
+    *,
+    repository_root: Path = ROOT,
+    require_existing: bool = False,
+) -> Path:
+    """Validate an external profile path before creating or using it.
+
+    Migration destinations may not exist yet.  Their existing parent must be
+    a normal directory, and the canonical candidate must be outside the
+    protocol repository, its worktrees, and its projection boundaries.
+    """
+
+    candidate = Path(value)
+    if not candidate.is_absolute():
+        raise ProfileRootError(
+            "PROFILE_ROOT_NOT_ABSOLUTE",
+            "pass the external profile directory as an absolute path",
+        )
+
+    if candidate.exists() or candidate.is_symlink():
+        if candidate.is_symlink() or not candidate.is_dir():
+            raise ProfileRootError(
+                "PROFILE_ROOT_INVALID",
+                "external profile directory must be a normal directory, not a symlink or special file",
+            )
+        if require_existing:
+            _normal_directory(
+                candidate,
+                "PROFILE_ROOT_INVALID",
+                "external profile directory must be a normal directory, not a symlink or special file",
+            )
+    else:
+        parent = candidate.parent
+        while not parent.exists() and parent != parent.parent:
+            parent = parent.parent
+        if not parent.exists() or parent.is_symlink() or not parent.is_dir():
+            raise ProfileRootError(
+                "PROFILE_ROOT_INVALID",
+                "external profile destination must have a normal existing parent directory",
+            )
+
+    try:
+        resolved_candidate = candidate.resolve(strict=False)
+        resolved_repository = repository_root.resolve(strict=True)
+    except OSError as exc:
+        raise ProfileRootError(
+            "PROFILE_ROOT_INVALID",
+            "external profile path could not be resolved safely",
+        ) from exc
+
+    repository_roots = [resolved_repository]
+    repository_roots.extend(
+        worktree.resolve(strict=False) for worktree in _git_worktree_roots(repository_root)
+    )
+    if any(_is_within(resolved_candidate, root) for root in repository_roots):
+        raise ProfileRootError(
+            "PROFILE_ROOT_REPOSITORY_OVERLAP",
+            "external profile directory must be outside the protocol repository and all worktrees",
+        )
+    for projection_name in ("public", "projection", "projections"):
+        projection = repository_root / projection_name
+        try:
+            if _is_within(resolved_candidate, projection.resolve(strict=False)):
+                raise ProfileRootError(
+                    "PROFILE_ROOT_PROJECTION_OVERLAP",
+                    "external profile directory must not overlap a public projection",
+                )
+        except OSError:
+            continue
+    return resolved_candidate
+
+
 def validate_repository(
     repository_root: Path = ROOT,
     *,
@@ -425,15 +498,28 @@ def validate_repository(
         tracked_paths = []
         git_dir = repository_root / ".git"
         if git_dir.exists():
-            result = subprocess.run(
-                ["git", "ls-files", "entities"],
-                cwd=repository_root,
-                text=True,
-                capture_output=True,
-                check=False,
-            )
-            if result.returncode == 0:
+            try:
+                result = subprocess.run(
+                    ["git", "ls-files", "entities"],
+                    cwd=repository_root,
+                    text=True,
+                    capture_output=True,
+                    check=False,
+                )
+            except OSError:
+                result = None
+            if result is not None and result.returncode == 0:
                 tracked_paths = result.stdout.splitlines()
+        if not tracked_paths:
+            # Without a trustworthy Git index, classify any legacy-looking
+            # record conservatively.  This is a read-only migration gate.
+            entity_root = repository_root / "entities"
+            if entity_root.is_dir() and not entity_root.is_symlink():
+                tracked_paths = [
+                    path.relative_to(repository_root).as_posix()
+                    for path in entity_root.rglob("*.md")
+                    if path.is_file() and not path.is_symlink()
+                ]
     legacy_records = sorted(
         path
         for path in tracked_paths

@@ -17,6 +17,7 @@
 | 4 Privacy & Export | 同意境界付きsignal export | 許可外exportがhard fail |
 | 5 E2E & Operations | 匿名fixtureで全経路を通す | CI、pre-commit、runbookが通る |
 | 6 Ecosystem Integration | 4 repository間contractを固定 | consumer contract testが通る |
+| 10 Profile Boundary | 外部profile rootと自律移行経路を固定 | explicit root、metadata-only migration、human gateが通る |
 
 ## エージェント割当規則
 
@@ -33,6 +34,7 @@
 - 変更可能pathが列挙されている。
 - fixtureまたは入力例がある。
 - 未決定のschema判断がない。
+- real profile root、approval、destinationを暗黙に推測せず、synthetic fixtureで再現できる。
 
 ## Definition of Done
 
@@ -52,6 +54,7 @@
 - pattern昇格等の未検証閾値を固定する必要。
 - sibling KBのcore schema変更が必要。
 - テスト失敗の原因が他エージェントの変更で、自分のpath外。
+- 実n=1のprofile移行に人間承認、同意、保存先、retentionが不足している。
 
 ## 完成判定
 
@@ -69,6 +72,10 @@ validateが失敗したqueueは実行対象にしてはならない。nextは依
 CLIはqueueを読み取るだけで、Git、ネットワーク、queueファイルへの書き込みを行わない。JSONは固定キーを持つcanonical形式とし、entity本文、raw voice、秘密、認証情報、絶対パスを出力しない。
 
 `tools/agent_runtime.py`はリポジトリPythonの単一入口である。入口自体は標準ライブラリだけで起動し、PyYAMLをimportできる`.venv`を優先して選び、無ければ現在のPythonを使う。エージェントはactivate、依存関係のinstall、network accessを通常のtask実行に追加してはならない。
+
+### External profile migration
+
+real profileのcanonical recordはprotocol repository外に置く。実データCLIには`--profile-root`の明示絶対pathを毎回渡し、未指定時は`PROFILE_ROOT_REQUIRED`で停止する。`tools/migrate_profile.py plan`は本文を表示せず、`apply`はapproval fileとnew/empty destinationを要求する。既存destinationの上書き、sourceの削除・移動、repositoryへのreal record復帰は行わない。SM-035の自動検証はtracked fixtureを一時profileへコピーして実行し、Issue #82が完了するまで実n=1を扱わない。
 
 SM-021以降のライフサイクル操作は、選択したtaskだけを対象に次のCLIを使う。
 

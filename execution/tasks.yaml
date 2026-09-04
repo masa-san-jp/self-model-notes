@@ -1522,7 +1522,7 @@ tasks:
   - id: SM-035
     title: Add metadata-only profile migration and operational completion evidence
     phase: 10
-    status: ready
+    status: done
     depends_on: [SM-034]
     issue: https://github.com/masa-san-jp/self-model-notes/issues/81
     allowed_paths:
@@ -1565,4 +1565,15 @@ tasks:
       - A path outside the listed protocol files and synthetic fixtures is required
     claim: null
 
-    evidence: []
+
+    evidence:
+      - pr: 92
+        commit: 5c92051aeb03adb14dffd29671d4f57688f00539
+        checks:
+          - "python3 tools/agent_runtime.py tools/task_harness.py verify-paths SM-035 --json — passed"
+          - "python3 tools/agent_runtime.py tools/task_harness.py validate — passed"
+          - "python3 tools/agent_runtime.py -m unittest tests.test_profile_root tests.test_migrate_profile tests.test_cli tests.test_execution_tasks — passed"
+          - "python3 tools/agent_runtime.py -m unittest discover -s tests -p \"test_*.py\" — passed"
+          - "python3 tools/agent_runtime.py tools/profile_root.py validate-repository --json — passed"
+          - "git diff --check — passed"
+

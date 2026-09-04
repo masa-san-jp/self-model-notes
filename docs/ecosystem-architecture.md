@@ -26,6 +26,12 @@ marketing-trends-notes ───────┘
 5. 3入力が揃わない場合も、欠損をUnknownとして処理し、捏造しない。
 6. Project #4は横断の進捗ビュー、各Repository Issueは実装要件と受入条件の正本とする。
 
+## Self Modelのprofile boundary
+
+`self-model-notes`のreal profileはprotocol repositoryと別のexternal-local rootにあり、`profile.yaml`、canonical `entities/`、生成された`data/`/`overviews/`をそこで管理する。protocol repository内のentity treeはschema説明、template、synthetic fixtureに限定する。各CLIは明示された絶対`--profile-root`だけを使い、repositoryや環境変数への暗黙fallbackを持たない。
+
+profile rootの移行はcreate-onlyで、sourceを保持したままmetadata-only planと明示approvalを経る。migrationは個人データを兄弟repository、親repository、public projectionへ送らず、normalized signalのexport境界も変更しない。実n=1のapplyはIssue #82の人間ゲート後に限る。
+
 ## 依存順序
 
 1. 各上流KBが独立して検証・bundle・exportできる。

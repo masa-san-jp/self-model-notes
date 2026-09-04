@@ -4,6 +4,45 @@
 
 リポジトリ内のPython実行はすべて`python3 tools/agent_runtime.py`を入口にする。この入口がPyYAMLをimportできる`.venv`を自動選択するため、activateや実行環境の判断は不要である。依存関係が無い場合はinstallやnetwork accessを行わず、fail closedする。
 
+## External profile boundary
+
+real profileのcanonical recordはprotocol repository外のexternal-local profile rootに置く。rootにはclosed contractの`profile.yaml`と`entities/`があり、repository内のentity treeはREADME、template、synthetic fixtureだけである。実データの読み書きは、既存の通常ディレクトリを指す明示的な絶対`--profile-root`が必要で、環境変数・cwd・repository内legacy recordへのfallbackはない。
+
+通常のprofile実行は次のように行う。生成物はprofile rootの`data/`と`overviews/`だけにatomicに書かれる。
+
+```bash
+python3 tools/agent_runtime.py tools/build_graph.py --profile-root /absolute/path/to/profile
+python3 tools/agent_runtime.py tools/build_self_model.py --subject subject/<id> --profile-root /absolute/path/to/profile
+python3 tools/agent_runtime.py tools/bundle.py --all --profile-root /absolute/path/to/profile
+python3 tools/agent_runtime.py tools/audit.py --profile-root /absolute/path/to/profile
+```
+
+移行はplanを保存・確認してから、承認ファイルを指定したapplyを行う。planの出力はrelative root marker、件数、SHA-256、generated digestだけで、本文、raw voice、直接識別情報、絶対pathを含まない。applyはnewまたはempty destinationだけを受け付け、既存ファイルを上書きせず、sourceを削除・移動しない。
+
+```bash
+python3 tools/agent_runtime.py tools/migrate_profile.py plan \
+  --source /absolute/path/to/source-profile \
+  --destination /absolute/path/to/new-profile --json
+python3 tools/agent_runtime.py tools/migrate_profile.py apply \
+  --source /absolute/path/to/source-profile \
+  --destination /absolute/path/to/new-profile \
+  --approval-file /absolute/path/to/approval.yaml --json
+```
+
+approval fileはrepositoryやprofileの中に置かず、人間が確認したplanのdigestを必要に応じて固定する。synthetic testでは`scope: synthetic-profile-migration`、実n=1ではIssue #82完了後にだけ`scope: real-profile-migration`を使う。
+
+```yaml
+approved: true
+scope: real-profile-migration
+plan_sha256: "<planのplan_sha256>"
+```
+
+実n=1のapplyは、Issue #82で人間が承認し、目的・保存先・retentionが確定するまで実行しない。移行前のrepositoryにlegacy recordがある場合は、次のread-only gateが`BLOCKED_LEGACY_PROFILE`を返す。これはrecordを削除する指示ではない。
+
+```bash
+python3 tools/agent_runtime.py tools/profile_root.py validate-repository --json
+```
+
 ## 通常の実行
 
 ### Harness task lifecycle
@@ -76,26 +115,26 @@ E2E fixtureは実在の人物、直接識別情報、raw voice、credential、to
 2. 新しいentityはtemplateから作成し、frontmatterを編集する。
 
    ```bash
-   python3 tools/agent_runtime.py tools/new_entity.py event <slug> --subject subject/<id>
+   python3 tools/agent_runtime.py tools/new_entity.py event <slug> --subject subject/<id> --profile-root /absolute/path/to/profile
    ```
 
 3. loader、validator、graph、全テスト、soft audit、audit生成物のstalenessを順に確認する。
 
    ```bash
-   python3 tools/agent_runtime.py tools/build_graph.py --check
+   python3 tools/agent_runtime.py tools/build_graph.py --check --profile-root /absolute/path/to/profile
    python3 tools/agent_runtime.py -m unittest discover -s tests -p "test_*.py"
-   python3 tools/agent_runtime.py tools/audit.py --dry-run
-   python3 tools/agent_runtime.py tools/audit.py --check
-   python3 tools/agent_runtime.py tools/bundle.py --all --check
+   python3 tools/agent_runtime.py tools/audit.py --dry-run --profile-root /absolute/path/to/profile
+   python3 tools/agent_runtime.py tools/audit.py --check --profile-root /absolute/path/to/profile
+   python3 tools/agent_runtime.py tools/bundle.py --all --check --profile-root /absolute/path/to/profile
    ```
 
 4. entityを追加・改訂した場合だけ、生成物を再生成して差分を確認する。
 
    ```bash
-   python3 tools/agent_runtime.py tools/build_graph.py
-   python3 tools/agent_runtime.py tools/build_self_model.py --subject subject/<id>
-   python3 tools/agent_runtime.py tools/bundle.py --subject subject/<id>
-   python3 tools/agent_runtime.py tools/bundle.py --all --check
+   python3 tools/agent_runtime.py tools/build_graph.py --profile-root /absolute/path/to/profile
+   python3 tools/agent_runtime.py tools/build_self_model.py --subject subject/<id> --profile-root /absolute/path/to/profile
+   python3 tools/agent_runtime.py tools/bundle.py --subject subject/<id> --profile-root /absolute/path/to/profile
+   python3 tools/agent_runtime.py tools/bundle.py --all --check --profile-root /absolute/path/to/profile
    ```
 
    entityを先にcommitし、JSON/Markdownを再生成して差分と機微情報を確認し、artifactを別commitする。`source_commit`は対象Subjectのcanonical entityだけから算出され、artifact commit自身は参照しない。
@@ -106,15 +145,16 @@ E2E fixtureは実在の人物、直接識別情報、raw voice、credential、to
    python3 tools/agent_runtime.py tools/export_signals.py \
      --subject subject/<id> \
      --purpose artistic-research \
-     --operation export-signals
+     --operation export-signals \
+     --profile-root /absolute/path/to/profile
    ```
 
 ## 失敗時の復旧
 
-- `build_graph.py --check`がstaleを報告したら、`data/`や`overviews/`を手編集せず、正本entityを確認して`python3 tools/agent_runtime.py tools/build_graph.py`を再実行する。
-- `audit.py --check`がstaleを報告したら、`data/audit.json`を手編集せず、正本entityを確認して`python3 tools/agent_runtime.py tools/audit.py`を再実行する。`--check`自体はファイルを書き換えない。
+- `build_graph.py --check`がstaleを報告したら、profile rootの`data/`や`overviews/`を手編集せず、正本entityを確認して`python3 tools/agent_runtime.py tools/build_graph.py --profile-root /absolute/path/to/profile`を再実行する。
+- `audit.py --check`がstaleを報告したら、profile rootの`data/audit.json`を手編集せず、正本entityを確認して`python3 tools/agent_runtime.py tools/audit.py --profile-root /absolute/path/to/profile`を再実行する。`--check`自体はファイルを書き換えない。
 - Self Modelやbundleが古い場合も、生成JSON/Markdownを直接直さず、対象Subjectのbuildコマンドを再実行する。
-- `tools/build_self_model.py --check` はJSONだけ、`tools/bundle.py --subject ... --check` はJSONとMarkdown、`tools/bundle.py --all --check` は全active SubjectをID順に検証する。stale/missing時はrepair commandを表示するが、本文やraw voiceは表示しない。
+- `tools/build_self_model.py --check` はJSONだけ、`tools/bundle.py --subject ... --check` はJSONとMarkdown、`tools/bundle.py --all --check` は全active SubjectをID順に検証する。いずれも実データでは`--profile-root /absolute/path/to/profile`を付ける。stale/missing時はrepair commandを表示するが、本文やraw voiceは表示しない。
 - canonical entityに未commit差分がある場合はsnapshot生成・checkを行わず、対象pathだけを報告してentity commitを要求する。artifactだけの未commit差分はcheck対象として許可する。
 - exportがdenyされたら、deny JSONの`source`と`rule`だけを確認する。同意条件を迂回したり、raw voiceを手でコピーしたりしない。
 - テスト失敗時は失敗ログと差分を保持し、skip、削除、生成物の手編集で緑にしない。
