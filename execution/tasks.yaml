@@ -1496,7 +1496,7 @@ tasks:
       - Repository entities are never used as an implicit real-data fallback in external-root mode
     checks:
       - python3 tools/agent_runtime.py tools/task_harness.py validate
-      - python3 tools/agent_runtime.py -m unittest tests.test_profile_root tests.test_migrate_profile tests.test_loader tests.test_build_graph tests.test_self_model tests.test_bundle tests.test_export_signals tests.test_audit tests.test_intake_conversation tests.test_cli tests.test_e2e tests.test_execution_tasks tests.test_task_harness
+      - python3 tools/agent_runtime.py -m unittest tests.test_profile_root tests.test_loader tests.test_build_graph tests.test_self_model tests.test_bundle tests.test_export_signals tests.test_audit tests.test_intake_conversation tests.test_cli tests.test_e2e tests.test_execution_tasks tests.test_task_harness
       - python3 tools/agent_runtime.py -m unittest discover -s tests -p "test_*.py"
       - python3 tools/agent_runtime.py tools/profile_root.py validate-repository --json
       - git diff --check
