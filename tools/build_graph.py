@@ -9,8 +9,22 @@ from typing import Any
 
 try:
     from kb import ROOT, _refs, canonical_json, discover_entities, validate_entities
+    from profile_root import (
+        ProfileRootError,
+        add_profile_root_argument,
+        atomic_write_text,
+        profile_root_error,
+        resolve_profile_root,
+    )
 except ModuleNotFoundError:  # Imported as tools.build_graph by the test suite.
     from tools.kb import ROOT, _refs, canonical_json, discover_entities, validate_entities
+    from tools.profile_root import (
+        ProfileRootError,
+        add_profile_root_argument,
+        atomic_write_text,
+        profile_root_error,
+        resolve_profile_root,
+    )
 
 
 ENTITY_KINDS = ("subject", "source", "event", "claim", "pattern", "measurement")
@@ -185,9 +199,9 @@ def build_coverage(entities) -> dict[str, Any]:
     return {"schema_version": 1, "counts": counts, "field_coverage": field_coverage}
 
 
-def build(entities):
+def build(entities, root: Path = ROOT):
     nodes = [
-        {"id": entity.id, "type": entity.type, "path": str(entity.path.relative_to(ROOT))}
+        {"id": entity.id, "type": entity.type, "path": str(entity.path.relative_to(root))}
         for entity in sorted(entities, key=lambda item: item.id)
     ]
     edges = _direct_edges(entities)
@@ -245,29 +259,61 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--check", action="store_true")
     parser.add_argument("--root", type=Path, default=None)
+    add_profile_root_argument(parser)
     args = parser.parse_args()
-    entities = discover_entities(args.root) if args.root else discover_entities()
-    errors = validate_entities(entities)
+    if args.root is not None and args.profile_root is not None:
+        parser.error("--root and --profile-root are mutually exclusive")
+    output_root = ROOT
+    if args.root is not None:
+        entity_root = args.root
+        validation_root = args.root.parent.parent
+    elif args.profile_root is not None:
+        try:
+            layout = resolve_profile_root(args.profile_root)
+        except ProfileRootError as error:
+            profile_root_error(error)
+            return 2
+        entity_root = layout.entity_root
+        output_root = layout.root
+        validation_root = layout.root
+    elif args.check:
+        # Read-only checks of the pre-migration protocol tree remain available
+        # so the migration gate can be audited without changing it.
+        entity_root = ROOT / "entities"
+        validation_root = ROOT
+    else:
+        profile_root_error(
+            ProfileRootError(
+                "PROFILE_ROOT_REQUIRED",
+                "pass --profile-root for real profile reads and writes; repository fallback is read-only check mode",
+            )
+        )
+        return 2
+    entities = discover_entities(entity_root)
+    errors = validate_entities(entities, root=validation_root)
     if errors:
         for error in errors:
             print(f"ERROR {error}", file=sys.stderr)
         return 1
-    graph, coverage = build(entities)
+    graph, coverage = build(entities, root=output_root if args.root is None else validation_root)
     if args.root:
         print(f"OK: {len(entities)} entities")
         return 0
-    expected = generated_outputs(graph, coverage)
+    expected = generated_outputs(graph, coverage, output_root)
     if args.check:
         stale = stale_generated_files(expected)
         if stale:
             for path in stale:
-                print(f"ERROR stale generated file: {path.relative_to(ROOT)}", file=sys.stderr)
+                try:
+                    display = path.relative_to(output_root)
+                except ValueError:
+                    display = Path("<profile-output>")
+                print(f"ERROR stale generated file: {display}", file=sys.stderr)
             return 1
         print(f"OK: {len(entities)} entities; generated files are current")
         return 0
     for path, content in expected.items():
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(content, encoding="utf-8")
+        atomic_write_text(path, content)
     print(f"built {len(entities)} entities")
     return 0
 

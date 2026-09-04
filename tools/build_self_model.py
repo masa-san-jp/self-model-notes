@@ -13,8 +13,22 @@ from typing import Any
 
 try:
     from kb import ROOT, Entity, canonical_json, discover_entities, validate_entities
+    from profile_root import (
+        ProfileRootError,
+        add_profile_root_argument,
+        atomic_write_text,
+        profile_root_error,
+        resolve_profile_root,
+    )
 except ModuleNotFoundError:  # Imported as tools.build_self_model by the test suite.
     from tools.kb import ROOT, Entity, canonical_json, discover_entities, validate_entities
+    from tools.profile_root import (
+        ProfileRootError,
+        add_profile_root_argument,
+        atomic_write_text,
+        profile_root_error,
+        resolve_profile_root,
+    )
 
 
 MODEL_FIELDS = (
@@ -75,6 +89,20 @@ def current_source_commit(root: Path = ROOT) -> str:
         return "unknown"
 
 
+def _has_git_root(root: Path) -> bool:
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--git-dir"],
+            cwd=root,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+    except OSError:
+        return False
+    return result.returncode == 0
+
+
 def selected_entities(entities: list[Entity], subject_id: str) -> list[Entity]:
     return [
         entity
@@ -115,11 +143,23 @@ def dirty_entity_paths(
 
 
 def latest_entity_commit(
-    entities: list[Entity], subject_id: str, root: Path = ROOT
+    entities: list[Entity],
+    subject_id: str,
+    root: Path = ROOT,
+    *,
+    fallback_root: Path | None = None,
 ) -> str:
     paths = entity_paths_for_subject(entities, subject_id, root)
     if not paths:
         raise SnapshotError(f"no canonical entities found for {subject_id}")
+    if not _has_git_root(root):
+        if fallback_root is not None:
+            commit = current_source_commit(fallback_root)
+            if re.fullmatch(r"[0-9a-f]{40}", commit):
+                return commit
+        raise SnapshotError(
+            "profile entity root must be a Git worktree or provide a protocol source commit"
+        )
     dirty = dirty_entity_paths(entities, subject_id, root)
     if dirty:
         rendered = ", ".join(str(path) for path in dirty)
@@ -141,12 +181,22 @@ def latest_entity_commit(
 
 
 def build_current_model(
-    entities: list[Entity], subject_id: str, root: Path = ROOT
+    entities: list[Entity],
+    subject_id: str,
+    root: Path = ROOT,
+    *,
+    source_commit: str | None = None,
+    source_root: Path = ROOT,
 ) -> dict[str, Any]:
     if not any(entity.id == subject_id and entity.type == "subject" for entity in entities):
         raise SnapshotError(f"Subject not found: {subject_id}")
-    source_commit = latest_entity_commit(entities, subject_id, root)
-    return build_model(entities, subject_id, source_commit=source_commit)
+    resolved_commit = source_commit or latest_entity_commit(
+        entities,
+        subject_id,
+        root,
+        fallback_root=source_root if root != ROOT else None,
+    )
+    return build_model(entities, subject_id, source_commit=resolved_commit)
 
 
 def model_path(subject_id: str, root: Path = ROOT) -> Path:
@@ -468,13 +518,16 @@ def build_model(
 
 
 def write_model(model: dict[str, Any], path: Path) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(canonical_json(model), encoding="utf-8")
+    atomic_write_text(path, canonical_json(model))
 
 
-def _load_valid_entities() -> list[Entity]:
-    entities = discover_entities()
-    errors = validate_entities(entities)
+def _load_valid_entities(
+    *,
+    root: Path = ROOT,
+    entity_root: Path | None = None,
+) -> list[Entity]:
+    entities = discover_entities(entity_root or root / "entities")
+    errors = validate_entities(entities, root=root)
     if errors:
         for error in errors:
             print(f"ERROR {error}", file=sys.stderr)
@@ -486,11 +539,37 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--subject", required=True)
     parser.add_argument("--check", action="store_true")
+    add_profile_root_argument(parser)
     args = parser.parse_args()
-    entities = _load_valid_entities()
-    path = model_path(args.subject)
+    if args.profile_root is not None:
+        try:
+            layout = resolve_profile_root(args.profile_root)
+        except ProfileRootError as error:
+            profile_root_error(error)
+            return 2
+        output_root = layout.root
+        entity_root = layout.entity_root
+    elif args.check:
+        # Read-only compatibility for the pre-migration tracked artifact.
+        output_root = ROOT
+        entity_root = ROOT / "entities"
+    else:
+        profile_root_error(
+            ProfileRootError(
+                "PROFILE_ROOT_REQUIRED",
+                "pass --profile-root for real profile reads and writes; repository fallback is read-only check mode",
+            )
+        )
+        return 2
+    entities = _load_valid_entities(root=output_root, entity_root=entity_root)
+    path = model_path(args.subject, output_root)
     try:
-        model = build_current_model(entities, args.subject)
+        model = build_current_model(
+            entities,
+            args.subject,
+            output_root,
+            source_root=ROOT,
+        )
     except SnapshotError as error:
         print(f"ERROR {error}", file=sys.stderr)
         return 1
@@ -500,13 +579,15 @@ def main() -> int:
         if stale:
             report_stale_artifacts(
                 stale,
-                f".venv/bin/python tools/build_self_model.py --subject {args.subject}",
+                f".venv/bin/python tools/build_self_model.py --subject {args.subject}"
+                + (" --profile-root <external-profile>" if args.profile_root else ""),
+                output_root,
             )
             return 1
-        print(f"OK: {path.relative_to(ROOT)} is current")
+        print(f"OK: {display_path(path, output_root)} is current")
         return 0
     write_model(model, path)
-    print(f"built {path.relative_to(ROOT)}")
+    print(f"built {display_path(path, output_root)}")
     return 0
 
 

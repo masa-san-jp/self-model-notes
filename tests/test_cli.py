@@ -73,7 +73,7 @@ class CLITests(unittest.TestCase):
         self.assertNotEqual(model.returncode, 0)
         self.assertNotEqual(bundle.returncode, 0)
         self.assertNotEqual(export.returncode, 0)
-        self.assertIn("Export denied", export.stderr)
+        self.assertIn("PROFILE_ROOT_REQUIRED", export.stderr)
 
     def test_tracked_self_model_and_bundle_checks_are_current(self):
         model = self.run_cli("tools/build_self_model.py", "--subject", "subject/masa", "--check")

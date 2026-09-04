@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import json
 import shutil
+import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -14,6 +17,7 @@ from tools.profile_root import (
 
 
 FIXTURE = Path(__file__).parent / "fixtures" / "profile-root" / "valid"
+E2E_ENTITIES = Path(__file__).parent / "fixtures" / "e2e" / "entities"
 
 
 class ProfileRootTests(unittest.TestCase):
@@ -21,6 +25,27 @@ class ProfileRootTests(unittest.TestCase):
         root = parent / name
         shutil.copytree(FIXTURE, root)
         return root
+
+    def make_runnable_profile(self, parent: Path, *, name: str = "runnable") -> Path:
+        root = parent / name
+        (root / "entities").mkdir(parents=True)
+        shutil.copytree(E2E_ENTITIES, root / "entities", dirs_exist_ok=True)
+        (root / "profile.yaml").write_text(
+            "contract_version: self-model-profile/v1\n"
+            "profile_id: synthetic-e2e\n"
+            "subject_ids: [subject/fixture]\n"
+            "storage_scope: private\n",
+            encoding="utf-8",
+        )
+        return root
+
+    def run_tool(self, script: str, *args: str) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            [sys.executable, str(ROOT / "tools" / script), *args],
+            cwd=ROOT,
+            text=True,
+            capture_output=True,
+        )
 
     def test_valid_external_profile_is_resolved_from_materialized_fixture(self):
         with tempfile.TemporaryDirectory(prefix="profile-root-test-") as directory:
@@ -120,6 +145,92 @@ class ProfileRootTests(unittest.TestCase):
         self.assertEqual("BLOCKED_LEGACY_PROFILE", result["status"])
         self.assertEqual(1, result["legacy_record_count"])
         self.assertEqual("PASS", validate_repository(tracked_paths=["entities/subjects/README.md"])["status"])
+
+    def test_real_data_clis_fail_closed_without_explicit_profile_root(self):
+        commands = (
+            ("build_graph.py", ()),
+            ("build_self_model.py", ("--subject", "subject/fixture")),
+            ("bundle.py", ("--subject", "subject/fixture")),
+            ("audit.py", ()),
+            ("export_signals.py", ("--purpose", "artistic-research")),
+            ("new_entity.py", ("event", "fixture-event", "--subject", "subject/fixture")),
+            (
+                "intake_conversation.py",
+                (
+                    str(Path("tests/fixtures/intake/valid/transcript.txt")),
+                    "--metadata",
+                    str(Path("tests/fixtures/intake/valid/metadata.yaml")),
+                    "--output-dir",
+                    "data/intake",
+                ),
+            ),
+        )
+        for script, args in commands:
+            with self.subTest(script=script):
+                result = self.run_tool(script, *args)
+                self.assertEqual(2, result.returncode, result.stderr)
+                self.assertIn("PROFILE_ROOT_REQUIRED", result.stderr)
+                self.assertNotIn(str(ROOT), result.stderr)
+
+    def test_external_profile_clis_write_only_relative_profile_artifacts(self):
+        with tempfile.TemporaryDirectory(prefix="profile-root-test-") as directory:
+            root = self.make_runnable_profile(Path(directory))
+            graph = self.run_tool("build_graph.py", "--profile-root", str(root))
+            self.assertEqual(0, graph.returncode, graph.stderr)
+            graph_check = self.run_tool("build_graph.py", "--profile-root", str(root), "--check")
+            self.assertEqual(0, graph_check.returncode, graph_check.stderr)
+
+            model = self.run_tool(
+                "build_self_model.py",
+                "--subject",
+                "subject/fixture",
+                "--profile-root",
+                str(root),
+            )
+            self.assertEqual(0, model.returncode, model.stderr)
+            bundle = self.run_tool("bundle.py", "--all", "--profile-root", str(root))
+            self.assertEqual(0, bundle.returncode, bundle.stderr)
+            audit = self.run_tool("audit.py", "--profile-root", str(root))
+            self.assertEqual(0, audit.returncode, audit.stderr)
+            export = self.run_tool(
+                "export_signals.py",
+                "--subject",
+                "subject/fixture",
+                "--purpose",
+                "artistic-research",
+                "--operation",
+                "export-signals",
+                "--profile-root",
+                str(root),
+                "--output",
+                str(root / "data" / "export.json"),
+            )
+            self.assertEqual(0, export.returncode, export.stderr)
+            new_entity = self.run_tool(
+                "new_entity.py",
+                "event",
+                "synthetic-cli-event",
+                "--subject",
+                "subject/fixture",
+                "--profile-root",
+                str(root),
+            )
+            self.assertEqual(0, new_entity.returncode, new_entity.stderr)
+
+            for artifact in (
+                root / "data" / "graph.json",
+                root / "data" / "coverage.json",
+                root / "data" / "audit.json",
+                root / "data" / "export.json",
+                root / "data" / "self-models" / "subject" / "fixture.json",
+                root / "data" / "self-models" / "subject" / "fixture.md",
+                root / "overviews" / "coverage.md",
+            ):
+                self.assertTrue(artifact.is_file(), artifact)
+                self.assertNotIn(str(root), artifact.read_text(encoding="utf-8"))
+            graph_payload = json.loads((root / "data" / "graph.json").read_text(encoding="utf-8"))
+            self.assertEqual("entities/events/first.md", next(node["path"] for node in graph_payload["nodes"] if node["id"] == "event/first"))
+            self.assertTrue((root / "entities" / "events" / "synthetic-cli-event.md").is_file())
 
 
 if __name__ == "__main__":

@@ -9,8 +9,22 @@ import yaml
 
 try:
     from kb import ROOT, vocabularies
+    from profile_root import (
+        ProfileRootError,
+        add_profile_root_argument,
+        atomic_write_text,
+        profile_root_error,
+        resolve_profile_root,
+    )
 except ModuleNotFoundError:  # Imported as tools.new_entity by the test suite.
     from tools.kb import ROOT, vocabularies
+    from tools.profile_root import (
+        ProfileRootError,
+        add_profile_root_argument,
+        atomic_write_text,
+        profile_root_error,
+        resolve_profile_root,
+    )
 
 
 def template(kind: str, slug: str, subject: str | None) -> dict:
@@ -36,15 +50,40 @@ def main() -> int:
     parser.add_argument("kind", choices=vocabularies()["entity_types"])
     parser.add_argument("slug")
     parser.add_argument("--subject")
+    add_profile_root_argument(parser)
     args = parser.parse_args()
+    if args.profile_root is None:
+        profile_root_error(
+            ProfileRootError(
+                "PROFILE_ROOT_REQUIRED",
+                "pass --profile-root for real entity writes; repository fallback is disabled",
+            )
+        )
+        return 2
+    try:
+        layout = resolve_profile_root(args.profile_root)
+    except ProfileRootError as error:
+        profile_root_error(error)
+        return 2
+    if args.kind != "subject" and args.subject not in layout.subject_ids:
+        profile_root_error(
+            ProfileRootError(
+                "PROFILE_SUBJECT_NOT_DECLARED",
+                "pass a subject declared by the external profile contract",
+            )
+        )
+        return 2
     plural = vocabularies()["plural_paths"][args.kind]
-    path = ROOT / "entities" / plural / f"{args.slug}.md"
+    path = layout.entity_root / plural / f"{args.slug}.md"
     if path.exists():
-        raise SystemExit(f"refusing to overwrite {path.relative_to(ROOT)}")
-    path.parent.mkdir(parents=True, exist_ok=True)
+        raise SystemExit(f"refusing to overwrite {path.relative_to(layout.root)}")
     content = "---\n" + yaml.safe_dump(template(args.kind, args.slug, args.subject), allow_unicode=True, sort_keys=False) + "---\n\n# Notes\n"
-    path.write_text(content, encoding="utf-8")
-    print(path.relative_to(ROOT))
+    try:
+        atomic_write_text(path, content)
+    except ProfileRootError as error:
+        profile_root_error(error)
+        return 2
+    print(path.relative_to(layout.root))
     return 0
 
 
