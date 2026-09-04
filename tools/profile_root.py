@@ -34,7 +34,7 @@ PROFILE_OVERVIEWS = "overviews"
 PROFILE_ID_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 SUBJECT_ID_RE = re.compile(r"^subject/[a-z0-9]+(?:-[a-z0-9]+)*$")
 CONTRACT_VERSION = "self-model-profile/v1"
-STORAGE_SCOPE = "private"
+STORAGE_SCOPE = "external-local"
 PROFILE_FIELDS = frozenset(
     {"contract_version", "profile_id", "subject_ids", "storage_scope"}
 )
@@ -175,7 +175,7 @@ def _validate_profile_document(document: Any, *, subject_ids: set[str]) -> dict[
     ):
         raise ProfileRootError(
             "PROFILE_STORAGE_SCOPE_INVALID",
-            "set storage_scope to private; public projections are a separate boundary",
+            "set storage_scope to external-local; public projections are a separate boundary",
         )
     if subject_ids and not set(declared_subjects).issubset(subject_ids):
         raise ProfileRootError(
