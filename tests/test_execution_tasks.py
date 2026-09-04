@@ -153,51 +153,19 @@ class ExecutionTaskQueueTests(unittest.TestCase):
             self.assertEqual(expected, [task["id"] for task in selectable_tasks(self.queue)])
 
     def test_harness_bootstrap_has_only_one_next_task(self):
-        if self.by_id["SM-019"]["status"] == "in-progress":
-            self.assertEqual([], [task["id"] for task in selectable_tasks(self.queue)])
-        elif self.by_id["SM-020"]["status"] == "ready":
-            self.assertEqual(["SM-020"], [task["id"] for task in selectable_tasks(self.queue)])
-        elif self.by_id["SM-021"]["status"] == "ready":
-            self.assertEqual(["SM-021"], [task["id"] for task in selectable_tasks(self.queue)])
-        elif self.by_id["SM-021"]["status"] == "done":
-            if self.by_id["SM-022"]["status"] == "ready":
-                self.assertEqual(["SM-022"], [task["id"] for task in selectable_tasks(self.queue)])
-            elif self.by_id["SM-023"]["status"] == "ready":
-                self.assertEqual(["SM-023"], [task["id"] for task in selectable_tasks(self.queue)])
-            elif self.by_id["SM-024"]["status"] == "ready":
-                self.assertEqual(["SM-024"], [task["id"] for task in selectable_tasks(self.queue)])
-            elif self.by_id["SM-025"]["status"] == "ready":
-                self.assertEqual(["SM-025"], [task["id"] for task in selectable_tasks(self.queue)])
-            elif self.by_id["SM-026"]["status"] == "ready":
-                self.assertEqual(["SM-026"], [task["id"] for task in selectable_tasks(self.queue)])
-            elif self.by_id["SM-027"]["status"] == "ready":
-                self.assertEqual(["SM-027"], [task["id"] for task in selectable_tasks(self.queue)])
-            elif self.by_id["SM-028"]["status"] == "ready":
-                self.assertEqual(["SM-028"], [task["id"] for task in selectable_tasks(self.queue)])
-            elif self.by_id["SM-029"]["status"] == "ready":
-                self.assertEqual(["SM-029"], [task["id"] for task in selectable_tasks(self.queue)])
-            elif self.by_id["SM-030"]["status"] == "ready":
-                self.assertEqual(["SM-030"], [task["id"] for task in selectable_tasks(self.queue)])
-            elif self.by_id["SM-030"]["status"] == "done":
-                if self.by_id["SM-031"]["status"] == "ready":
-                    self.assertEqual(["SM-031"], [task["id"] for task in selectable_tasks(self.queue)])
-                elif self.by_id["SM-032"]["status"] == "ready":
-                    self.assertEqual(["SM-032"], [task["id"] for task in selectable_tasks(self.queue)])
-                elif self.by_id["SM-032"]["status"] == "done":
-                    if self.by_id["SM-033"]["status"] == "ready":
-                        self.assertEqual(["SM-033"], [task["id"] for task in selectable_tasks(self.queue)])
-                    elif self.by_id["SM-034"]["status"] == "ready":
-                        self.assertEqual(["SM-034"], [task["id"] for task in selectable_tasks(self.queue)])
-                    elif self.by_id["SM-035"]["status"] == "ready":
-                        self.assertEqual(["SM-035"], [task["id"] for task in selectable_tasks(self.queue)])
-                    else:
-                        self.assertEqual([], [task["id"] for task in selectable_tasks(self.queue)])
-                else:
-                    self.assertEqual([], [task["id"] for task in selectable_tasks(self.queue)])
-            else:
-                self.assertEqual([], [task["id"] for task in selectable_tasks(self.queue)])
-        else:
-            self.fail("harness queue must expose exactly one lifecycle task")
+        in_progress = [task for task in self.tasks if task["status"] == "in-progress"]
+        self.assertLessEqual(len(in_progress), 1)
+        if in_progress:
+            self.assertEqual([], selectable_tasks(self.queue))
+            return
+        done = {task["id"] for task in self.tasks if task["status"] == "done"}
+        eligible = [
+            task["id"]
+            for task in self.tasks
+            if task["status"] == "ready" and set(task["depends_on"]).issubset(done)
+        ]
+        expected = [min(eligible)] if eligible else []
+        self.assertEqual(expected, [task["id"] for task in selectable_tasks(self.queue)])
 
     def test_existing_tasks_are_unchanged_in_status_and_evidence_shape(self):
         for task in self.tasks:
