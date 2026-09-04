@@ -1340,3 +1340,35 @@ tasks:
           - "git diff --check — passed"
           - "git diff --exit-code -- data/ overviews/coverage.md — passed"
 
+  - id: SM-031
+    title: Make fresh-clone agent environment setup explicit
+    phase: 10
+    status: ready
+    depends_on: [SM-030]
+    issue: https://github.com/masa-san-jp/self-model-notes/issues/83
+    allowed_paths:
+      - AGENTS.md
+      - tests/test_agent_runtime.py
+      - execution/tasks.yaml
+    claim: null
+    acceptance:
+      - AGENTS documents a conditional fresh-clone setup using python3 -m venv .venv and .venv/bin/python -m pip install -e ., then uses the repository runtime entrypoint
+      - Setup is explicit and does not run as an implicit network operation during normal task execution
+      - The canonical validate/next/verify/complete/release flow and no-secret boundary remain explicit
+      - Documentation regression coverage proves the setup guidance and existing generated artifacts remain current
+      - No entity, data, schema, consent, privacy, export, or runtime behavior changes
+    checks:
+      - python3 tools/agent_runtime.py tools/task_harness.py validate
+      - python3 tools/agent_runtime.py -m unittest tests.test_agent_runtime tests.test_task_harness tests.test_cli
+      - python3 tools/agent_runtime.py -m unittest discover -s tests -p "test_*.py"
+      - python3 tools/agent_runtime.py tools/build_graph.py --check
+      - python3 tools/agent_runtime.py tools/audit.py --check
+      - python3 tools/agent_runtime.py tools/bundle.py --all --check
+      - git diff --check
+      - git diff --exit-code -- data/ overviews/coverage.md
+    stop_if:
+      - A core schema, entity type, consent rule, privacy rule, export rule, or runtime behavior must change
+      - Dependency setup requires an unapproved external write, new third-party dependency, or repository secret
+      - Existing entities or generated data must be changed for this documentation task
+      - A path outside the allowance is required
+    evidence: []
