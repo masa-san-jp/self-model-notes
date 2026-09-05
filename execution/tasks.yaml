@@ -1519,6 +1519,7 @@ tasks:
           - "git diff --check — passed"
 
 
+
   - id: SM-035
     title: Add metadata-only profile migration and operational completion evidence
     phase: 10
@@ -1577,3 +1578,49 @@ tasks:
           - "python3 tools/agent_runtime.py tools/profile_root.py validate-repository --json — passed"
           - "git diff --check — passed"
 
+  - id: SM-036
+    title: AAK-05 creator-scoped creative feedback and derived knowledge memory
+    phase: 10
+    status: ready
+    depends_on: [SM-035]
+    issue: https://github.com/masa-san-jp/self-model-notes/issues/93
+    allowed_paths:
+      - AGENTS.md
+      - README.md
+      - docs/**
+      - tools/**
+      - tests/**
+      - config/**
+      - schemas/**
+      - execution/tasks.yaml
+      - execution/aak-05-state.json
+      - pyproject.toml
+      - entities/**
+    external_paths:
+      - profile.yaml
+      - entities/**
+      - data/**
+      - overviews/**
+      - knowledge/**
+    acceptance:
+      - AAK-05-AC1 synthetic A/B creation choice to derived owner Git commit, reopen and subject signal export is reproducible
+      - AAK-05-AC2 explicit creator choice, agent inference and unobserved remain distinct; silence or agent proposals never become personal preference
+      - AAK-05-AC3 source correction and consent withdrawal update active export/index while retaining IDs and provenance
+      - AAK-05-AC4 inherited creator A records never become creator B active self-model
+      - AAK-05-AC5 no raw/credential/n=1 migration or publication; existing external-local profile compatibility passes
+      - SSOT specification and implementation plan remain pinned at b0e7c7f8d0a1f756fa708deef4fb380a62e45e0d via Issue 93; Issue 1 already carries the limited extension
+      - External AAK-04 dependency uses owner-verified candidate 83f7e9e8d1c6e25b39351aebb6eb15cb12da4685 and instance-profile/v1 evidence in orchestration PR 201; it is not main integration evidence
+    checks:
+      - python3 tools/agent_runtime.py tools/task_harness.py validate
+      - python3 tools/agent_runtime.py -m unittest tests.test_creative_feedback_memory -v
+      - python3 tools/agent_runtime.py -m unittest discover -s tests -p "test_*.py"
+      - python3 tools/agent_runtime.py tools/profile_root.py validate-repository --json
+      - git diff --check
+    stop_if:
+      - Trusted-base registration or native remote claim is not satisfied
+      - Required profile consent or creator/store identity cannot be established
+      - Real n=1 migration needs Issue 82 human approval, destination, consent or retention
+      - A default-branch merge, publication, release or destructive Git action is required
+      - Scope or authority exceeds Issue 93 and its pinned AAK-05 specification
+    claim: null
+    evidence: []
