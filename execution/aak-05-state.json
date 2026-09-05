@@ -1,0 +1,29 @@
+{
+  "task": "SM-036",
+  "aak_task": "AAK-05",
+  "issue": "https://github.com/masa-san-jp/self-model-notes/issues/93",
+  "base_commit": "a61460d4f9add36b256b2db9a860c53a98bd5fcd",
+  "branch": "agent/sm-036-aak-registration",
+  "state": "REGISTRATION_REVIEW_REQUIRED",
+  "claim": "NOT_RUN: task absent from trusted main queue",
+  "implementation": "NOT_RUN",
+  "acceptance": {
+    "AAK-05-AC1": "NOT_RUN",
+    "AAK-05-AC2": "NOT_RUN",
+    "AAK-05-AC3": "NOT_RUN",
+    "AAK-05-AC4": "NOT_RUN",
+    "AAK-05-AC5": "NOT_RUN"
+  },
+  "dependency_candidate": "83f7e9e8d1c6e25b39351aebb6eb15cb12da4685",
+  "dependency_contract": "instance-profile/v1",
+  "dependency_evidence": "https://github.com/masa-san-jp/agentic-art-orchestration/pull/201",
+  "observed_native_next": {"exit_code": 3, "reason": "no-selectable-task"},
+  "observed_remote_locks": [],
+  "verification_commit": "692159e894beb59143f6e99b3e537492dc424a1f",
+  "registration_checks": {"queue_validate": "PASS", "focused_queue_tests": "10 PASS", "full_suite": "161 tests, 160 PASS, 1 FAIL", "trusted_base_verify_pr": "FAIL TASK_NOT_FOUND"},
+  "full_log_sha256": "4f599f280f15e458f1065a04cd5cdd9d3233745c000705a270132df1be5acdea",
+  "full_failure": "Existing subject model freshness test also fails on unchanged trusted base: imported shallow snapshot lacks original entity history. No generated person artifact was rewritten to mask it.",
+  "boundary": "AGENTS section 9 and trusted-base task_harness.py require pre-registered task and clean synchronized main for claim; task-set changes are rejected by verify-pr",
+  "next_operation": "Review registration into trusted main, then native validate/next/claim SM-036 using fresh main SHA. Keep merge as human gate.",
+  "real_profile_migration": "NOT_RUN"
+}
