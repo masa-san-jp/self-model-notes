@@ -58,7 +58,7 @@ class CreativeFeedbackMemoryTests(unittest.TestCase):
         self.assertEqual(self.initial, memory.head(self.store))  # prepare never writes canonical data
         receipt = self.commit()
         self.assertEqual('COMMITTED', receipt['status'])
-        self.assertEqual(self.record, json.loads(memory.git(self.store, 'show', receipt['target_commit'] + ':' + receipt['payload_ref'])))
+        self.assertEqual(self.record, json.loads(memory.git(self.store, 'show', receipt['target_commit'] + ':' + memory._record_path(self.record))))
         self.assertEqual(receipt['target_commit'], memory.head(self.store))
         self.assertEqual(self.initial, receipt['target_parent'])
         (self.store / 'derived-index.json').unlink()
@@ -105,7 +105,7 @@ class CreativeFeedbackMemoryTests(unittest.TestCase):
         revised = dict(self.record, revision=2, supersedes=1, source_sha256=memory.source_hash(entity), summary='Selected the screen only for the corrected lighting context.', run_id='run-two')
         second = self.commit(revised, operation='op-two')
         self.assertNotEqual(first['target_commit'], second['target_commit'])
-        self.assertEqual(self.record, json.loads(memory.git(self.store, 'show', second['target_commit'] + ':' + first['payload_ref'])))
+        self.assertEqual(self.record, json.loads(memory.git(self.store, 'show', second['target_commit'] + ':' + memory._record_path(self.record))))
         self.assertEqual(revised['summary'], memory.export_memory(self.store, self.profile, **self.options)['signals'][0]['statement'])
         self.assertEqual(0, memory.export_memory(self.store, self.profile, **self.options, snapshot=first['target_commit'])['signal_count'])
         entity.meta['consent']['revoked_at'] = '2026-09-07'
