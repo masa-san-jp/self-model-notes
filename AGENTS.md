@@ -1,5 +1,14 @@
 # Autonomous Agent Contract
 
+## AAK-05の限定追加要件
+
+Issue #1末尾の2026-09-05追記とIssue #93が、本人所有の派生知識Git store・制作選択の
+追加範囲を定義する。仕様/計画の参照版は `b0e7c7f8d0a1f756fa708deef4fb380a62e45e0d`。
+実装taskはSM-036。新規型・語彙・pathの追加はIssue #93の要件とscopeに必要な範囲だけを許す。
+rawのexternal-local境界、同意、不確実性、実n=1移設#82のhuman gateは変更しない。
+SM-036の登録は実装完了を意味しない。trusted-base登録と通常のclaimが必要であり、
+candidate側harnessの書換えでその検査を回避しない。
+
 このファイルは、GPT-5.6 Luna / Claude Sonnet相当の実行系エージェントが1タスクを自律完了するための作業契約です。
 
 ## 1. 正本の優先順位
