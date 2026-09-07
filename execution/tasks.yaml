@@ -1581,7 +1581,7 @@ tasks:
   - id: SM-036
     title: AAK-05 creator-scoped creative feedback and derived knowledge memory
     phase: 10
-    status: ready
+    status: in-progress
     depends_on: [SM-035]
     issue: https://github.com/masa-san-jp/self-model-notes/issues/93
     allowed_paths:
@@ -1622,5 +1622,12 @@ tasks:
       - Real n=1 migration needs Issue 82 human approval, destination, consent or retention
       - A default-branch merge, publication, release or destructive Git action is required
       - Scope or authority exceeds Issue 93 and its pinned AAK-05 specification
-    claim: null
+    claim:
+      actor: codex-aak05-20260907
+      base: 68267f39d79b75d8a5ac64d5892b258b2588dc08
+      branch: agent/sm-036-codex-aak05-20260907
+      remote: origin
+      lock_ref: refs/heads/harness-lock/sm-036
+      claimed_at: '2026-09-07T14:00:02.629011000Z'
+
     evidence: []
