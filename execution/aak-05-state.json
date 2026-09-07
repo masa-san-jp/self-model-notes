@@ -1,0 +1,31 @@
+{
+  "task": "SM-036",
+  "aak_task": "AAK-05",
+  "issue": "https://github.com/masa-san-jp/self-model-notes/issues/93",
+  "base_commit": "a61460d4f9add36b256b2db9a860c53a98bd5fcd",
+  "branch": "agent/sm-036-aak-registration",
+  "state": "REGISTRATION_REVIEW_REQUIRED",
+  "claim": "NOT_RUN: task absent from trusted main queue",
+  "implementation": "NOT_RUN",
+  "acceptance": {
+    "AAK-05-AC1": "NOT_RUN",
+    "AAK-05-AC2": "NOT_RUN",
+    "AAK-05-AC3": "NOT_RUN",
+    "AAK-05-AC4": "NOT_RUN",
+    "AAK-05-AC5": "NOT_RUN"
+  },
+  "dependency_candidate": "83f7e9e8d1c6e25b39351aebb6eb15cb12da4685",
+  "dependency_contract": "instance-profile/v1",
+  "dependency_evidence": "https://github.com/masa-san-jp/agentic-art-orchestration/pull/201",
+  "observed_native_next": {"exit_code": 3, "reason": "no-selectable-task"},
+  "observed_remote_locks": [],
+  "verification_commit": "784bc84898f96f7d43f0280197a7bf011e4c420d",
+  "remote_candidate": "3eae099917bffa7b816d5cac296b98f3c736a4bc",
+  "verified_tree": "387aecc654e7f032a0291b51b2010e2fef7651af",
+  "registration_checks": {"queue_validate": "PASS", "focused_queue_tests": "10 PASS", "full_suite": "161 PASS, 19.971s", "trusted_base_verify_pr": "FAIL TASK_NOT_FOUND"},
+  "full_log_sha256": "ff4763e08a8f5a18b0e3704a7c98503af88f5ca8bc108ae9aa674a662e938d88",
+  "full_failure": "RESOLVED: exact 63-commit public Git history restored in an isolated checkout. Same candidate passes full suite; generated person artifacts were not changed. Prior shallow-history failure log 4f599f280f15e458f1065a04cd5cdd9d3233745c000705a270132df1be5acdea is superseded.",
+  "boundary": "AGENTS section 9 and trusted-base task_harness.py require pre-registered task and clean synchronized main for claim; task-set changes are rejected by verify-pr",
+  "next_operation": "Review registration into trusted main, then native validate/next/claim SM-036 using fresh main SHA. Keep merge as human gate.",
+  "real_profile_migration": "NOT_RUN"
+}
