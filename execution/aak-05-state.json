@@ -4,20 +4,20 @@
   "issue": "https://github.com/masa-san-jp/self-model-notes/issues/93",
   "base_commit": "68267f39d79b75d8a5ac64d5892b258b2588dc08",
   "branch": "agent/sm-036-codex-aak05-20260907",
-  "state": "IMPLEMENTING",
+  "state": "CODE_VERIFIED",
   "claim": "native remote claim acquired 2026-09-07T14:00:02Z",
   "lock_ref": "refs/heads/harness-lock/sm-036",
   "dependency_candidate": "83f7e9e8d1c6e25b39351aebb6eb15cb12da4685",
   "dependency_contract": "instance-profile/v1",
   "dependency_evidence": "https://github.com/masa-san-jp/agentic-art-orchestration/pull/201",
   "acceptance": {
-    "AAK-05-AC1": "VERIFYING",
-    "AAK-05-AC2": "VERIFYING",
-    "AAK-05-AC3": "VERIFYING",
-    "AAK-05-AC4": "VERIFYING",
-    "AAK-05-AC5": "VERIFYING"
+    "AAK-05-AC1": "PASS_SYNTHETIC",
+    "AAK-05-AC2": "PASS_SYNTHETIC",
+    "AAK-05-AC3": "PASS_SYNTHETIC",
+    "AAK-05-AC4": "PASS_SYNTHETIC",
+    "AAK-05-AC5": "PASS_SYNTHETIC"
   },
-  "next_operation": "Run clean committed candidate checks, then native verify and draft PR",
+  "next_operation": "native complete SM-036 with PR95, publish evidence then trusted-base verify-pr; remote lock remains until approved feature merge",
   "real_profile_migration": "NOT_RUN",
   "registration_evidence": {
     "task": "SM-036",
@@ -57,5 +57,76 @@
     "boundary": "AGENTS section 9 and trusted-base task_harness.py require pre-registered task and clean synchronized main for claim; task-set changes are rejected by verify-pr",
     "next_operation": "Review registration into trusted main, then native validate/next/claim SM-036 using fresh main SHA. Keep merge as human gate.",
     "real_profile_migration": "NOT_RUN"
-  }
+  },
+  "code_commit": "9769e0505ef7ac8aa0d8b0ab5dbf1f62f1f6f0e2",
+  "pull_request": "https://github.com/masa-san-jp/self-model-notes/pull/95",
+  "verification": {
+    "focused": "12 PASS, 19.018s",
+    "full_suite": "173 PASS, 48.060s",
+    "native_verify": "PASS: all 5 declared checks and path guard",
+    "parent_validator": "PASS; parent code unchanged",
+    "graph_check": "PASS",
+    "audit_check": "PASS; pre-existing soft findings retained",
+    "bundle_check": "PASS",
+    "generated_data_diff": "PASS: none",
+    "profile_repository": "BLOCKED_LEGACY_PROFILE: pre-existing 7 records retained, #82 migration not executed",
+    "synthetic_profile_graph": "regenerate and check PASS",
+    "log_sha256": "a73baffb740a455439e14570f8b19f007b293fb34525f23ce9808cb713923e0b"
+  },
+  "integration": "NOT_RUN: AAK-02 actual six runs remain separate",
+  "synthetic_knowledge_evidence": {
+    "fixture": "synthetic only; no live agent or real profile",
+    "code_commit": "b833ad811cedddaf465943613a59f76ed2bb5ad5",
+    "first_receipt": {
+      "accepted_ids": [
+        "choice-one"
+      ],
+      "code_commit": "b833ad811cedddaf465943613a59f76ed2bb5ad5",
+      "collection": "memory-a",
+      "content_sha256": "c7af0e947525a2b7e138f2838d9efe5e6d67e8c9f784741a475c69a54c6b214b",
+      "contract_version": "knowledge-write-receipt/v1",
+      "index_commit": "ae232f3b370093f174c191ce201599cd6c63ef32",
+      "index_hash": "21f3c6147243ed026a1beb746fd60f5303b96907fa8f4dd9d77c98097bffdab6",
+      "operation_id": "op-one",
+      "owner": "self-model-notes",
+      "payload_ref": "knowledge/records/choice-one/1.json",
+      "policy_version": "creative-feedback-policy/v1",
+      "reason": "VALIDATED",
+      "rejected_ids": [],
+      "run_id": "run-one",
+      "schema_version": "creative-feedback/v1",
+      "status": "COMMITTED",
+      "target_commit": "ae232f3b370093f174c191ce201599cd6c63ef32",
+      "target_parent": "40c7e80eb6cdb59b37cbcbd74fd84307fc89d2a5"
+    },
+    "second_receipt": {
+      "accepted_ids": [
+        "choice-two"
+      ],
+      "code_commit": "b833ad811cedddaf465943613a59f76ed2bb5ad5",
+      "collection": "memory-a",
+      "content_sha256": "2a444716f4258abe6cefa5d61f0a3d453829535e057c451d00f8bca0e4df1c74",
+      "contract_version": "knowledge-write-receipt/v1",
+      "index_commit": "28730e33c4774b2e62e96e92d42bf79eb2be81e9",
+      "index_hash": "0f3e804962c451e4a78e8643d5eb5ea5fd850ba4ef00faa6b86040f6654ab3d5",
+      "operation_id": "op-two",
+      "owner": "self-model-notes",
+      "payload_ref": "knowledge/records/choice-two/1.json",
+      "policy_version": "creative-feedback-policy/v1",
+      "reason": "VALIDATED",
+      "rejected_ids": [],
+      "run_id": "run-two",
+      "schema_version": "creative-feedback/v1",
+      "status": "COMMITTED",
+      "target_commit": "28730e33c4774b2e62e96e92d42bf79eb2be81e9",
+      "target_parent": "ae232f3b370093f174c191ce201599cd6c63ef32"
+    },
+    "input_record_sha256": "c7af0e947525a2b7e138f2838d9efe5e6d67e8c9f784741a475c69a54c6b214b",
+    "reopened_after_code_update": {
+      "code_commit": "9769e0505ef7ac8aa0d8b0ab5dbf1f62f1f6f0e2",
+      "signal_count": 2,
+      "result": "PASS; knowledge commits preserved across code update"
+    }
+  },
+  "sensitive_data": "No new real-person/raw/credential/projection data. Existing legacy profile untouched."
 }
