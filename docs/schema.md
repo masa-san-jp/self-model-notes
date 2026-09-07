@@ -436,3 +436,11 @@ claim:
 
 - hard error: 構造破損、参照不整合、根拠なしClaim、尺度捏造、同意欠落、生成物不整合。
 - soft audit: 根拠偏り、反証不足、単一Context、古いClaim、Unknown過多、Drive観測偏り。
+
+## AAK-05: creative-feedback/v1 と本人用派生Git store
+
+Issue #93の限定追加です。版付きschemaは
+[creative-feedback-v1.schema.json](../schemas/creative-feedback-v1.schema.json)、
+保存・同意・再読込・訂正の実行契約は[creative-feedback-memory.md](creative-feedback-memory.md)。
+既存profileの`storage_scope: external-local`は変更せず、派生記録だけを別の
+`self-model-knowledge/v1`へ保存します。raw、実n=1移設#82の承認境界は維持します。

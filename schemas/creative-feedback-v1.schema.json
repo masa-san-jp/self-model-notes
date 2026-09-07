@@ -1,0 +1,135 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:self-model-notes:creative-feedback:v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "alternative_explanations",
+    "choice",
+    "collection_id",
+    "confidence",
+    "context",
+    "contract_version",
+    "counterevidence",
+    "created_at",
+    "creator_id",
+    "epistemic_status",
+    "lifecycle",
+    "origin_instance_id",
+    "producer_kind",
+    "record_id",
+    "revision",
+    "run_id",
+    "source_ref",
+    "source_sha256",
+    "subject",
+    "summary",
+    "supersedes"
+  ],
+  "properties": {
+    "source_sha256": {
+      "type": "string"
+    },
+    "counterevidence": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "run_id": {
+      "type": "string"
+    },
+    "choice": {
+      "enum": [
+        "adopt",
+        "reject",
+        "revise",
+        "evaluate",
+        null
+      ]
+    },
+    "context": {
+      "type": "string"
+    },
+    "epistemic_status": {
+      "enum": [
+        "observed",
+        "inferred",
+        "proposed",
+        "simulated",
+        "unknown"
+      ]
+    },
+    "creator_id": {
+      "type": "string"
+    },
+    "origin_instance_id": {
+      "type": "string"
+    },
+    "subject": {
+      "type": "string"
+    },
+    "revision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "collection_id": {
+      "type": "string"
+    },
+    "lifecycle": {
+      "enum": [
+        "accepted",
+        "candidate",
+        "rejected",
+        "revoked"
+      ]
+    },
+    "contract_version": {
+      "const": "creative-feedback/v1"
+    },
+    "producer_kind": {
+      "enum": [
+        "human",
+        "agent",
+        "tool"
+      ]
+    },
+    "record_id": {
+      "type": "string"
+    },
+    "created_at": {
+      "type": "string"
+    },
+    "alternative_explanations": {
+      "type": "array",
+      "minItems": 2,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "confidence": {
+      "enum": [
+        "unknown",
+        "low",
+        "medium",
+        "high"
+      ]
+    },
+    "supersedes": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 1
+    },
+    "summary": {
+      "type": "string"
+    },
+    "source_ref": {
+      "type": "string"
+    }
+  }
+}
