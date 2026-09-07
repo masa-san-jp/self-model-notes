@@ -315,7 +315,7 @@ def commit_record(root, profile_root, record, *, creator, subject, collection, e
     require(record['revision'] == (previous['revision'] + 1 if previous else 1), 'REVISION_CONFLICT')
     if record['lifecycle'] == 'revoked':
         require(previous is not None and all(record[key] == previous[key] for key in FIELDS - {'revision', 'supersedes', 'lifecycle', 'run_id', 'created_at'}), 'REVOCATION_CONTENT_CHANGED')
-    receipt = {'contract_version': 'knowledge-write-receipt/v1', 'operation_id': operation_id,
+    receipt = {'contract_version': 'creative-feedback-operation/v1', 'operation_id': operation_id,
                'run_id': record['run_id'], 'owner': OWNER, 'collection': collection,
                'target_parent': current, 'accepted_ids': [record['record_id']], 'rejected_ids': [],
                'schema_version': CONTRACT, 'policy_version': POLICY, 'content_sha256': content_hash,
@@ -331,7 +331,9 @@ def _receipt(root, profile_root, receipt, tree, creator, subject, collection, pu
         commits = git(root, 'rev-list', '--reverse', REF, '--', f"knowledge/receipts/{receipt['operation_id']}/1.json").splitlines()
         require(bool(commits), 'RECEIPT_COMMIT_MISSING')
         commit = commits[0]
-    result = dict(receipt, target_commit=commit, status=status, reason='ALREADY_APPLIED' if status == 'NO_CHANGE' else 'VALIDATED', index_commit=None, index_hash=None)
+    result = {key: value for key, value in receipt.items() if key not in ('payload_ref', 'content_sha256', 'code_commit')}
+    result.update(contract_version='knowledge-write-receipt/v1', target_commit=commit, status=status,
+                  reason='ALREADY_APPLIED' if status == 'NO_CHANGE' else 'VALIDATED', index_commit=None, index_hash=None)
     try:
         indexed = index(root, profile_root, creator=creator, subject=subject, collection=collection, purpose=purpose)
         result.update(index_commit=indexed['knowledge_commit'], index_hash=digest(encoded(indexed)))
@@ -369,11 +371,11 @@ def artifact_record(record, knowledge_commit, code_commit):
                               knowledge_commit=None, storage='external-local-source-metadata')],
                 derived_from=[], epistemic_status=record['epistemic_status'], lifecycle=record['lifecycle'],
                 applicability=dict(context=record['context'], time=record['created_at']),
-                rights='consent-gated-derived-only', access_scope='private', consent_ref=record['source_ref'],
+                rights=dict(policy='consent-gated-derived-only', redistribution=False), access_scope='private', consent_ref=record['source_ref'],
                 created_at=record['created_at'], reviewed_at=None, valid_until=None,
                 producer=dict(kind=record['producer_kind'], generator_version=POLICY, code_commit=code, run_id=record['run_id']),
                 supersedes=[] if record['supersedes'] is None else [dict(record_id=record['record_id'], revision=record['supersedes'])],
-                invalidates=[], knowledge_commit=knowledge_commit)
+                invalidates=[])
 
 
 def export_memory(root, profile_root, *, creator, subject, collection, purpose='artistic-research', snapshot=None):

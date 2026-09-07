@@ -89,3 +89,9 @@ Git transaction前の中断は正本不変、ref更新後の中断は永続recei
 AC1〜5、raw拒否、失効、fork、replay、CAS、index復旧を観測します。
 実Masa資料・実n=1移設#82・public projection・remote writeは実行しません。
 AAK-02の実エージェント6runは別の統合受入です。
+
+公開するreceiptは親のclosed `knowledge-write-receipt/v1`と一致します。
+保存時のhash/payload/codeメタデータは別の`creative-feedback-operation/v1`として
+owner Git内に保持し、共通receiptへ追加fieldを混ぜません。retrieveの`artifact`は
+closed `artifact-record/v1`です。knowledge snapshotは検索結果の外側に保持し、
+producer.code_commitは記録を保存した時点のoperationから復元します。
