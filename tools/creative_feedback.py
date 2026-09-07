@@ -71,11 +71,28 @@ def _path(root):
 
 
 def _tree(root, commit):
-    names = git(root, 'ls-tree', '-r', '--name-only', commit).splitlines()
+    entries = git(root, 'ls-tree', '-r', commit).splitlines()
+    names = [entry.split('\t', 1)[1] for entry in entries]
     require(all(name == 'knowledge/store.json' or re.fullmatch(r'knowledge/(records|receipts)/[a-z0-9-]+/[0-9]+\.json', name) for name in names), 'STORE_PATH_NOT_ALLOWED')
-    modes = git(root, 'ls-tree', '-r', commit).splitlines()
-    require(all(line.startswith('100644 blob ') for line in modes), 'STORE_ENTRY_INVALID')
-    return {name: json.loads(git(root, 'show', f'{commit}:{name}')) for name in names}
+    require(all(line.startswith('100644 blob ') for line in entries), 'STORE_ENTRY_INVALID')
+    objects = [entry.split('\t', 1)[0].split()[2] for entry in entries]
+    # Read one immutable snapshot in one process; reopening Git per revision makes
+    # cumulative history unnecessarily expensive. Validate every batch header.
+    result = subprocess.run(['git', '-C', str(root), 'cat-file', '--batch'],
+                            input=('\n'.join(objects) + '\n').encode(), capture_output=True)
+    require(result.returncode == 0, 'GIT_OPERATION_FAILED')
+    data, offset, tree = result.stdout, 0, {}
+    for name, oid in zip(names, objects):
+        end = data.find(b'\n', offset)
+        header = data[offset:end].decode().split()
+        require(len(header) == 3 and header[:2] == [oid, 'blob'], 'GIT_OBJECT_INVALID')
+        size = int(header[2])
+        start = end + 1
+        require(data[start + size:start + size + 1] == b'\n', 'GIT_OBJECT_INVALID')
+        tree[name] = json.loads(data[start:start + size])
+        offset = start + size + 1
+    require(offset == len(data), 'GIT_OBJECT_INVALID')
+    return tree
 
 
 def _commit(root, parent, updates, message):
