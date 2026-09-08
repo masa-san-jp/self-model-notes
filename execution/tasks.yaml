@@ -1581,7 +1581,7 @@ tasks:
   - id: SM-036
     title: AAK-05 creator-scoped creative feedback and derived knowledge memory
     phase: 10
-    status: ready
+    status: done
     depends_on: [SM-035]
     issue: https://github.com/masa-san-jp/self-model-notes/issues/93
     allowed_paths:
@@ -1623,4 +1623,14 @@ tasks:
       - A default-branch merge, publication, release or destructive Git action is required
       - Scope or authority exceeds Issue 93 and its pinned AAK-05 specification
     claim: null
-    evidence: []
+
+    evidence:
+      - pr: 95
+        commit: 6c2daf8c52a5f4f5c8dbb6592605d524f95d44fe
+        checks:
+          - "python3 tools/agent_runtime.py tools/task_harness.py verify-paths SM-036 --json — passed"
+          - "python3 tools/agent_runtime.py tools/task_harness.py validate — passed"
+          - "python3 tools/agent_runtime.py -m unittest tests.test_creative_feedback_memory -v — passed"
+          - "python3 tools/agent_runtime.py -m unittest discover -s tests -p \"test_*.py\" — passed"
+          - "python3 tools/agent_runtime.py tools/profile_root.py validate-repository --json — passed"
+          - "git diff --check — passed"

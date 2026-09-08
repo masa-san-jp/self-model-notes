@@ -148,3 +148,8 @@ python3 -m venv .venv
 PRでは`pull_request`のbase SHAをtrusted-base、head SHAをcandidateとして別checkoutし、trusted-baseの`verify-pr`でbranch/title/task ID、base/head、contract、lifecycle、evidence、allowed paths、checksを検証する。旧baseにverify-prがないbootstrap PRだけはworkflowが明示的に通過させる。手動でqueueを直す操作は通常経路ではなく、災害復旧時に観測事実と影響を記録する場合に限る。Issueに登録されていないtaskはdispatchableではない。
 
 SM-026では、利用者が実行エージェントだけである脅威モデルにおいて、trusted-base policyとCI検証を正規の実行境界とし、GitHubのrequired merge gateは任意の運用強化として扱う。この判断はIssue #60に記録し、費用や公開範囲を伴う設定変更を実行エージェントが選択・実施してはならない。
+
+AAK-05の実行契約は[docs/creative-feedback-memory.md](docs/creative-feedback-memory.md)。
+`tools/creative_feedback.py`で本人所有bare Gitへの派生知識保存を行う。
+profile-root.pyのexternal-local/raw規則は拡張せず、knowledge storeを別検証する。
+同意・source変更は毎回検証し、INDEX_PENDINGでも成功済みcommitを保持する。
