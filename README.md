@@ -179,3 +179,11 @@ python3 tools/agent_runtime.py tools/task_harness.py next --json
 GitHub ActionsはPRの独立したbackstopです。agent-only脅威モデルでは、trusted-baseのローカルharness検証が正規境界であり、GitHubのrequired merge gateは任意の運用強化です。
 
 この判断は[Issue #60](https://github.com/masa-san-jp/self-model-notes/issues/60)に記録したSM-026の方針です。費用、公開範囲、branch protectionなどの設定変更は、このリポジトリの実行エージェントが独断で行いません。
+
+## 制作選択の蓄積（AAK-05）
+
+本人の採択・棄却・修正・評価を、文脈・出典・反証・代替説明とともに本人所有の
+ローカルGitへ保存できます。再起動後も明示した本人だけを検索し、source訂正や
+同意取消を反映します。AI案や無反応を本人の嗜好へ変換しません。
+正規CLI、schema、保存境界は[制作選択と派生知識](docs/creative-feedback-memory.md)を参照。
+raw profileは従来のexternal-localのままです。

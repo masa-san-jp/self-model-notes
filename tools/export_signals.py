@@ -548,6 +548,16 @@ def validate_signal_export(payload: dict[str, Any]) -> list[str]:
             "evidence_locator": f"self-model://{entity_id}#evidence",
             "raw_voice_locator": f"self-model://{entity_id}#raw-voice-not-exported",
         }
+        if isinstance(entity_id, str) and entity_id.startswith("creative-feedback/"):
+            locator = record.get("source_locator")
+            if isinstance(locator, str) and locator.startswith("self-model-knowledge://"):
+                record_id = entity_id.split("/", 1)[1]
+                pattern = (r"self-model-knowledge://[a-z0-9]+(?:-[a-z0-9]+)*/[0-9a-f]{40}/knowledge/records/"
+                           + re.escape(record_id) + r"/[1-9][0-9]*\.json")
+                if re.fullmatch(pattern, locator) is None:
+                    errors.append(f"{prefix}.source_locator must pin a valid knowledge record revision")
+                expected_locators["source_locator"] = locator
+                expected_locators["evidence_locator"] = locator + "#source"
         for field, expected in expected_locators.items():
             if record.get(field) != expected:
                 errors.append(f"{prefix}.{field} must be the fixed opaque locator")
@@ -663,6 +673,9 @@ def main() -> int:
     parser.add_argument("--operation", default="export-signals")
     parser.add_argument("--limit", type=int, default=0, help="正数なら出力record数を制限し、0は無制限")
     parser.add_argument("--output", type=Path, help="成功時のJSON出力先。省略時はstdout")
+    parser.add_argument("--knowledge-store-root", type=Path, help="explicit creator-owned derived Git store")
+    parser.add_argument("--creator", help="creator identity bound to the selected knowledge store")
+    parser.add_argument("--collection", help="selected knowledge collection identity")
     add_profile_root_argument(parser)
     args = parser.parse_args()
     if args.limit < 0:
@@ -697,6 +710,29 @@ def main() -> int:
             )
         )
         return 2
+    if args.knowledge_store_root is not None:
+        try:
+            try:
+                from .creative_feedback import export_memory
+            except ImportError:
+                from creative_feedback import export_memory
+            if not all((args.creator, args.collection, args.subject)) or args.operation != "export-signals":
+                raise ValueError("explicit creator, collection, subject and export-signals operation required")
+            payload = export_memory(args.knowledge_store_root, args.profile_root,
+                                    creator=args.creator, subject=args.subject,
+                                    collection=args.collection, purpose=args.purpose)
+            if args.limit:
+                payload["signals"] = payload["signals"][:args.limit]
+                payload["signal_count"] = len(payload["signals"])
+            serialized = canonical_json(payload)
+            if args.output:
+                atomic_write_text(args.output, serialized)
+            else:
+                print(serialized, end="")
+            return 0
+        except (ValueError, OSError, KeyError, TypeError):
+            print("Export denied: invalid or unauthorized knowledge store", file=sys.stderr)
+            return 2
     entities = discover_entities(layout.entity_root)
     validation_errors = validate_entities(entities, root=layout.root)
     if validation_errors:

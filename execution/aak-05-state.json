@@ -2,30 +2,188 @@
   "task": "SM-036",
   "aak_task": "AAK-05",
   "issue": "https://github.com/masa-san-jp/self-model-notes/issues/93",
-  "base_commit": "a61460d4f9add36b256b2db9a860c53a98bd5fcd",
-  "branch": "agent/sm-036-aak-registration",
-  "state": "REGISTRATION_REVIEW_REQUIRED",
-  "claim": "NOT_RUN: task absent from trusted main queue",
-  "implementation": "NOT_RUN",
-  "acceptance": {
-    "AAK-05-AC1": "NOT_RUN",
-    "AAK-05-AC2": "NOT_RUN",
-    "AAK-05-AC3": "NOT_RUN",
-    "AAK-05-AC4": "NOT_RUN",
-    "AAK-05-AC5": "NOT_RUN"
-  },
+  "base_commit": "68267f39d79b75d8a5ac64d5892b258b2588dc08",
+  "branch": "agent/sm-036-codex-aak05-20260907",
+  "state": "DRAFT_PR_READY",
+  "claim": "native remote claim acquired 2026-09-07T14:00:02Z",
+  "lock_ref": "refs/heads/harness-lock/sm-036",
   "dependency_candidate": "83f7e9e8d1c6e25b39351aebb6eb15cb12da4685",
   "dependency_contract": "instance-profile/v1",
   "dependency_evidence": "https://github.com/masa-san-jp/agentic-art-orchestration/pull/201",
-  "observed_native_next": {"exit_code": 3, "reason": "no-selectable-task"},
-  "observed_remote_locks": [],
-  "verification_commit": "784bc84898f96f7d43f0280197a7bf011e4c420d",
-  "remote_candidate": "3eae099917bffa7b816d5cac296b98f3c736a4bc",
-  "verified_tree": "387aecc654e7f032a0291b51b2010e2fef7651af",
-  "registration_checks": {"queue_validate": "PASS", "focused_queue_tests": "10 PASS", "full_suite": "161 PASS, 19.971s", "trusted_base_verify_pr": "FAIL TASK_NOT_FOUND"},
-  "full_log_sha256": "ff4763e08a8f5a18b0e3704a7c98503af88f5ca8bc108ae9aa674a662e938d88",
-  "full_failure": "RESOLVED: exact 63-commit public Git history restored in an isolated checkout. Same candidate passes full suite; generated person artifacts were not changed. Prior shallow-history failure log 4f599f280f15e458f1065a04cd5cdd9d3233745c000705a270132df1be5acdea is superseded.",
-  "boundary": "AGENTS section 9 and trusted-base task_harness.py require pre-registered task and clean synchronized main for claim; task-set changes are rejected by verify-pr",
-  "next_operation": "Review registration into trusted main, then native validate/next/claim SM-036 using fresh main SHA. Keep merge as human gate.",
-  "real_profile_migration": "NOT_RUN"
+  "acceptance": {
+    "AAK-05-AC1": "PASS_SYNTHETIC",
+    "AAK-05-AC2": "PASS_SYNTHETIC",
+    "AAK-05-AC3": "PASS_SYNTHETIC",
+    "AAK-05-AC4": "PASS_SYNTHETIC",
+    "AAK-05-AC5": "PASS_SYNTHETIC"
+  },
+  "next_operation": "Feature PR95 is locally qualified. Human-approved main merge then native lock release. Next implementation AAK07 has separate upstream completion gate.",
+  "real_profile_migration": "NOT_RUN",
+  "registration_evidence": {
+    "task": "SM-036",
+    "aak_task": "AAK-05",
+    "issue": "https://github.com/masa-san-jp/self-model-notes/issues/93",
+    "base_commit": "a61460d4f9add36b256b2db9a860c53a98bd5fcd",
+    "branch": "agent/sm-036-aak-registration",
+    "state": "REGISTRATION_REVIEW_REQUIRED",
+    "claim": "NOT_RUN: task absent from trusted main queue",
+    "implementation": "NOT_RUN",
+    "acceptance": {
+      "AAK-05-AC1": "NOT_RUN",
+      "AAK-05-AC2": "NOT_RUN",
+      "AAK-05-AC3": "NOT_RUN",
+      "AAK-05-AC4": "NOT_RUN",
+      "AAK-05-AC5": "NOT_RUN"
+    },
+    "dependency_candidate": "83f7e9e8d1c6e25b39351aebb6eb15cb12da4685",
+    "dependency_contract": "instance-profile/v1",
+    "dependency_evidence": "https://github.com/masa-san-jp/agentic-art-orchestration/pull/201",
+    "observed_native_next": {
+      "exit_code": 3,
+      "reason": "no-selectable-task"
+    },
+    "observed_remote_locks": [],
+    "verification_commit": "784bc84898f96f7d43f0280197a7bf011e4c420d",
+    "remote_candidate": "3eae099917bffa7b816d5cac296b98f3c736a4bc",
+    "verified_tree": "387aecc654e7f032a0291b51b2010e2fef7651af",
+    "registration_checks": {
+      "queue_validate": "PASS",
+      "focused_queue_tests": "10 PASS",
+      "full_suite": "161 PASS, 19.971s",
+      "trusted_base_verify_pr": "FAIL TASK_NOT_FOUND"
+    },
+    "full_log_sha256": "ff4763e08a8f5a18b0e3704a7c98503af88f5ca8bc108ae9aa674a662e938d88",
+    "full_failure": "RESOLVED: exact 63-commit public Git history restored in an isolated checkout. Same candidate passes full suite; generated person artifacts were not changed. Prior shallow-history failure log 4f599f280f15e458f1065a04cd5cdd9d3233745c000705a270132df1be5acdea is superseded.",
+    "boundary": "AGENTS section 9 and trusted-base task_harness.py require pre-registered task and clean synchronized main for claim; task-set changes are rejected by verify-pr",
+    "next_operation": "Review registration into trusted main, then native validate/next/claim SM-036 using fresh main SHA. Keep merge as human gate.",
+    "real_profile_migration": "NOT_RUN"
+  },
+  "code_commit": "765b1a3833602c8d9740dd584211e4ae88795f3d",
+  "pull_request": "https://github.com/masa-san-jp/self-model-notes/pull/95",
+  "verification": {
+    "focused": "12 PASS, 20.137s",
+    "full_suite": "173 PASS, 49.369s",
+    "native_verify": "PASS: all 5 declared checks and path guard",
+    "parent_validator": "PASS; parent code unchanged",
+    "graph_check": "PASS",
+    "audit_check": "PASS; pre-existing soft findings retained",
+    "bundle_check": "PASS",
+    "generated_data_diff": "PASS: none",
+    "profile_repository": "BLOCKED_LEGACY_PROFILE: pre-existing 7 records retained, #82 migration not executed",
+    "synthetic_profile_graph": "regenerate and check PASS",
+    "log_sha256": "a73baffb740a455439e14570f8b19f007b293fb34525f23ce9808cb713923e0b",
+    "shared_exchange": "Actual parent artifact-record/v1 and knowledge-write-receipt/v1 validators PASS"
+  },
+  "integration": "NOT_RUN: AAK-02 actual six runs remain separate",
+  "synthetic_knowledge_evidence": {
+    "fixture": "synthetic only; no live agent or real profile",
+    "code_commit": "b833ad811cedddaf465943613a59f76ed2bb5ad5",
+    "first_receipt": {
+      "accepted_ids": [
+        "choice-one"
+      ],
+      "collection": "memory-a",
+      "contract_version": "knowledge-write-receipt/v1",
+      "operation_id": "op-one",
+      "owner": "self-model-notes",
+      "policy_version": "creative-feedback-policy/v1",
+      "rejected_ids": [],
+      "run_id": "run-one",
+      "schema_version": "creative-feedback/v1",
+      "target_parent": "40c7e80eb6cdb59b37cbcbd74fd84307fc89d2a5",
+      "target_commit": "ae232f3b370093f174c191ce201599cd6c63ef32",
+      "status": "NO_CHANGE",
+      "reason": "ALREADY_APPLIED",
+      "index_commit": "28730e33c4774b2e62e96e92d42bf79eb2be81e9",
+      "index_hash": "0f3e804962c451e4a78e8643d5eb5ea5fd850ba4ef00faa6b86040f6654ab3d5"
+    },
+    "second_receipt": {
+      "accepted_ids": [
+        "choice-two"
+      ],
+      "collection": "memory-a",
+      "contract_version": "knowledge-write-receipt/v1",
+      "operation_id": "op-two",
+      "owner": "self-model-notes",
+      "policy_version": "creative-feedback-policy/v1",
+      "rejected_ids": [],
+      "run_id": "run-two",
+      "schema_version": "creative-feedback/v1",
+      "target_parent": "ae232f3b370093f174c191ce201599cd6c63ef32",
+      "target_commit": "28730e33c4774b2e62e96e92d42bf79eb2be81e9",
+      "status": "NO_CHANGE",
+      "reason": "ALREADY_APPLIED",
+      "index_commit": "28730e33c4774b2e62e96e92d42bf79eb2be81e9",
+      "index_hash": "0f3e804962c451e4a78e8643d5eb5ea5fd850ba4ef00faa6b86040f6654ab3d5"
+    },
+    "input_record_sha256": "c7af0e947525a2b7e138f2838d9efe5e6d67e8c9f784741a475c69a54c6b214b",
+    "reopened_after_code_update": {
+      "code_commit": "9769e0505ef7ac8aa0d8b0ab5dbf1f62f1f6f0e2",
+      "signal_count": 2,
+      "result": "PASS; knowledge commits preserved across code update"
+    }
+  },
+  "sensitive_data": "No new real-person/raw/credential/projection data. Existing legacy profile untouched.",
+  "native_completion": {
+    "checks": [
+      "python3 tools/agent_runtime.py tools/task_harness.py verify-paths SM-036 --json \u2014 passed",
+      "python3 tools/agent_runtime.py tools/task_harness.py validate \u2014 passed",
+      "python3 tools/agent_runtime.py -m unittest tests.test_creative_feedback_memory -v \u2014 passed",
+      "python3 tools/agent_runtime.py -m unittest discover -s tests -p \"test_*.py\" \u2014 passed",
+      "python3 tools/agent_runtime.py tools/profile_root.py validate-repository --json \u2014 passed",
+      "git diff --check \u2014 passed"
+    ],
+    "commit": "6c2daf8c52a5f4f5c8dbb6592605d524f95d44fe",
+    "pr": 95,
+    "status": "done",
+    "task": "SM-036"
+  },
+  "completion_log_sha256": "c05352c3a6d996eb8fd9063fb5ee920244f53d6649d8dd379238c8b9607548b7",
+  "trusted_base_policy": {
+    "base": "68267f39d79b75d8a5ac64d5892b258b2588dc08",
+    "checks": [
+      {
+        "command": "python3 tools/agent_runtime.py tools/task_harness.py validate",
+        "exit_code": 0,
+        "status": "passed"
+      },
+      {
+        "command": "python3 tools/agent_runtime.py -m unittest tests.test_creative_feedback_memory -v",
+        "exit_code": 0,
+        "status": "passed"
+      },
+      {
+        "command": "python3 tools/agent_runtime.py -m unittest discover -s tests -p \"test_*.py\"",
+        "exit_code": 0,
+        "status": "passed"
+      },
+      {
+        "command": "python3 tools/agent_runtime.py tools/profile_root.py validate-repository --json",
+        "exit_code": 0,
+        "status": "passed"
+      },
+      {
+        "command": "git diff --check",
+        "exit_code": 0,
+        "status": "passed"
+      }
+    ],
+    "head": "765b1a3833602c8d9740dd584211e4ae88795f3d",
+    "paths": [
+      "AGENTS.md",
+      "README.md",
+      "docs/creative-feedback-memory.md",
+      "docs/schema.md",
+      "execution/aak-05-state.json",
+      "execution/tasks.yaml",
+      "schemas/creative-feedback-v1.schema.json",
+      "tests/test_creative_feedback_memory.py",
+      "tools/creative_feedback.py",
+      "tools/export_signals.py"
+    ],
+    "ref": "agent/sm-036-codex-aak05-20260907",
+    "status": "passed",
+    "task": "SM-036"
+  },
+  "policy_log_sha256": "5d05d66404466adadcd5e1beecf06f41c6444bb175499cfb57ab8c79061a16f0"
 }
