@@ -29,6 +29,8 @@ Source → Event → Claim → Pattern → Derived Self Model → Research Signa
 
 このリポジトリは、本人に関するSource・Event・Claim・Pattern・Derivedの正本です。兄弟リポジトリはそれぞれ別の知識領域または実行段階を担当し、このリポジトリの`entities/`を直接の正本として共有・編集しません。リポジトリ間で渡すのは、目的と同意を確認したprivacy-safeなnormalized signalまたはresearch handoffです。
 
+Agentic Art全体の8リポジトリの関係図と、各repoの正本・受け渡し・公開境界は、親repoの [repository map](https://github.com/masa-san-jp/agentic-art-orchestration/blob/main/docs/repository-map.md) にまとめています。ここではSelf Modelのデータ境界だけを詳しく説明します。
+
 | リポジトリ | 担当 | このリポジトリとの関係 |
 | --- | --- | --- |
 | [self-model-notes](https://github.com/masa-san-jp/self-model-notes) | 本人に関するEvidence-traceable Self Model | このリポジトリ自身。個人データとその根拠の正本を持つ |
@@ -37,6 +39,8 @@ Source → Event → Claim → Pattern → Derived Self Model → Research Signa
 | [agentic-art-research](https://github.com/masa-san-jp/agentic-art-research) | 複数signalを束ね、根拠付きresearch brief/traceを作るruntime | このリポジトリの`research_signals`を、他の上流signalとともに読む下流 |
 | [agentic-art-production](https://github.com/masa-san-jp/agentic-art-production) | 制作プロトコル、handoff、再開可能な実行・release gate | 検証済みのresearch handoffの先にある制作実行側。Self Modelの正本ではない |
 | [agentic-art-orchestration](https://github.com/masa-san-jp/agentic-art-orchestration) | 複数リポジトリのpin・gate・目的E2Eを調整する親側 | このリポジトリを含む各システムを横断して組み合わせるが、個人データの正本ではない |
+| [viewer-response-notes](https://github.com/masa-san-jp/viewer-response-notes) | 鑑賞者反応の集計と保守的なassessment | 本repoの個人データを受け取らず、別系統のfeedback signalをResearchへ渡す |
+| [agentic-art-project](https://github.com/masa-san-jp/agentic-art-project) | 公開制作プラン、作品、制作記録のカタログ | Self Modelの本文やraw dataを受け取らない。公開カタログへの投影はOrchestrationが境界検査後に行う |
 
 主な受け渡しは次の通りです。orchestrationはデータの所有者ではなく、各リポジトリの入力・検証・E2Eを調整します。
 
