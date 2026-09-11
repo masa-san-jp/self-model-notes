@@ -1,0 +1,35 @@
+{
+  "contract_version": "ap-04-self-model-verification/v1",
+  "task": "AP-04-SELF-MODEL",
+  "owner_issue": "https://github.com/masa-san-jp/self-model-notes/issues/93",
+  "owner_repository": "masa-san-jp/self-model-notes",
+  "manifest_observed_commit": "a61460d4f9add36b256b2db9a860c53a98bd5fcd",
+  "owner_source_commit": "351adf30e489b9bc148494bbb3a3677d7df1de19",
+  "owner_code_candidate": "351adf30e489b9bc148494bbb3a3677d7df1de19",
+  "owner_branch": "agent/ap04-self-model-20260912",
+  "draft_pull_request": "https://github.com/masa-san-jp/self-model-notes/pull/99",
+  "change_decision": "NO_CODE_DELTA_REQUIRED",
+  "reason": "Qualified Self Model main already contains the AAK-05 creative-feedback/v1 owner schema, consent revalidation, creator-scoped external knowledge store, profile-root separation, export filtering and native SM-036 verification. This record preserves the AP-04 owner boundary without copying personal or raw profile data.",
+  "acceptance": {
+    "knowledge_schema_and_creator_scope": {"status": "PASS", "evidence": "docs/creative-feedback-memory.md, schemas/creative-feedback-v1.schema.json and tests.test_creative_feedback_memory"},
+    "consent_and_export_boundary": {"status": "PASS", "evidence": "tools/creative_feedback.py, tools/export_signals.py and synthetic AAK-05 AC2/AC3/AC5 tests"},
+    "profile_root_and_migration_gate": {"status": "PASS", "evidence": "config/profile-root-schema.yaml, tools/profile_root.py and pre-existing BLOCKED_LEGACY_PROFILE status; real migration remains gated by Issue #82"},
+    "development_git_boundary": {"status": "PASS", "evidence": "AGENTS.md native task harness, clean main and read-only owner verification"},
+    "parent_ownership_boundary": {"status": "PASS", "evidence": "No personal entity, raw voice, profile, credential or knowledge payload was copied to the parent"}
+  },
+  "checks": {
+    "native_harness_validate": "PASS",
+    "native_next": "EXPECTED_EMPTY: no-selectable-task",
+    "owner_focused_suite": "PASS: 12 tests",
+    "owner_full_suite": "PASS: 173 tests",
+    "synthetic_profile_graph": "PASS: 7 entities",
+    "synthetic_profile_audit": "PASS: soft review findings retained",
+    "synthetic_profile_bundle": "PASS: 1 subject bundle",
+    "owner_diff": "PASS"
+  },
+  "integration": {"parent_record": "PENDING", "child_default_branch": "UNCHANGED", "real_profile_migration": "NOT_RUN", "merge": "NOT_RUN", "release": "NOT_RUN", "external_publication": "NOT_RUN"},
+  "privacy": {"raw_conversation_stored": false, "credentials_stored": false, "private_raw_stored": false, "restricted_stored": false},
+  "external_artifacts": "NOT_CREATED",
+  "feedback": {"explicit": "all issuesを解決して完了させること", "inferred": "none"},
+  "next_task": "AP-04-VIEWER"
+}
