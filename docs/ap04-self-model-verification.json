@@ -7,6 +7,7 @@
   "owner_source_commit": "351adf30e489b9bc148494bbb3a3677d7df1de19",
   "owner_code_candidate": "351adf30e489b9bc148494bbb3a3677d7df1de19",
   "owner_branch": "agent/ap04-self-model-20260912",
+  "draft_pull_request": "https://github.com/masa-san-jp/self-model-notes/pull/99",
   "change_decision": "NO_CODE_DELTA_REQUIRED",
   "reason": "Qualified Self Model main already contains the AAK-05 creative-feedback/v1 owner schema, consent revalidation, creator-scoped external knowledge store, profile-root separation, export filtering and native SM-036 verification. This record preserves the AP-04 owner boundary without copying personal or raw profile data.",
   "acceptance": {
