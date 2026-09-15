@@ -64,7 +64,7 @@ def _render_observation(observation: dict[str, Any]) -> list[str]:
         f"- Actions: {_display(observation['actions'])}",
         f"- Immediate outcomes: {_display(observation['immediate_outcomes'])}",
         f"- Delayed outcomes: {_display(observation['delayed_outcomes'])}",
-        f"- Context: domains={_display(context['domains'])}; social={_display(context['social'])}; uncertainty={_display(context['uncertainty'])}; control={_display(context['control'])}",
+        f"- Context: domains={_display(context.get('domains'))}; social={_display(context.get('social'))}; uncertainty={_display(context.get('uncertainty'))}; control={_display(context.get('control'))}",
         f"- Source refs: {_refs(observation['source_refs'])}",
         "",
     ]

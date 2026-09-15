@@ -78,6 +78,11 @@ git diff --exit-code -- data/ overviews/coverage.md
 
 タスク固有の`checks`があれば追加で実行する。失敗した検証を削除・skipして通したことにしない。
 
+`entities/`配下の実entity（`README.md`を除く）と`data/`、`overviews/coverage.md`はローカル
+専用で`.gitignore`によりtrackされない。上記コマンドはローカルで実行する分には変わらず機能する
+が、CIはこれらの個人データを持たないため合成fixtureだけで harness の正しさを検証する。詳細は
+[docs/operations.md](docs/operations.md#ローカル専用データ)を参照。
+
 ## 7. 同時実行
 
 - 同じ`allowed_paths`を持つタスクは並列実行しない。

@@ -142,6 +142,20 @@ data/              決定論的な生成snapshot
 overviews/         coverageなどの生成文書
 ```
 
+### 個人データはローカル専用
+
+このリポジトリ自体はPublicな、誰でも使えるagent harnessとして公開している。`entities/`配下の
+実際のMarkdown（`entities/*/README.md`を除く）と、そこから生成される`data/`、
+`overviews/coverage.md`は`.gitignore`でtrackしない。作家固有のSelf Model（本人のSource・
+Event・Claim等）は各自のローカルcloneにだけ蓄積し、公開履歴には残さない。
+
+- schema、tools、tests、docs、CIはPublicで、誰でもforkしてそのまま自分用のharnessとして使える。
+- CIは合成fixture（`tests/fixtures/**`）だけを使ってharnessの正しさを検証し、個人データの鮮度は
+  検証しない。
+- ローカルでのentity追加・検証・生成物更新のコマンドは変わらない（後述）。
+
+詳細は[docs/operations.md](docs/operations.md#ローカル専用データ)を参照。
+
 ## 現在の状態
 
 自律task harnessと、仮想環境を自動選択するruntime entrypointは`main`にあります。登録済みtaskの実行可能性は、次のコマンドの結果を正本とします。

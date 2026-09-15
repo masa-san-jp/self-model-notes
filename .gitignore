@@ -6,3 +6,23 @@ dist/
 build/
 *.egg-info/
 
+# Personal self-model data stays local to each clone. This repository is
+# published as a reusable agent harness only; entity content (Subject,
+# Source, Event, Claim, Pattern, Measurement records) and everything
+# generated from it never leaves the local working copy. See
+# docs/operations.md for the local-only workflow.
+entities/subjects/*.md
+!entities/subjects/README.md
+entities/sources/*.md
+!entities/sources/README.md
+entities/events/*.md
+!entities/events/README.md
+entities/claims/*.md
+!entities/claims/README.md
+entities/patterns/*.md
+!entities/patterns/README.md
+entities/measurements/*.md
+!entities/measurements/README.md
+data/
+overviews/coverage.md
+

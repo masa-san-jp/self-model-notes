@@ -3,7 +3,7 @@ import unittest
 from pathlib import Path
 
 from tools.build_graph import build, build_coverage, coverage_markdown, stale_generated_files
-from tools.kb import ROOT, discover_entities
+from tools.kb import ROOT
 
 
 PLURAL_PATHS = {
@@ -118,9 +118,7 @@ class BuildGraphTests(unittest.TestCase):
             path.write_text("new\n", encoding="utf-8")
             self.assertEqual(stale_generated_files({path: "new\n"}), [])
 
-    def test_real_unobserved_event_slots_are_null_and_not_confirmed_empty(self):
-        entities = discover_entities()
-        event = next(entity for entity in entities if entity.id == "event/watching-a-struggle-20260813")
+    def test_unobserved_event_slots_are_null_and_not_confirmed_empty(self):
         unobserved_fields = (
             "appraisal",
             "emotion",
@@ -129,6 +127,14 @@ class BuildGraphTests(unittest.TestCase):
             "immediate_outcome",
             "delayed_outcome",
         )
+        subject = make_entity("subject", "example")
+        event = make_entity(
+            "event",
+            "unobserved-fields",
+            subject="subject/example",
+            **{field: None for field in unobserved_fields},
+        )
+        entities = [subject, event]
 
         for field in unobserved_fields:
             with self.subTest(field=field):

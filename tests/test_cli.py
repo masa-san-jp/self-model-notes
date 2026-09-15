@@ -1,4 +1,5 @@
 import json
+import re
 import subprocess
 import sys
 import unittest
@@ -33,6 +34,8 @@ class CLITests(unittest.TestCase):
                 self.assertIn("usage:", result.stdout.lower())
 
     def test_validation_and_audit_commands_are_executable(self):
+        # data/ is gitignored (local-only); build once so --check has a baseline to compare.
+        self.assertEqual(self.run_cli("tools/build_graph.py").returncode, 0)
         graph = self.run_cli("tools/build_graph.py", "--check")
         audit = self.run_cli("tools/audit.py", "--dry-run")
 
@@ -46,6 +49,8 @@ class CLITests(unittest.TestCase):
         )
 
     def test_audit_check_accepts_current_artifact(self):
+        # data/ is gitignored (local-only); build once so --check has a baseline to compare.
+        self.assertEqual(self.run_cli("tools/audit.py").returncode, 0)
         result = self.run_cli("tools/audit.py", "--check")
 
         self.assertEqual(result.returncode, 0, result.stderr)
@@ -75,7 +80,12 @@ class CLITests(unittest.TestCase):
         self.assertNotEqual(export.returncode, 0)
         self.assertIn("Export denied", export.stderr)
 
-    def test_tracked_self_model_and_bundle_checks_are_current(self):
+    def test_local_self_model_and_bundle_checks_are_current(self):
+        # entities/ is gitignored and local-only (see docs/operations.md#ローカル専用データ).
+        # CI checks out zero personal entities, so this only exercises anything on a
+        # clone that has local self-model data.
+        if not (ROOT / "entities" / "subjects" / "masa.md").exists():
+            self.skipTest("no local personal entities present; entities/ is local-only")
         model = self.run_cli("tools/build_self_model.py", "--subject", "subject/masa", "--check")
         bundle = self.run_cli("tools/bundle.py", "--subject", "subject/masa", "--check")
         all_bundles = self.run_cli("tools/bundle.py", "--all", "--check")
@@ -90,13 +100,22 @@ class CLITests(unittest.TestCase):
         self.assertEqual(result.returncode, 2)
         self.assertIn("not allowed with argument", result.stderr)
 
-    def test_snapshot_source_commit_is_entity_commit_not_artifact_head(self):
-        snapshot = json.loads((ROOT / "data" / "self-models" / "subject" / "masa.json").read_text(encoding="utf-8"))
+    def test_snapshot_source_commit_reflects_local_or_git_provenance(self):
+        snapshot_path = ROOT / "data" / "self-models" / "subject" / "masa.json"
+        if not snapshot_path.exists():
+            self.skipTest("no local self-model snapshot present; entities/ is local-only")
+        snapshot = json.loads(snapshot_path.read_text(encoding="utf-8"))
         head = subprocess.run(
             ["git", "rev-parse", "HEAD"], cwd=ROOT, text=True, capture_output=True, check=True
         ).stdout.strip()
 
-        self.assertRegex(snapshot["source_commit"], r"^[0-9a-f]{40}$")
+        # entities/ is gitignored, so there is no git commit to point to; source_commit
+        # is a deterministic content digest instead (local-untracked:<sha256>).
+        self.assertTrue(
+            re.fullmatch(r"[0-9a-f]{40}", snapshot["source_commit"])
+            or snapshot["source_commit"].startswith("local-untracked:"),
+            snapshot["source_commit"],
+        )
         self.assertNotEqual(snapshot["source_commit"], head)
 
     def test_runbook_documents_non_destructive_recovery_and_collision_rules(self):

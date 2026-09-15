@@ -93,6 +93,11 @@ class EndToEndTests(unittest.TestCase):
         self.assertEqual(first_coverage, second_coverage)
         self.assertEqual(first_model, second_model)
         self.assertEqual(render_bundle(first_model), render_bundle(second_model))
+        # data/ is gitignored (local-only); build once so --check has a baseline to compare.
+        build_result = subprocess.run(
+            [sys.executable, "tools/build_graph.py"], cwd=ROOT, text=True, capture_output=True
+        )
+        self.assertEqual(build_result.returncode, 0, build_result.stderr)
         result = subprocess.run(
             [sys.executable, "tools/build_graph.py", "--check"],
             cwd=ROOT,

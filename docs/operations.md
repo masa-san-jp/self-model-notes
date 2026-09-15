@@ -133,3 +133,21 @@ E2E fixtureは実在の人物、直接識別情報、raw voice、credential、to
 - fixtureには直接識別情報、秘密、原文全文、実在人物固有の値を入れない。
 - exportは`obtained`、`revoked_at`、purpose、operation、expiryを全Sourceについて再確認する。
 - raw voice本文は既定でexportしない。参照が必要でも、同意範囲と目的を先に確認する。
+
+## ローカル専用データ
+
+このリポジトリはPublicなagent harnessである。`entities/subjects`、`entities/sources`、
+`entities/events`、`entities/claims`、`entities/patterns`、`entities/measurements`配下の
+実際のMarkdown（`README.md`を除く）と、そこから生成される`data/`、`overviews/coverage.md`は
+`.gitignore`でtrackされない。各利用者のローカルclone上にだけ蓄積する。
+
+- entityの追加・編集、`build_graph.py`/`audit.py`/`bundle.py`の実行は今まで通りローカルで行う。
+  ツール自体はGit追跡の有無を関知せず、ディスク上のファイルをそのまま読み書きする。
+- `.githooks/pre-commit`は引き続きローカルの`entities/`・`data/`に対して鮮度・構造を検証する。
+  commit前チェックとしての意味は変わらない。
+- CI（`.github/workflows/validate.yml`）はcheckout時点で実entityを一切持たないため、個人データの
+  鮮度確認は行わない。CIが検証するのは合成fixture（`tests/fixtures/**`）を使ったharness自体の
+  正しさだけである。
+- 個人データをcommitしてしまった場合は`git rm --cached`で追跡を止めるだけでなく、既存の公開履歴
+  にも残ることを踏まえてrepository ownerへ報告する。履歴の書き換え（force-push、pin済み
+  commitへの影響）はowner判断が必要で、実行エージェントが独断で行わない。

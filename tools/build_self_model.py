@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 from copy import deepcopy
+import hashlib
 import re
 import subprocess
 import sys
@@ -114,6 +115,42 @@ def dirty_entity_paths(
     return [Path(line[3:].strip()) for line in result.stdout.splitlines() if len(line) >= 4]
 
 
+def ignored_entity_paths(
+    entities: list[Entity], subject_id: str, root: Path = ROOT
+) -> list[Path]:
+    paths = entity_paths_for_subject(entities, subject_id, root)
+    if not paths:
+        return []
+    result = subprocess.run(
+        ["git", "check-ignore", "--", *_entity_path_args(paths)],
+        cwd=root,
+        text=True,
+        capture_output=True,
+    )
+    if result.returncode not in (0, 1):
+        raise SnapshotError("cannot inspect canonical entity gitignore status")
+    return [Path(line.strip()) for line in result.stdout.splitlines() if line.strip()]
+
+
+def local_entity_provenance(
+    entities: list[Entity], subject_id: str, root: Path = ROOT
+) -> str:
+    """Deterministic non-git provenance for entities that are gitignored (local-only).
+
+    Not a git commit: there is no commit to point to for untracked paths. This is a
+    content digest so repeated builds stay byte-identical and edits are still
+    detectable by --check, without pretending git-verified precision it cannot have.
+    """
+    paths = entity_paths_for_subject(entities, subject_id, root)
+    digest = hashlib.sha256()
+    for path in paths:
+        digest.update(str(path).encode("utf-8"))
+        digest.update(b"\0")
+        digest.update((root / path).read_bytes())
+        digest.update(b"\0")
+    return f"local-untracked:{digest.hexdigest()}"
+
+
 def latest_entity_commit(
     entities: list[Entity], subject_id: str, root: Path = ROOT
 ) -> str:
@@ -145,7 +182,10 @@ def build_current_model(
 ) -> dict[str, Any]:
     if not any(entity.id == subject_id and entity.type == "subject" for entity in entities):
         raise SnapshotError(f"Subject not found: {subject_id}")
-    source_commit = latest_entity_commit(entities, subject_id, root)
+    if ignored_entity_paths(entities, subject_id, root):
+        source_commit = local_entity_provenance(entities, subject_id, root)
+    else:
+        source_commit = latest_entity_commit(entities, subject_id, root)
     return build_model(entities, subject_id, source_commit=source_commit)
 
 

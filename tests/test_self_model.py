@@ -15,7 +15,7 @@ from tools.build_self_model import (
     stale_artifacts,
     write_model,
 )
-from tools.kb import Entity, discover_entities
+from tools.kb import Entity
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -276,8 +276,13 @@ class SelfModelTests(unittest.TestCase):
         self.assertEqual(observation["raw_voice_refs"], ["source/interview-001"])
         self.assertNotIn("synthetic voice", json.dumps(model, ensure_ascii=False))
 
-    def test_real_unknown_direction_does_not_fill_specialized_sections(self):
-        model = build_model(discover_entities(), "subject/masa", source_commit="abc123")
+    def test_unknown_direction_does_not_fill_specialized_sections(self):
+        entities = [
+            make_entity("subject", "example"),
+            make_entity("event", "example-001"),
+            make_entity("claim", "example-control"),
+        ]
+        model = build_model(entities, "subject/example", source_commit="abc123")
 
         self.assertEqual(model["dominant_triggers"], [])
         self.assertEqual(model["dominant_rewards"], [])
@@ -286,7 +291,7 @@ class SelfModelTests(unittest.TestCase):
         self.assertTrue(
             any(
                 item["kind"] == "motivation-direction-unresolved"
-                and item["entity_ref"] == "claim/proximity-drives-attention"
+                and item["entity_ref"] == "claim/example-control"
                 for item in model["unknowns"]
             )
         )
