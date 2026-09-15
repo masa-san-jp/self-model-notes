@@ -1,5 +1,5 @@
 {
-  "content_sha256": "1dca6ce8976eed353d977737158fbbe51e448fc6e268785b2891efb3d3a8a73e",
+  "content_sha256": "de90fd1a4bf01d498d8d21d175a5bce218ea80cb025d4d4e88168d1b8839d81f",
   "edges": [
     {
       "field": "subject",
@@ -33,6 +33,46 @@
     },
     {
       "field": "source_refs",
+      "from": "event/anger-trigger-20260913",
+      "to": "source/conversation-20260915"
+    },
+    {
+      "field": "subject",
+      "from": "event/anger-trigger-20260913",
+      "to": "subject/masa"
+    },
+    {
+      "field": "source_refs",
+      "from": "event/fatigue-stall-selfreport-20260915",
+      "to": "source/conversation-20260915"
+    },
+    {
+      "field": "subject",
+      "from": "event/fatigue-stall-selfreport-20260915",
+      "to": "subject/masa"
+    },
+    {
+      "field": "source_refs",
+      "from": "event/identity-mismatch-selfreport-20260915",
+      "to": "source/conversation-20260915"
+    },
+    {
+      "field": "subject",
+      "from": "event/identity-mismatch-selfreport-20260915",
+      "to": "subject/masa"
+    },
+    {
+      "field": "source_refs",
+      "from": "event/procrastination-selfreport-20260915",
+      "to": "source/conversation-20260915"
+    },
+    {
+      "field": "subject",
+      "from": "event/procrastination-selfreport-20260915",
+      "to": "subject/masa"
+    },
+    {
+      "field": "source_refs",
       "from": "event/watching-a-struggle-20260813",
       "to": "source/interview-20260813"
     },
@@ -44,6 +84,11 @@
     {
       "field": "subject",
       "from": "source/consent-20260813",
+      "to": "subject/masa"
+    },
+    {
+      "field": "subject",
+      "from": "source/conversation-20260915",
       "to": "subject/masa"
     },
     {
@@ -74,6 +119,26 @@
       "type": "claim"
     },
     {
+      "id": "event/anger-trigger-20260913",
+      "path": "entities/events/anger-trigger-20260913.md",
+      "type": "event"
+    },
+    {
+      "id": "event/fatigue-stall-selfreport-20260915",
+      "path": "entities/events/fatigue-stall-selfreport-20260915.md",
+      "type": "event"
+    },
+    {
+      "id": "event/identity-mismatch-selfreport-20260915",
+      "path": "entities/events/identity-mismatch-selfreport-20260915.md",
+      "type": "event"
+    },
+    {
+      "id": "event/procrastination-selfreport-20260915",
+      "path": "entities/events/procrastination-selfreport-20260915.md",
+      "type": "event"
+    },
+    {
       "id": "event/watching-a-struggle-20260813",
       "path": "entities/events/watching-a-struggle-20260813.md",
       "type": "event"
@@ -81,6 +146,11 @@
     {
       "id": "source/consent-20260813",
       "path": "entities/sources/consent-20260813.md",
+      "type": "source"
+    },
+    {
+      "id": "source/conversation-20260915",
+      "path": "entities/sources/conversation-20260915.md",
       "type": "source"
     },
     {
@@ -110,6 +180,26 @@
       "field": "supporting_evidence",
       "from": "event/watching-a-struggle-20260813",
       "to": "claim/proximity-drives-attention"
+    },
+    {
+      "field": "source_refs",
+      "from": "source/conversation-20260915",
+      "to": "event/anger-trigger-20260913"
+    },
+    {
+      "field": "source_refs",
+      "from": "source/conversation-20260915",
+      "to": "event/fatigue-stall-selfreport-20260915"
+    },
+    {
+      "field": "source_refs",
+      "from": "source/conversation-20260915",
+      "to": "event/identity-mismatch-selfreport-20260915"
+    },
+    {
+      "field": "source_refs",
+      "from": "source/conversation-20260915",
+      "to": "event/procrastination-selfreport-20260915"
     },
     {
       "field": "source_refs",
