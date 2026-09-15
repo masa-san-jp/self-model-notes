@@ -1,6 +1,8 @@
 import json
+import shutil
 import subprocess
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -16,6 +18,40 @@ class CLITests(unittest.TestCase):
             text=True,
             capture_output=True,
         )
+
+    def runnable_profile(self):
+        temporary = tempfile.TemporaryDirectory(prefix="cli-profile-test-")
+        root = Path(temporary.name) / "profile"
+        (root / "entities").mkdir(parents=True)
+        shutil.copytree(
+            ROOT / "tests" / "fixtures" / "e2e" / "entities",
+            root / "entities",
+            dirs_exist_ok=True,
+        )
+        (root / "profile.yaml").write_text(
+            "contract_version: self-model-profile/v1\n"
+            "profile_id: synthetic-cli\n"
+            "subject_ids: [subject/fixture]\n"
+            "storage_scope: external-local\n",
+            encoding="utf-8",
+        )
+        subprocess.run(["git", "init", "-q", "-b", "main"], cwd=root, check=True)
+        subprocess.run(["git", "add", "entities", "profile.yaml"], cwd=root, check=True)
+        subprocess.run(
+            [
+                "git",
+                "-c",
+                "user.name=synthetic-fixture",
+                "-c",
+                "user.email=synthetic-fixture@example.invalid",
+                "commit",
+                "-qm",
+                "synthetic profile",
+            ],
+            cwd=root,
+            check=True,
+        )
+        return temporary, root
 
     def test_operator_commands_expose_help(self):
         for script in (
@@ -34,7 +70,11 @@ class CLITests(unittest.TestCase):
                 self.assertIn("usage:", result.stdout.lower())
 
     def test_validation_and_audit_commands_are_executable(self):
-        graph = self.run_cli("tools/build_graph.py", "--check")
+        temporary, profile = self.runnable_profile()
+        self.addCleanup(temporary.cleanup)
+        built_graph = self.run_cli("tools/build_graph.py", "--profile-root", str(profile))
+        self.assertEqual(0, built_graph.returncode, built_graph.stderr)
+        graph = self.run_cli("tools/build_graph.py", "--check", "--profile-root", str(profile))
         audit = self.run_cli("tools/audit.py", "--dry-run")
 
         self.assertEqual(graph.returncode, 0, graph.stderr)
@@ -47,7 +87,11 @@ class CLITests(unittest.TestCase):
         )
 
     def test_audit_check_accepts_current_artifact(self):
-        result = self.run_cli("tools/audit.py", "--check")
+        temporary, profile = self.runnable_profile()
+        self.addCleanup(temporary.cleanup)
+        built = self.run_cli("tools/audit.py", "--profile-root", str(profile))
+        self.assertEqual(0, built.returncode, built.stderr)
+        result = self.run_cli("tools/audit.py", "--check", "--profile-root", str(profile))
 
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("data/audit.json is current", result.stdout)
@@ -77,9 +121,43 @@ class CLITests(unittest.TestCase):
         self.assertIn("PROFILE_ROOT_REQUIRED", export.stderr)
 
     def test_tracked_self_model_and_bundle_checks_are_current(self):
-        model = self.run_cli("tools/build_self_model.py", "--subject", "subject/masa", "--check")
-        bundle = self.run_cli("tools/bundle.py", "--subject", "subject/masa", "--check")
-        all_bundles = self.run_cli("tools/bundle.py", "--all", "--check")
+        temporary, profile = self.runnable_profile()
+        self.addCleanup(temporary.cleanup)
+        built_model = self.run_cli(
+            "tools/build_self_model.py",
+            "--subject",
+            "subject/fixture",
+            "--profile-root",
+            str(profile),
+        )
+        built_bundle = self.run_cli(
+            "tools/bundle.py",
+            "--subject",
+            "subject/fixture",
+            "--profile-root",
+            str(profile),
+        )
+        self.assertEqual(0, built_model.returncode, built_model.stderr)
+        self.assertEqual(0, built_bundle.returncode, built_bundle.stderr)
+        model = self.run_cli(
+            "tools/build_self_model.py",
+            "--subject",
+            "subject/fixture",
+            "--check",
+            "--profile-root",
+            str(profile),
+        )
+        bundle = self.run_cli(
+            "tools/bundle.py",
+            "--subject",
+            "subject/fixture",
+            "--check",
+            "--profile-root",
+            str(profile),
+        )
+        all_bundles = self.run_cli(
+            "tools/bundle.py", "--all", "--check", "--profile-root", str(profile)
+        )
 
         self.assertEqual(model.returncode, 0, model.stderr)
         self.assertEqual(bundle.returncode, 0, bundle.stderr)
@@ -92,7 +170,21 @@ class CLITests(unittest.TestCase):
         self.assertIn("not allowed with argument", result.stderr)
 
     def test_snapshot_source_commit_is_entity_commit_not_artifact_head(self):
-        snapshot = json.loads((ROOT / "data" / "self-models" / "subject" / "masa.json").read_text(encoding="utf-8"))
+        temporary, profile = self.runnable_profile()
+        self.addCleanup(temporary.cleanup)
+        result = self.run_cli(
+            "tools/build_self_model.py",
+            "--subject",
+            "subject/fixture",
+            "--profile-root",
+            str(profile),
+        )
+        self.assertEqual(0, result.returncode, result.stderr)
+        snapshot = json.loads(
+            (profile / "data" / "self-models" / "subject" / "fixture.json").read_text(
+                encoding="utf-8"
+            )
+        )
         head = subprocess.run(
             ["git", "rev-parse", "HEAD"], cwd=ROOT, text=True, capture_output=True, check=True
         ).stdout.strip()

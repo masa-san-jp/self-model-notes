@@ -79,7 +79,18 @@ jobs:
           python-version: "3.12"
       - run: python3 -m pip install -e .
       - name: Structural validation and generated-data freshness
-        run: python3 tools/agent_runtime.py tools/build_graph.py --check
+        run: |
+          profile_root="$RUNNER_TEMP/self-model-profile-structural"
+          mkdir -p "$profile_root"
+          cp -R tests/fixtures/e2e/entities "$profile_root/entities"
+          cat > "$profile_root/profile.yaml" <<'EOF'
+          contract_version: self-model-profile/v1
+          profile_id: synthetic-ci-structural
+          subject_ids: [subject/fixture]
+          storage_scope: external-local
+          EOF
+          python3 tools/agent_runtime.py tools/build_graph.py --profile-root "$profile_root"
+          python3 tools/agent_runtime.py tools/build_graph.py --check --profile-root "$profile_root"
       - name: Tests
         run: python3 tools/agent_runtime.py -m unittest discover -s tests -p "test_*.py"
       - name: End-to-end anonymized fixture
@@ -87,10 +98,41 @@ jobs:
       - name: Soft audit
         run: python3 tools/agent_runtime.py tools/audit.py --dry-run
       - name: Audit artifact freshness
-        run: python3 tools/agent_runtime.py tools/audit.py --check
+        run: |
+          profile_root="$RUNNER_TEMP/self-model-profile-audit"
+          mkdir -p "$profile_root"
+          cp -R tests/fixtures/e2e/entities "$profile_root/entities"
+          cat > "$profile_root/profile.yaml" <<'EOF'
+          contract_version: self-model-profile/v1
+          profile_id: synthetic-ci-audit
+          subject_ids: [subject/fixture]
+          storage_scope: external-local
+          EOF
+          python3 tools/agent_runtime.py tools/audit.py --profile-root "$profile_root"
+          python3 tools/agent_runtime.py tools/audit.py --check --profile-root "$profile_root"
       - name: Self Model artifact freshness
-        run: python3 tools/agent_runtime.py tools/bundle.py --all --check
+        run: |
+          profile_root="$RUNNER_TEMP/self-model-profile-audit"
+          python3 tools/agent_runtime.py tools/build_self_model.py --subject subject/fixture --profile-root "$profile_root"
+          python3 tools/agent_runtime.py tools/bundle.py --all --profile-root "$profile_root"
+          python3 tools/agent_runtime.py tools/bundle.py --all --check --profile-root "$profile_root"
       - name: Reproducible generated outputs
         run: |
-          python3 tools/agent_runtime.py tools/build_graph.py
-          git diff --exit-code -- data/ overviews/coverage.md
+          first="$RUNNER_TEMP/self-model-profile-first"
+          second="$RUNNER_TEMP/self-model-profile-second"
+          for profile_root in "$first" "$second"; do
+            mkdir -p "$profile_root"
+            cp -R tests/fixtures/e2e/entities "$profile_root/entities"
+            cat > "$profile_root/profile.yaml" <<'EOF'
+          contract_version: self-model-profile/v1
+          profile_id: synthetic-ci-repro
+          subject_ids: [subject/fixture]
+          storage_scope: external-local
+          EOF
+            python3 tools/agent_runtime.py tools/build_graph.py --profile-root "$profile_root"
+            python3 tools/agent_runtime.py tools/audit.py --profile-root "$profile_root"
+            python3 tools/agent_runtime.py tools/build_self_model.py --subject subject/fixture --profile-root "$profile_root"
+            python3 tools/agent_runtime.py tools/bundle.py --all --profile-root "$profile_root"
+          done
+          diff -r "$first/data" "$second/data"
+          diff -r "$first/overviews" "$second/overviews"
