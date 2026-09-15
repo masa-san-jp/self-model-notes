@@ -371,7 +371,6 @@ tasks:
           - ".venv/bin/python tools/build_graph.py --check — passed"
           - ".venv/bin/python tools/audit.py --dry-run — 3 soft review findings, no failure"
           - "git diff --check — passed"
-
   - id: SM-013
     title: Preserve unobserved Event fields as null
     phase: 7
@@ -1638,7 +1637,7 @@ tasks:
   - id: SM-037
     title: Human-approved n=1 profile migration and current-tree privacy cleanup
     phase: 10
-    status: in-progress
+    status: done
     depends_on: [SM-036]
     issue: https://github.com/masa-san-jp/self-model-notes/issues/82
     allowed_paths:
@@ -1677,13 +1676,15 @@ tasks:
       - New private/raw/direct-identifier content would enter GitHub, logs, fixtures, or evidence
       - A repository history rewrite, visibility change, public share, Drive upload, release, or force push is required
       - A path outside the listed current-tree files and approved external roots is required
-    claim:
-      actor: codex
-      base: 1423ba77cd1200c8c39c6b444efdbf23289f0d26
-      branch: agent/sm-037-codex-final
-      remote: origin
-      lock_ref: refs/heads/harness-lock/sm-037
-      claimed_at: '2026-09-15T03:51:57.219896000Z'
+    claim: null
 
 
-    evidence: []
+    evidence:
+      - pr: 104
+        commit: de10d4602610bef016f48dc4060df464f97fed51
+        checks:
+          - "python3 tools/agent_runtime.py tools/task_harness.py verify-paths SM-037 --json — passed"
+          - "python3 tools/agent_runtime.py tools/task_harness.py validate — passed"
+          - "python3 tools/agent_runtime.py tools/profile_root.py validate-repository --json — passed"
+          - "python3 tools/agent_runtime.py -m unittest discover -s tests -p \"test_*.py\" — passed"
+          - "git diff --check — passed"
