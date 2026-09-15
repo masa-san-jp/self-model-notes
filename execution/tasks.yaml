@@ -1638,13 +1638,19 @@ tasks:
   - id: SM-037
     title: Human-approved n=1 profile migration and current-tree privacy cleanup
     phase: 10
-    status: ready
+    status: in-progress
     depends_on: [SM-036]
     issue: https://github.com/masa-san-jp/self-model-notes/issues/82
     allowed_paths:
       - entities/**
       - data/**
       - overviews/**
+      - .github/workflows/validate.yml
+      - tests/test_bootstrap.py
+      - tests/test_build_graph.py
+      - tests/test_cli.py
+      - tests/test_e2e.py
+      - tests/test_self_model.py
       - execution/tasks.yaml
       - execution/sm-037-migration-evidence.json
     external_paths:
@@ -1671,6 +1677,13 @@ tasks:
       - New private/raw/direct-identifier content would enter GitHub, logs, fixtures, or evidence
       - A repository history rewrite, visibility change, public share, Drive upload, release, or force push is required
       - A path outside the listed current-tree files and approved external roots is required
-    claim: null
+    claim:
+      actor: codex
+      base: af687f8d67529fe06a15dd0fe31505a49f41ffe8
+      branch: agent/sm-037-codex
+      remote: origin
+      lock_ref: refs/heads/harness-lock/sm-037
+      claimed_at: '2026-09-15T03:51:57.219896000Z'
+
 
     evidence: []
