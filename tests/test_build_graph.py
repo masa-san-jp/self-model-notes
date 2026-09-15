@@ -118,9 +118,8 @@ class BuildGraphTests(unittest.TestCase):
             path.write_text("new\n", encoding="utf-8")
             self.assertEqual(stale_generated_files({path: "new\n"}), [])
 
-    def test_real_unobserved_event_slots_are_null_and_not_confirmed_empty(self):
-        entities = discover_entities()
-        event = next(entity for entity in entities if entity.id == "event/watching-a-struggle-20260813")
+    def test_synthetic_unobserved_event_slots_are_null_and_not_confirmed_empty(self):
+        event = make_entity("event", "unobserved")
         unobserved_fields = (
             "appraisal",
             "emotion",
@@ -129,6 +128,10 @@ class BuildGraphTests(unittest.TestCase):
             "immediate_outcome",
             "delayed_outcome",
         )
+
+        for field in unobserved_fields:
+            event.meta[field] = None
+        entities = [event]
 
         for field in unobserved_fields:
             with self.subTest(field=field):
