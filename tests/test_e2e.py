@@ -1,6 +1,8 @@
 import json
+import shutil
 import subprocess
 import sys
+import tempfile
 import unittest
 from dataclasses import replace
 from datetime import date
@@ -93,13 +95,30 @@ class EndToEndTests(unittest.TestCase):
         self.assertEqual(first_coverage, second_coverage)
         self.assertEqual(first_model, second_model)
         self.assertEqual(render_bundle(first_model), render_bundle(second_model))
-        result = subprocess.run(
-            [sys.executable, "tools/build_graph.py", "--check"],
-            cwd=ROOT,
-            text=True,
-            capture_output=True,
-        )
-        self.assertEqual(result.returncode, 0, result.stderr)
+        with tempfile.TemporaryDirectory(prefix="e2e-profile-") as directory:
+            profile = Path(directory)
+            shutil.copytree(FIXTURE_ROOT, profile / "entities")
+            (profile / "profile.yaml").write_text(
+                "contract_version: self-model-profile/v1\n"
+                "profile_id: synthetic-e2e-check\n"
+                "subject_ids: [subject/fixture]\n"
+                "storage_scope: external-local\n",
+                encoding="utf-8",
+            )
+            built = subprocess.run(
+                [sys.executable, "tools/build_graph.py", "--profile-root", str(profile)],
+                cwd=ROOT,
+                text=True,
+                capture_output=True,
+            )
+            self.assertEqual(built.returncode, 0, built.stderr)
+            result = subprocess.run(
+                [sys.executable, "tools/build_graph.py", "--check", "--profile-root", str(profile)],
+                cwd=ROOT,
+                text=True,
+                capture_output=True,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_fixture_has_no_direct_identifier_or_project_specific_key(self):
         text = "\n".join(path.read_text(encoding="utf-8") for path in FIXTURE_ROOT.glob("*/*.md"))

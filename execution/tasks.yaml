@@ -1645,6 +1645,12 @@ tasks:
       - entities/**
       - data/**
       - overviews/**
+      - .github/workflows/validate.yml
+      - tests/test_bootstrap.py
+      - tests/test_build_graph.py
+      - tests/test_cli.py
+      - tests/test_e2e.py
+      - tests/test_self_model.py
       - execution/tasks.yaml
       - execution/sm-037-migration-evidence.json
     external_paths:
