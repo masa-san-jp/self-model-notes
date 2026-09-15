@@ -1679,8 +1679,8 @@ tasks:
       - A path outside the listed current-tree files and approved external roots is required
     claim:
       actor: codex
-      base: af687f8d67529fe06a15dd0fe31505a49f41ffe8
-      branch: agent/sm-037-codex
+      base: 1423ba77cd1200c8c39c6b444efdbf23289f0d26
+      branch: agent/sm-037-codex-final
       remote: origin
       lock_ref: refs/heads/harness-lock/sm-037
       claimed_at: '2026-09-15T03:51:57.219896000Z'
