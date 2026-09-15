@@ -1634,3 +1634,43 @@ tasks:
           - "python3 tools/agent_runtime.py -m unittest discover -s tests -p \"test_*.py\" — passed"
           - "python3 tools/agent_runtime.py tools/profile_root.py validate-repository --json — passed"
           - "git diff --check — passed"
+
+  - id: SM-037
+    title: Human-approved n=1 profile migration and current-tree privacy cleanup
+    phase: 10
+    status: ready
+    depends_on: [SM-036]
+    issue: https://github.com/masa-san-jp/self-model-notes/issues/82
+    allowed_paths:
+      - entities/**
+      - data/**
+      - overviews/**
+      - execution/tasks.yaml
+      - execution/sm-037-migration-evidence.json
+    external_paths:
+      - profile.yaml
+      - entities/**
+      - data/**
+      - overviews/**
+      - local-approval-artifacts/**
+    acceptance:
+      - Human-approved destination, consent scope, and retention decision are captured in local approval metadata without exposing the absolute destination or personal content to GitHub.
+      - Migration plan and apply manifest have the same relative file set, count, and SHA-256; the source remains unchanged until copy verification passes.
+      - The new external-local profile root is normal, private, outside the repository and worktrees, and its canonical records and generated outputs pass the owner validators.
+      - Graph, self-model, bundle, and signal results preserve canonical semantics and consent denials across source, recovery copy, and destination.
+      - Repository current tree retains only README/template/synthetic entity content; tracked personal entities and personal-derived data/overviews are removed through a normal Git diff.
+      - No schema, provenance, consent meaning, repository history, visibility, public share, Drive upload, or force push is changed.
+    checks:
+      - python3 tools/agent_runtime.py tools/task_harness.py validate
+      - python3 tools/agent_runtime.py tools/profile_root.py validate-repository --json
+      - python3 tools/agent_runtime.py -m unittest discover -s tests -p "test_*.py"
+      - git diff --check
+    stop_if:
+      - Approved destination, consent scope, retention decision, or explicit approval is missing or changes during execution
+      - Source and destination hashes diverge, destination is nonempty/unsafe, or a partial copy cannot be isolated
+      - New private/raw/direct-identifier content would enter GitHub, logs, fixtures, or evidence
+      - A repository history rewrite, visibility change, public share, Drive upload, release, or force push is required
+      - A path outside the listed current-tree files and approved external roots is required
+    claim: null
+
+    evidence: []
