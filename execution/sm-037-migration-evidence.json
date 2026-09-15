@@ -1,0 +1,52 @@
+{
+  "task_id": "SM-037",
+  "issue": "https://github.com/masa-san-jp/self-model-notes/issues/82",
+  "status": "VERIFIED",
+  "source": {
+    "repository": "self-model-notes",
+    "commit_before_tree_cleanup": "692e4df772896edfaed09abbb5260891775b16c2",
+    "canonical_file_count": 14,
+    "canonical_manifest_sha256": "8cce22d4a32d4eac35849c0585b9dfb18114fe5cb862314c6532356a63dc088b"
+  },
+  "destination": {
+    "contract_version": "self-model-profile-migration/v1",
+    "opaque_profile_id": "private-profile-001",
+    "canonical_file_count": 14,
+    "canonical_manifest_sha256": "8cce22d4a32d4eac35849c0585b9dfb18114fe5cb862314c6532356a63dc088b",
+    "plan_sha256": "76aee070a8d8cb4728e108483c0117cf420cec0a6596372d6e5ed875847f2405",
+    "recovery_copy_verified": true
+  },
+  "acceptance": {
+    "approval_metadata_local_only": true,
+    "source_unchanged_before_copy_verification": true,
+    "graph_model_bundle_signal_semantics_equal": true,
+    "consent_scope_expanded": false,
+    "signal_export_allowed": false,
+    "repository_legacy_record_count_after_cleanup": 0,
+    "repository_personal_generated_file_count_after_cleanup": 0,
+    "schema_provenance_consent_unchanged": true,
+    "history_rewrite": false,
+    "visibility_change": false,
+    "public_share": false,
+    "drive_upload": false,
+    "force_push": false
+  },
+  "checks": {
+    "migration_plan_apply_manifest_match": "PASS",
+    "external_profile_build_graph": "PASS",
+    "external_profile_build_self_model": "PASS",
+    "external_profile_bundle": "PASS",
+    "external_profile_audit": "PASS",
+    "sanitized_signal_consent_gate": "PASS: denied without payload output",
+    "source_backup_hash": "PASS",
+    "source_privacy_scan": "PENDING_AFTER_TREE_CLEANUP",
+    "owner_full_suite": "PASS: 173 tests",
+    "git_diff_check": "PENDING_AFTER_TREE_CLEANUP"
+  },
+  "safety": {
+    "private_raw_in_repository_after_cleanup": false,
+    "direct_identifier_in_evidence": false,
+    "absolute_destination_in_evidence": false,
+    "external_artifact_policy": "create-only; opaque profile id only"
+  }
+}
