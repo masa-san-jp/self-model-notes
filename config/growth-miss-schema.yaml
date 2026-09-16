@@ -1,0 +1,39 @@
+contract_version: growth-miss/v1
+storage: "<profile-root>/data/misses.jsonl, one JSON object per line, append-only"
+required_fields:
+  - contract_version
+  - ts
+  - requester
+  - subject
+  - purpose
+  - section
+  - reason
+  - evidence_count
+allowed_fields:
+  - contract_version
+  - ts
+  - requester
+  - subject
+  - purpose
+  - section
+  - reason
+  - evidence_count
+section_values:
+  - seeks
+  - protects
+  - avoids
+  - tensions
+  - recurring_patterns
+  - contexts
+  - knowledge
+  - all
+reason_values:
+  - empty
+  - unknown
+  - denied
+notes: >
+  requester may be null. section "all" is used only with reason "denied".
+  No raw text, entity body, absolute path, or credential may appear in a
+  growth-miss line. See self-model-notes#108 for the generating tools
+  (export_signals.py, creative_feedback.py retrieve) and consumers
+  (tools/growth_tasks.py, SM-040).
