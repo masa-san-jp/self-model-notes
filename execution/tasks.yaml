@@ -1716,7 +1716,7 @@ tasks:
   - id: SM-039
     title: Record retrieval misses in the profile root
     phase: 10
-    status: ready
+    status: in-progress
     depends_on: [SM-038]
     issue: https://github.com/masa-san-jp/self-model-notes/issues/108
     allowed_paths:
@@ -1744,7 +1744,14 @@ tasks:
       - The research-signals-v1 output shape must change
       - Consent evaluation logic must change
       - A path outside the allowed_paths is required
-    claim: null
+    claim:
+      actor: claude-sonnet5
+      base: 6fcb2a5d4fe1aae98e1e0874917dc824908c1cb8
+      branch: agent/sm-039-claude-sonnet5
+      remote: origin
+      lock_ref: refs/heads/harness-lock/sm-039
+      claimed_at: '2026-09-16T10:05:32.754705000Z'
+
     evidence: []
 
   - id: SM-040
