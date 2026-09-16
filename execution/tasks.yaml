@@ -1805,7 +1805,7 @@ tasks:
   - id: SM-041
     title: Milestone report and operator docs for the growth queue
     phase: 10
-    status: ready
+    status: in-progress
     depends_on: [SM-040]
     issue: https://github.com/masa-san-jp/self-model-notes/issues/108
     allowed_paths:
@@ -1833,5 +1833,12 @@ tasks:
     stop_if:
       - Milestone judgment needs a threshold not already produced by an existing validator (confidence, promotion)
       - A path outside the allowed_paths is required
-    claim: null
+    claim:
+      actor: claude-sonnet5
+      base: 1669662b1978bf04f491a22e2a8fd7f99d470ac9
+      branch: agent/sm-041-claude-sonnet5
+      remote: origin
+      lock_ref: refs/heads/harness-lock/sm-041
+      claimed_at: '2026-09-16T13:06:49.912473000Z'
+
     evidence: []
