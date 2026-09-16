@@ -1716,7 +1716,7 @@ tasks:
   - id: SM-039
     title: Record retrieval misses in the profile root
     phase: 10
-    status: ready
+    status: done
     depends_on: [SM-038]
     issue: https://github.com/masa-san-jp/self-model-notes/issues/108
     allowed_paths:
@@ -1745,12 +1745,16 @@ tasks:
       - Consent evaluation logic must change
       - A path outside the allowed_paths is required
     claim: null
-    evidence: []
+    evidence:
+      - note: "Direct owner-directed implementation (not via task_harness claim); see PR for commit and CI evidence."
+        checks:
+          - "python3 tools/agent_runtime.py -m unittest tests.test_export_signals tests.test_creative_feedback_memory — 35 passed"
+          - "git diff --check — passed"
 
   - id: SM-040
     title: Generate growth tasks and run the local queue
     phase: 10
-    status: blocked
+    status: ready
     depends_on: [SM-039]
     issue: https://github.com/masa-san-jp/self-model-notes/issues/108
     allowed_paths:
@@ -1789,7 +1793,7 @@ tasks:
   - id: SM-041
     title: Milestone report and operator docs for the growth queue
     phase: 10
-    status: blocked
+    status: ready
     depends_on: [SM-040]
     issue: https://github.com/masa-san-jp/self-model-notes/issues/108
     allowed_paths:
