@@ -19,11 +19,11 @@ from pathlib import Path
 try:
     from .kb import ROOT, discover_entities, validate_entities
     from .profile_root import resolve_profile_root, validate_external_directory, atomic_write_text
-    from .export_signals import _consent_denials, _source_commit, build_signal_export, validate_signal_export
+    from .export_signals import _consent_denials, _source_commit, append_growth_miss, build_signal_export, validate_signal_export
 except ImportError:
     from kb import ROOT, discover_entities, validate_entities
     from profile_root import resolve_profile_root, validate_external_directory, atomic_write_text
-    from export_signals import _consent_denials, _source_commit, build_signal_export, validate_signal_export
+    from export_signals import _consent_denials, _source_commit, append_growth_miss, build_signal_export, validate_signal_export
 
 OWNER = 'self-model-notes'
 CONTRACT = 'creative-feedback/v1'
@@ -423,6 +423,7 @@ def main(argv=None):
     parser.add_argument('--snapshot')
     parser.add_argument('--query', default='')
     parser.add_argument('--purpose', default='artistic-research')
+    parser.add_argument('--requester', default=None, help='opaque run id recorded on growth-miss/v1 lines')
     args = parser.parse_args(argv)
     options = dict(creator=args.creator, subject=args.subject, collection=args.collection)
     try:
@@ -439,6 +440,17 @@ def main(argv=None):
             result = export_memory(args.store_root, args.profile_root, **options, purpose=args.purpose, snapshot=args.snapshot)
         elif args.command == 'retrieve':
             result = retrieve(args.store_root, args.profile_root, **options, purpose=args.purpose, snapshot=args.snapshot, query=args.query)
+            if not result.get('records'):
+                layout = resolve_profile_root(args.profile_root)
+                append_growth_miss(
+                    layout.data_root,
+                    requester=args.requester,
+                    subject=args.subject,
+                    purpose=args.purpose,
+                    section='knowledge',
+                    reason='empty',
+                    evidence_count=0,
+                )
         else:
             result = index(args.store_root, args.profile_root, **options, purpose=args.purpose, snapshot=args.snapshot)
         print(encoded(result).decode(), end='')
