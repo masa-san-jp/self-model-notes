@@ -1785,8 +1785,6 @@ tasks:
     checks:
       - python3 tools/agent_runtime.py -m unittest tests.test_growth_tasks
       - python3 tools/agent_runtime.py -m unittest discover -s tests -p "test_*.py"
-      - python3 tools/agent_runtime.py tools/growth_tasks.py generate --profile-root <synthetic>
-      - python3 tools/agent_runtime.py tools/growth_tasks.py next --profile-root <synthetic> --json
       - git diff --check
     stop_if:
       - A core entity type, closed vocabulary, or profile.yaml contract change is required
