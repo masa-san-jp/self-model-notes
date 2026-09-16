@@ -1688,3 +1688,134 @@ tasks:
           - "python3 tools/agent_runtime.py tools/profile_root.py validate-repository --json — passed"
           - "python3 tools/agent_runtime.py -m unittest discover -s tests -p \"test_*.py\" — passed"
           - "git diff --check — passed"
+
+  - id: SM-038
+    title: Register growth-queue task series
+    phase: 10
+    status: done
+    depends_on: [SM-037]
+    issue: https://github.com/masa-san-jp/self-model-notes/issues/108
+    allowed_paths:
+      - execution/tasks.yaml
+      - tests/test_execution_tasks.py
+    acceptance:
+      - SM-038 through SM-041 are registered with Issue #108 allowed_paths, external_paths, acceptance, checks, and stop_if
+      - SM-039 is the only next selectable task after SM-038 is done and SM-040/SM-041 remain dependency-gated
+      - Existing SM-001 through SM-037 content, status, dependencies, and evidence are unchanged
+    checks:
+      - python3 tools/agent_runtime.py tools/task_harness.py validate
+      - python3 tools/agent_runtime.py -m unittest tests.test_execution_tasks
+      - python3 tools/agent_runtime.py tools/task_harness.py next --json
+    stop_if:
+      - An existing SM-001 through SM-037 task must be changed to register this series
+      - A path outside execution/tasks.yaml or tests/test_execution_tasks.py is required
+    claim: null
+    evidence:
+      - note: "Queue registration is introduced by this change; the completion commit is recorded after the setup PR is created."
+
+  - id: SM-039
+    title: Record retrieval misses in the profile root
+    phase: 10
+    status: ready
+    depends_on: [SM-038]
+    issue: https://github.com/masa-san-jp/self-model-notes/issues/108
+    allowed_paths:
+      - tools/export_signals.py
+      - tools/creative_feedback.py
+      - config/growth-miss-schema.yaml
+      - tests/test_export_signals.py
+      - tests/test_creative_feedback_memory.py
+      - tests/fixtures/growth/**
+      - docs/operations.md
+      - execution/tasks.yaml
+    external_paths:
+      - data/misses.jsonl
+    acceptance:
+      - export_signals.py accepts an optional --requester opaque run id and appends one growth-miss/v1 line to <profile-root>/data/misses.jsonl per empty group on a successful export, or one line with reason denied (section all) when export is denied by consent
+      - creative_feedback.py retrieve accepts an optional --requester and appends one growth-miss/v1 line with section knowledge, reason empty when it returns zero records
+      - Appended lines validate against growth-miss/v1 and contain no raw text, entity body, absolute path, or credential
+      - No line is written when --profile-root is not given
+      - Two runs with identical input produce lines identical except for ts
+    checks:
+      - python3 tools/agent_runtime.py -m unittest tests.test_export_signals tests.test_creative_feedback_memory
+      - python3 tools/agent_runtime.py -m unittest discover -s tests -p "test_*.py"
+      - git diff --check
+    stop_if:
+      - The research-signals-v1 output shape must change
+      - Consent evaluation logic must change
+      - A path outside the allowed_paths is required
+    claim: null
+    evidence: []
+
+  - id: SM-040
+    title: Generate growth tasks and run the local queue
+    phase: 10
+    status: blocked
+    depends_on: [SM-039]
+    issue: https://github.com/masa-san-jp/self-model-notes/issues/108
+    allowed_paths:
+      - tools/growth_tasks.py
+      - config/growth-queue-schema.yaml
+      - config/question-bank.yaml
+      - tests/test_growth_tasks.py
+      - tests/fixtures/growth/**
+      - docs/investigation-task.md
+      - execution/tasks.yaml
+    external_paths:
+      - growth/queue.yaml
+      - data/misses.jsonl
+      - entities/**
+    acceptance:
+      - growth_tasks.py generate builds growth-queue/v1 from misses, audit findings, coverage, and the gap-to-task mapping in Issue #108, in order miss then audit then coverage then milestone, and is byte-identical across two runs on identical input
+      - Regeneration preserves the id and status of tasks whose gap_key still exists, drops ready tasks whose gap_key disappeared, and keeps in-progress and done tasks
+      - next/claim/complete use file-based CAS on queue.yaml (--expected-queue-sha256, QUEUE_CONFLICT on mismatch, QUEUE_BUSY on generate while a task is in-progress) with no git dependency
+      - complete verifies the per-kind conditions in Issue #108 for acquire-event (with and without target.slot), derive-claim, search-counterevidence, and refresh-claim before marking a task done
+      - question-bank.yaml questions contain none of the forbidden_tokens listed in Issue #108
+      - derive-claim, search-counterevidence, and refresh-claim tasks complete without any human-provided content
+      - Completing one acquire-event task against a synthetic profile makes the corresponding self-model/v2 section non-empty and removes the matching miss on the next generate
+    checks:
+      - python3 tools/agent_runtime.py -m unittest tests.test_growth_tasks
+      - python3 tools/agent_runtime.py -m unittest discover -s tests -p "test_*.py"
+      - python3 tools/agent_runtime.py tools/growth_tasks.py generate --profile-root <synthetic>
+      - python3 tools/agent_runtime.py tools/growth_tasks.py next --profile-root <synthetic> --json
+      - git diff --check
+    stop_if:
+      - A core entity type, closed vocabulary, or profile.yaml contract change is required
+      - A required question cannot be phrased without a forbidden token
+      - A path outside the allowed_paths is required
+    claim: null
+    evidence: []
+
+  - id: SM-041
+    title: Milestone report and operator docs for the growth queue
+    phase: 10
+    status: blocked
+    depends_on: [SM-040]
+    issue: https://github.com/masa-san-jp/self-model-notes/issues/108
+    allowed_paths:
+      - config/growth-milestones.yaml
+      - tools/growth_tasks.py
+      - tests/test_growth_tasks.py
+      - docs/investigation-task.md
+      - docs/operations.md
+      - README.md
+      - execution/tasks.yaml
+    external_paths:
+      - overviews/growth.md
+    acceptance:
+      - growth-milestones.yaml default thresholds (sections_supported, min_event_contexts >= 2, min_event_span_days >= 30) are defined and used only via existing Claim/Pattern status, not new confidence or promotion thresholds
+      - growth_tasks.py report renders overviews/growth.md per section satisfied/unsatisfied against the milestones and the next queued task
+      - README.md and docs/operations.md document starting a growth session (generate, next, claim, one task, complete) and the single-writer rule between a production run and a growth session
+      - profile_root.py validate-repository still passes; no personal record, queue, or misses file is added to the public repository
+      - Existing test suite, build_graph.py --check, audit.py --check, and bundle.py --all --check pass against a synthetic profile
+      - task_harness.py validate passes for SM-038 through SM-041 and next returns SM-039 once SM-038 is done
+    checks:
+      - python3 tools/agent_runtime.py -m unittest tests.test_growth_tasks
+      - python3 tools/agent_runtime.py -m unittest discover -s tests -p "test_*.py"
+      - python3 tools/agent_runtime.py tools/profile_root.py validate-repository --json
+      - git diff --check
+    stop_if:
+      - Milestone judgment needs a threshold not already produced by an existing validator (confidence, promotion)
+      - A path outside the allowed_paths is required
+    claim: null
+    evidence: []
