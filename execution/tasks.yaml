@@ -1805,7 +1805,7 @@ tasks:
   - id: SM-041
     title: Milestone report and operator docs for the growth queue
     phase: 10
-    status: ready
+    status: done
     depends_on: [SM-040]
     issue: https://github.com/masa-san-jp/self-model-notes/issues/108
     allowed_paths:
@@ -1834,4 +1834,14 @@ tasks:
       - Milestone judgment needs a threshold not already produced by an existing validator (confidence, promotion)
       - A path outside the allowed_paths is required
     claim: null
-    evidence: []
+
+    evidence:
+      - pr: 116
+        commit: fbecd65bf3c60e51902f53f17f64af86bf5a17ee
+        checks:
+          - "python3 tools/agent_runtime.py tools/task_harness.py verify-paths SM-041 --json — passed"
+          - "python3 tools/agent_runtime.py -m unittest tests.test_growth_tasks — passed"
+          - "python3 tools/agent_runtime.py -m unittest discover -s tests -p \"test_*.py\" — passed"
+          - "python3 tools/agent_runtime.py tools/profile_root.py validate-repository --json — passed"
+          - "git diff --check — passed"
+

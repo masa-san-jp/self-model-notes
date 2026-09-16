@@ -182,3 +182,21 @@ E2E fixtureは実在の人物、直接識別情報、raw voice、credential、to
 - raw text、entity本文、絶対path、credentialは記録しない。
 - この行は、後で育成session（SM-040の`tools/growth_tasks.py`）がgapからtaskを作る入力になる。miss記録自体は本人へ何も問い合わせない。
 - schema定義は[`config/growth-miss-schema.yaml`](../config/growth-miss-schema.yaml)。
+
+## 育成session（gap駆動のqueue、Issue #108）
+
+制作runとは独立した、本人の自己モデルを育てるためのsessionをいつでも開始できる。
+
+```bash
+python3 tools/agent_runtime.py tools/growth_tasks.py generate --profile-root <profile-root>
+python3 tools/agent_runtime.py tools/growth_tasks.py next --profile-root <profile-root> --json
+python3 tools/agent_runtime.py tools/growth_tasks.py claim <task-id> --actor <name> --profile-root <profile-root> --expected-queue-sha256 <sha>
+# ... task種別ごとに1件だけ作業する（entities/を編集する。acquire-eventだけが本人への1問を要する） ...
+python3 tools/agent_runtime.py tools/growth_tasks.py complete <task-id> --profile-root <profile-root> --expected-queue-sha256 <sha>
+python3 tools/agent_runtime.py tools/growth_tasks.py report --profile-root <profile-root>
+```
+
+- queue（`growth/queue.yaml`）とmiss log（`data/misses.jsonl`）は外部profile rootだけに存在する。公開repoのIssueには置かない。schemaは[`config/growth-queue-schema.yaml`](../config/growth-queue-schema.yaml)、閾値既定値は[`config/growth-milestones.yaml`](../config/growth-milestones.yaml)。
+- CASはqueueファイルのsha256で行い、gitを要求しない（実profile rootはGit worktreeではない）。`claim`/`complete`は`--expected-queue-sha256`が不一致だと`QUEUE_CONFLICT`で失敗し、queueを変更しない。
+- **単一書込の規律**：`generate`は、queueにin-progressのtaskが残っている間は`QUEUE_BUSY`で拒否する。制作runと育成sessionが同じprofile rootへ同時に書き込むことを想定しない——育成taskを1件claimしたら、completeするまで他の書込（制作runの`export_signals.py`実行を含む）と時間を分ける。
+- `report`は`overviews/growth.md`に、6節の充足有無・`min_event_contexts`・`min_event_span_days`・次のqueued taskを書き出す。

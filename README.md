@@ -191,6 +191,20 @@ python3 tools/agent_runtime.py tools/bundle.py --all --check --profile-root /abs
 
 exportは目的と操作の両方を明示し、Sourceの同意が1件でも不足していれば全体をdenyします。
 
+## 自己モデルを育てる（育成session、Issue #108）
+
+Self Modelの厚みは、art-history-notes / marketing-trends-notesと同じ「利用が残したgap→1件のtask」の構造で増やします。制作runとは独立していつでも開始できます。
+
+```bash
+python3 tools/agent_runtime.py tools/growth_tasks.py generate --profile-root /absolute/path/to/profile
+python3 tools/agent_runtime.py tools/growth_tasks.py next --profile-root /absolute/path/to/profile --json
+python3 tools/agent_runtime.py tools/growth_tasks.py claim <task-id> --actor <name> --profile-root /absolute/path/to/profile --expected-queue-sha256 <sha>
+python3 tools/agent_runtime.py tools/growth_tasks.py complete <task-id> --profile-root /absolute/path/to/profile --expected-queue-sha256 <sha>
+python3 tools/agent_runtime.py tools/growth_tasks.py report --profile-root /absolute/path/to/profile
+```
+
+gapの出所は検索ミス・audit指摘・coverage未観測・milestone未達の順。ほとんどのtask種別（`derive-claim`・`search-counterevidence`・`refresh-claim`）は既存entityだけで完了し、本人に聞くのは`acquire-event`（1問、schema語彙なし）だけです。queueとmiss logは外部profile rootだけに存在し、公開repoのIssueには置きません。詳細は[docs/operations.md](docs/operations.md)を参照してください。
+
 ## エージェントのtask実行
 
 Phase 10の実装taskは、`execution/tasks.yaml`を直接解釈・編集せず、次の順序でharnessを使います。
