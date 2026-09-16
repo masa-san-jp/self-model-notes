@@ -51,6 +51,7 @@ except ModuleNotFoundError:  # Imported as tools.growth_tasks by the test suite.
 
 QUEUE_CONTRACT = "growth-queue/v1"
 QUESTION_BANK_PATH = REPO_ROOT / "config" / "question-bank.yaml"
+MILESTONES_PATH = REPO_ROOT / "config" / "growth-milestones.yaml"
 STALE_CLAIM_DAYS = 180
 CHECK_TIMEOUT_SECONDS = 600
 
@@ -138,6 +139,22 @@ def load_question_bank() -> dict[str, dict[str, Any]]:
 def question_bank_forbidden_tokens() -> list[str]:
     data = load_yaml(QUESTION_BANK_PATH)
     return list(data.get("forbidden_tokens", []))
+
+
+# ---------------------------------------------------------------- milestones --
+
+
+def load_milestones() -> dict[str, Any]:
+    data = load_yaml(MILESTONES_PATH)
+    return data.get("milestones", {})
+
+
+def _min_event_contexts_threshold() -> int:
+    return int(load_milestones().get("min_event_contexts", {}).get("value", 2))
+
+
+def _min_event_span_days_threshold() -> int:
+    return int(load_milestones().get("min_event_span_days", {}).get("value", 30))
 
 
 # ------------------------------------------------------------------- gaps --
@@ -270,25 +287,72 @@ def _stale_claim_gaps(entities: list[Any], now: datetime) -> list[dict[str, Any]
     return gaps
 
 
-def _milestone_gaps(entities: list[Any]) -> list[dict[str, Any]]:
-    # SM-040 hardcodes only the sections_supported dimension: every
-    # self-model/v2 section needs one supported, counterevidence-checked
-    # record. min_event_contexts / min_event_span_days and a configurable
-    # config/growth-milestones.yaml are SM-041's scope (Issue #108).
-    gaps: list[dict[str, Any]] = []
+def sections_supported_status(entities: list[Any]) -> dict[str, bool]:
+    """Whether each self-model/v2 section has >=1 supported, counterevidence-checked record.
+
+    Judged entirely by the existing Claim/Pattern status and counterevidence
+    fields (docs/schema.md); no new confidence or promotion threshold.
+    """
     subjects = sorted({entity.id for entity in entities if entity.type == "subject"})
-    unmet_sections: set[str] = set()
+    satisfied = {section: False for section in MILESTONE_SECTIONS}
     for subject in subjects:
         model = build_model(entities, subject, source_commit="0" * 40)
         for section in MILESTONE_SECTIONS:
             records = model.get(section) or []
-            satisfied = any(
-                record.get("status") == "supported" and record.get("counterevidence_refs")
-                for record in records
-            )
-            if not satisfied:
-                unmet_sections.add(section)
-    for section in sorted(unmet_sections):
+            if any(record.get("status") == "supported" and record.get("counterevidence_refs") for record in records):
+                satisfied[section] = True
+    return satisfied
+
+
+def event_context_domain_count(entities: list[Any]) -> int:
+    domains: set[str] = set()
+    for entity in entities:
+        if entity.type != "event":
+            continue
+        context = entity.meta.get("context")
+        if isinstance(context, dict):
+            domains.update(value for value in context.get("domains", []) or [] if isinstance(value, str))
+    return len(domains)
+
+
+def event_span_days(entities: list[Any]) -> int | None:
+    times: list[datetime] = []
+    for entity in entities:
+        if entity.type != "event":
+            continue
+        time = entity.meta.get("time")
+        if not isinstance(time, dict):
+            continue
+        observed_at = time.get("observed_at")
+        parsed = None
+        if hasattr(observed_at, "isoformat") and not isinstance(observed_at, datetime):
+            parsed = datetime(observed_at.year, observed_at.month, observed_at.day, tzinfo=timezone.utc)
+        elif isinstance(observed_at, datetime):
+            parsed = observed_at if observed_at.tzinfo else observed_at.replace(tzinfo=timezone.utc)
+        elif isinstance(observed_at, str):
+            try:
+                parsed = datetime.fromisoformat(observed_at)
+                if parsed.tzinfo is None:
+                    parsed = parsed.replace(tzinfo=timezone.utc)
+            except ValueError:
+                parsed = None
+        if parsed is not None:
+            times.append(parsed)
+    if len(times) < 2:
+        return 0
+    return (max(times) - min(times)).days
+
+
+def _milestone_gaps(entities: list[Any]) -> list[dict[str, Any]]:
+    # Only sections_supported feeds task generation: it is the one dimension
+    # with a natural single-section acquire-event target. min_event_contexts
+    # and min_event_span_days are profile-wide, not section-scoped; they are
+    # surfaced in `report` (overviews/growth.md) rather than spawning a task
+    # of their own -- the CONTEXT_BIAS audit finding already covers the same
+    # ground with a concrete Event target.
+    gaps: list[dict[str, Any]] = []
+    satisfied = sections_supported_status(entities)
+    for section in sorted(section for section, ok in satisfied.items() if not ok):
         gaps.append(_gap(f"milestone:{section}", "acquire-event", _target(section=section), SECTION_QUESTION[section]))
     return gaps
 
@@ -622,6 +686,69 @@ def snapshot_before(profile_root: Path, task: dict[str, Any]) -> dict[str, Any]:
     return {}
 
 
+# ------------------------------------------------------------------ report --
+
+
+def growth_report_path(profile_root: Path) -> Path:
+    return Path(profile_root) / "overviews" / "growth.md"
+
+
+def build_growth_report(profile_root: Path) -> str:
+    layout = resolve_profile_root(profile_root)
+    entities = discover_entities(layout.entity_root)
+    satisfied = sections_supported_status(entities)
+    context_count = event_context_domain_count(entities)
+    span_days = event_span_days(entities)
+    context_threshold = _min_event_contexts_threshold()
+    span_threshold = _min_event_span_days_threshold()
+    next_result = next_task(profile_root)
+
+    lines = [
+        "# Growth",
+        "",
+        "<!-- generated by tools/growth_tasks.py report; do not edit -->",
+        "",
+        "## sections_supported",
+        "",
+        "| section | satisfied |",
+        "|---|---|",
+    ]
+    for section in MILESTONE_SECTIONS:
+        lines.append(f"| {section} | {'yes' if satisfied[section] else 'no'} |")
+    lines += [
+        "",
+        "## min_event_contexts",
+        "",
+        f"- observed domains: {context_count}",
+        f"- threshold: {context_threshold}",
+        f"- satisfied: {'yes' if context_count >= context_threshold else 'no'}",
+        "",
+        "## min_event_span_days",
+        "",
+        f"- observed span (days): {span_days if span_days is not None else 'unknown'}",
+        f"- threshold: {span_threshold}",
+        f"- satisfied: {'yes' if (span_days or 0) >= span_threshold else 'no'}",
+        "",
+        "## next queued task",
+        "",
+    ]
+    task = next_result.get("task")
+    if task is None:
+        lines.append("No ready growth task.")
+    else:
+        lines.append(f"- id: {task['id']}")
+        lines.append(f"- kind: {task['kind']}")
+        lines.append(f"- gap_key: {task['gap_key']}")
+    lines.append("")
+    return "\n".join(lines)
+
+
+def report(profile_root: Path) -> str:
+    content = build_growth_report(profile_root)
+    _atomic_write(growth_report_path(profile_root), content)
+    return content
+
+
 # --------------------------------------------------------------------- CLI --
 
 
@@ -648,6 +775,9 @@ def main() -> int:
     complete_parser.add_argument("task_id")
     complete_parser.add_argument("--expected-queue-sha256")
     complete_parser.add_argument("--json", action="store_true")
+
+    report_parser = sub.add_parser("report")
+    add_profile_root_argument(report_parser)
 
     args = parser.parse_args()
     if args.profile_root is None:
@@ -687,6 +817,10 @@ def main() -> int:
                 before_snapshot=before,
             )
             print(json.dumps(result, ensure_ascii=False, sort_keys=True))
+            return 0
+        if args.command == "report":
+            report(args.profile_root)
+            print(f"wrote {growth_report_path(args.profile_root).relative_to(Path(args.profile_root))}")
             return 0
     except GrowthTaskError as error:
         print(json.dumps({"error": {"code": error.code, "message": str(error)}}, ensure_ascii=False), file=sys.stderr)
