@@ -1759,7 +1759,7 @@ tasks:
   - id: SM-040
     title: Generate growth tasks and run the local queue
     phase: 10
-    status: ready
+    status: done
     depends_on: [SM-039]
     issue: https://github.com/masa-san-jp/self-model-notes/issues/108
     allowed_paths:
@@ -1791,7 +1791,16 @@ tasks:
       - A required question cannot be phrased without a forbidden token
       - A path outside the allowed_paths is required
     claim: null
-    evidence: []
+
+    evidence:
+      - pr: 115
+        commit: c0841aa4a9e9c5cd9586dc233ed68745a0bd3f85
+        checks:
+          - "python3 tools/agent_runtime.py tools/task_harness.py verify-paths SM-040 --json — passed"
+          - "python3 tools/agent_runtime.py -m unittest tests.test_growth_tasks — passed"
+          - "python3 tools/agent_runtime.py -m unittest discover -s tests -p \"test_*.py\" — passed"
+          - "git diff --check — passed"
+
 
   - id: SM-041
     title: Milestone report and operator docs for the growth queue

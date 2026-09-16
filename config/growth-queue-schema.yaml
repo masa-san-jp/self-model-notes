@@ -1,0 +1,41 @@
+contract_version: growth-queue/v1
+storage: "<profile-root>/growth/queue.yaml"
+top_level_fields:
+  - contract_version
+  - generated_from
+  - tasks
+generated_from_fields:
+  - misses_sha256
+  - audit_sha256
+  - coverage_sha256
+  - entities_sha256
+task_fields:
+  - id
+  - kind
+  - status
+  - gap_key
+  - target
+  - question
+  - question_id
+  - allowed_paths
+  - checks
+  - claim
+  - evidence
+kind_values:
+  - acquire-event
+  - derive-claim
+  - search-counterevidence
+  - refresh-claim
+status_values:
+  - ready
+  - in-progress
+  - done
+  - blocked
+notes: >
+  CAS is file-based (sha256 of the whole queue file), never git-based: the
+  external profile root is not required to be a Git worktree. claim and
+  complete require --expected-queue-sha256; a mismatch fails QUEUE_CONFLICT
+  without writing. generate fails QUEUE_BUSY while any task is in-progress.
+  Regeneration keeps in-progress and done tasks unconditionally and keeps a
+  ready task's id only while its gap_key still exists; a ready task whose
+  gap disappeared is dropped. See self-model-notes#108.
