@@ -1759,7 +1759,7 @@ tasks:
   - id: SM-040
     title: Generate growth tasks and run the local queue
     phase: 10
-    status: in-progress
+    status: done
     depends_on: [SM-039]
     issue: https://github.com/masa-san-jp/self-model-notes/issues/108
     allowed_paths:
@@ -1790,15 +1790,17 @@ tasks:
       - A core entity type, closed vocabulary, or profile.yaml contract change is required
       - A required question cannot be phrased without a forbidden token
       - A path outside the allowed_paths is required
-    claim:
-      actor: claude-sonnet5
-      base: 0eb93f8386e22bdc6631e74d688b28037ed2d546
-      branch: agent/sm-040-claude-sonnet5
-      remote: origin
-      lock_ref: refs/heads/harness-lock/sm-040
-      claimed_at: '2026-09-16T12:55:24.194504000Z'
+    claim: null
 
-    evidence: []
+    evidence:
+      - pr: 115
+        commit: c0841aa4a9e9c5cd9586dc233ed68745a0bd3f85
+        checks:
+          - "python3 tools/agent_runtime.py tools/task_harness.py verify-paths SM-040 --json — passed"
+          - "python3 tools/agent_runtime.py -m unittest tests.test_growth_tasks — passed"
+          - "python3 tools/agent_runtime.py -m unittest discover -s tests -p \"test_*.py\" — passed"
+          - "git diff --check — passed"
+
 
   - id: SM-041
     title: Milestone report and operator docs for the growth queue
