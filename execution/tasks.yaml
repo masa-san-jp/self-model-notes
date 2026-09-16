@@ -1759,7 +1759,7 @@ tasks:
   - id: SM-040
     title: Generate growth tasks and run the local queue
     phase: 10
-    status: ready
+    status: in-progress
     depends_on: [SM-039]
     issue: https://github.com/masa-san-jp/self-model-notes/issues/108
     allowed_paths:
@@ -1792,7 +1792,14 @@ tasks:
       - A core entity type, closed vocabulary, or profile.yaml contract change is required
       - A required question cannot be phrased without a forbidden token
       - A path outside the allowed_paths is required
-    claim: null
+    claim:
+      actor: claude-sonnet5
+      base: 1238aebf67b7d1cda959e5f6f9ddd86035e857c2
+      branch: agent/sm-040-claude-sonnet5
+      remote: origin
+      lock_ref: refs/heads/harness-lock/sm-040
+      claimed_at: '2026-09-16T10:44:27.489392000Z'
+
     evidence: []
 
   - id: SM-041
