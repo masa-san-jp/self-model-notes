@@ -1716,7 +1716,7 @@ tasks:
   - id: SM-039
     title: Record retrieval misses in the profile root
     phase: 10
-    status: ready
+    status: done
     depends_on: [SM-038]
     issue: https://github.com/masa-san-jp/self-model-notes/issues/108
     allowed_paths:
@@ -1745,7 +1745,16 @@ tasks:
       - Consent evaluation logic must change
       - A path outside the allowed_paths is required
     claim: null
-    evidence: []
+
+    evidence:
+      - pr: 111
+        commit: 2f812649c83a15d12c08d176e797d8928d035791
+        checks:
+          - "python3 tools/agent_runtime.py tools/task_harness.py verify-paths SM-039 --json — passed"
+          - "python3 tools/agent_runtime.py -m unittest tests.test_export_signals tests.test_creative_feedback_memory — passed"
+          - "python3 tools/agent_runtime.py -m unittest discover -s tests -p \"test_*.py\" — passed"
+          - "git diff --check — passed"
+
 
   - id: SM-040
     title: Generate growth tasks and run the local queue

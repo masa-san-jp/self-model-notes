@@ -173,3 +173,12 @@ E2E fixtureは実在の人物、直接識別情報、raw voice、credential、to
 - fixtureには直接識別情報、秘密、原文全文、実在人物固有の値を入れない。
 - exportは`obtained`、`revoked_at`、purpose、operation、expiryを全Sourceについて再確認する。
 - raw voice本文は既定でexportしない。参照が必要でも、同意範囲と目的を先に確認する。
+
+## 検索ミスの記録（growth-miss/v1、Issue #108）
+
+`tools/export_signals.py`と`tools/creative_feedback.py retrieve`は、`--profile-root`を渡した通常実行のたびに、要求されたgroupが空または全recordの確度がunknownだった場合、あるいはconsentで拒否された場合、`<profile-root>/data/misses.jsonl`へ`growth-miss/v1`の1行を追記する。任意の`--requester <opaque-run-id>`は、どの呼び出しが残したmissかを追える識別子で、省略時はnullになる。
+
+- runは止まらない。miss記録の失敗（書込不可等）はrunの結果に影響しない。
+- raw text、entity本文、絶対path、credentialは記録しない。
+- この行は、後で育成session（SM-040の`tools/growth_tasks.py`）がgapからtaskを作る入力になる。miss記録自体は本人へ何も問い合わせない。
+- schema定義は[`config/growth-miss-schema.yaml`](../config/growth-miss-schema.yaml)。

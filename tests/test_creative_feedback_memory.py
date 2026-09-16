@@ -239,6 +239,31 @@ class CreativeFeedbackMemoryTests(unittest.TestCase):
         output['signals'][0]['source_locator'] = 'self-model-knowledge://memory-a/not-a-commit/../raw'
         self.assertTrue(validate_signal_export(output))
 
+    def test_retrieve_records_growth_miss_when_store_is_empty(self):
+        misses_path = self.profile / 'data' / 'misses.jsonl'
+        self.assertFalse(misses_path.exists())
+
+        process = self.memory_cli('retrieve', '--requester', 'run-empty')
+        self.assertEqual(0, process.returncode, process.stdout + process.stderr)
+
+        lines = [json.loads(line) for line in misses_path.read_text(encoding='utf-8').splitlines() if line]
+        self.assertEqual(1, len(lines))
+        record = lines[0]
+        self.assertEqual(record['contract_version'], 'growth-miss/v1')
+        self.assertEqual(record['requester'], 'run-empty')
+        self.assertEqual(record['subject'], 'subject/fixture')
+        self.assertEqual(record['section'], 'knowledge')
+        self.assertEqual(record['reason'], 'empty')
+
+    def test_retrieve_records_no_miss_once_a_record_is_committed(self):
+        self.commit()
+        misses_path = self.profile / 'data' / 'misses.jsonl'
+
+        process = self.memory_cli('retrieve', '--requester', 'run-found')
+        self.assertEqual(0, process.returncode, process.stdout + process.stderr)
+
+        self.assertFalse(misses_path.exists())
+
 
 if __name__ == '__main__':
     unittest.main()

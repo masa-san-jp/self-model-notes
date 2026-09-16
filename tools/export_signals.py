@@ -4,6 +4,8 @@
 from __future__ import annotations
 
 import argparse
+import json
+import os
 import re
 import subprocess
 import sys
@@ -370,6 +372,59 @@ FIXED_SIGNAL_FIELDS = (
 )
 FIXED_CONSTRAINT = "Use only for artistic-research under approved-derived-only consent."
 
+# growth-miss/v1 (Issue #108): a machine-readable record of what a consuming run
+# asked for and did not get, so a growth session (SM-040) can turn it into a task
+# without ever prompting during this run. Append-only, no raw text or entity body.
+GROWTH_MISS_CONTRACT = "growth-miss/v1"
+# Sections traits/states exist in GROUP_FIELDS but are not part of the closed
+# self-model/v2 milestone sections (Issue #108); they are excluded from misses.
+GROWTH_MISS_SECTIONS = ("seeks", "protects", "avoids", "tensions", "recurring_patterns", "contexts")
+
+
+def append_growth_miss(
+    data_root: Path,
+    *,
+    requester: str | None,
+    subject: str,
+    purpose: str,
+    section: str,
+    reason: str,
+    evidence_count: int,
+) -> None:
+    """Append one growth-miss/v1 line. Never raises; a miss log failure must not fail a run."""
+    record = {
+        "contract_version": GROWTH_MISS_CONTRACT,
+        "ts": datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
+        "requester": requester,
+        "subject": subject,
+        "purpose": purpose,
+        "section": section,
+        "reason": reason,
+        "evidence_count": evidence_count,
+    }
+    line = json.dumps(record, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n"
+    try:
+        data_root.mkdir(parents=True, exist_ok=True)
+        fd = os.open(data_root / "misses.jsonl", os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o644)
+        try:
+            os.write(fd, line.encode("utf-8"))
+        finally:
+            os.close(fd)
+    except OSError:
+        pass
+
+
+def _group_misses(signals: list[dict[str, Any]]) -> dict[str, tuple[str, int]]:
+    """For each growth-miss section, return (reason, evidence_count) if it is a miss."""
+    misses: dict[str, tuple[str, int]] = {}
+    for group in GROWTH_MISS_SECTIONS:
+        contributing = [record for record in signals if record.get(group)]
+        if not contributing:
+            misses[group] = ("empty", 0)
+        elif all(record.get("certainty", {}).get("level") == "unknown" for record in contributing):
+            misses[group] = ("unknown", len(contributing))
+    return misses
+
 
 def _statements(groups: dict, field: str) -> list[str]:
     """境界は文字列の並びを受け取る。記録ごとの確度と出所は塊側に残す。"""
@@ -676,6 +731,7 @@ def main() -> int:
     parser.add_argument("--knowledge-store-root", type=Path, help="explicit creator-owned derived Git store")
     parser.add_argument("--creator", help="creator identity bound to the selected knowledge store")
     parser.add_argument("--collection", help="selected knowledge collection identity")
+    parser.add_argument("--requester", default=None, help="opaque run id recorded on growth-miss/v1 lines")
     add_profile_root_argument(parser)
     args = parser.parse_args()
     if args.limit < 0:
@@ -763,6 +819,15 @@ def main() -> int:
         denied = next((item for item in results if not item["allowed"]), None)
         result = denied if denied is not None else results[0]
     if not result["allowed"]:
+        append_growth_miss(
+            layout.data_root,
+            requester=args.requester,
+            subject=result.get("subject") or "unknown",
+            purpose=args.purpose,
+            section="all",
+            reason="denied",
+            evidence_count=0,
+        )
         print("Export denied", file=sys.stderr)
         print(canonical_json(result), file=sys.stderr, end="")
         return 1
@@ -771,6 +836,17 @@ def main() -> int:
     except ValueError as error:
         print(f"Export denied: {error}", file=sys.stderr)
         return 1
+    for item_result, item_payload in zip(results, payloads):
+        for section, (reason, count) in _group_misses(item_payload["signals"]).items():
+            append_growth_miss(
+                layout.data_root,
+                requester=args.requester,
+                subject=item_result["subject"],
+                purpose=args.purpose,
+                section=section,
+                reason=reason,
+                evidence_count=count,
+            )
     payload = payloads[0]
     payload["signals"] = [record for item in payloads for record in item["signals"]]
     if args.limit:

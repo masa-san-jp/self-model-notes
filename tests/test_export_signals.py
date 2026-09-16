@@ -1,5 +1,9 @@
 import copy
 import json
+import shutil
+import subprocess
+import sys
+import tempfile
 import unittest
 from datetime import date
 from pathlib import Path
@@ -7,6 +11,10 @@ from pathlib import Path
 from tests.test_consent import fixture_entities
 from tools.export_signals import (
     FIXED_SIGNAL_FIELDS,
+    GROWTH_MISS_CONTRACT,
+    GROWTH_MISS_SECTIONS,
+    _group_misses,
+    append_growth_miss,
     build_research_signals,
     build_signal_export,
     canonical_json,
@@ -17,6 +25,7 @@ from tools.export_signals import (
 
 
 SCHEMA_PATH = Path(__file__).resolve().parent / "contracts" / "research-signals-v1.schema.json"
+ROOT = Path(__file__).resolve().parents[1]
 
 
 class ExportSignalsContractTests(unittest.TestCase):
@@ -241,6 +250,123 @@ class ExportSignalsContractTests(unittest.TestCase):
         serialized = json.dumps(fixture, ensure_ascii=False)
         self.assertNotIn("raw_voice_refs", serialized)
         self.assertNotIn("gdrive://", serialized)
+
+
+class GrowthMissTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory(prefix="growth-miss-")
+        self.addCleanup(self.temp.cleanup)
+        self.profile = Path(self.temp.name).resolve() / "profile"
+        shutil.copytree(ROOT / "tests/fixtures/e2e/entities", self.profile / "entities")
+        (self.profile / "profile.yaml").write_text(
+            "contract_version: self-model-profile/v1\n"
+            "profile_id: synthetic-growth-miss\n"
+            "subject_ids: [subject/fixture]\n"
+            "storage_scope: external-local\n",
+            encoding="utf-8",
+        )
+
+    def misses_path(self):
+        return self.profile / "data" / "misses.jsonl"
+
+    def read_misses(self):
+        path = self.misses_path()
+        if not path.exists():
+            return []
+        return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line]
+
+    def cli(self, *args):
+        return subprocess.run(
+            [sys.executable, "tools/export_signals.py", *args],
+            cwd=ROOT,
+            text=True,
+            capture_output=True,
+        )
+
+    def test_group_misses_reports_empty_and_unknown(self):
+        signals = [
+            {"seeks": [], "protects": [], "avoids": ["x"], "tensions": [], "recurring_patterns": [],
+             "contexts": [], "certainty": {"level": "unknown"}},
+        ]
+        misses = _group_misses(signals)
+
+        self.assertEqual(misses["seeks"], ("empty", 0))
+        self.assertEqual(misses["avoids"], ("unknown", 1))
+        self.assertNotIn("traits", misses)
+        self.assertNotIn("states", misses)
+
+    def test_group_misses_absent_when_observed(self):
+        signals = [{"avoids": ["x"], "certainty": {"level": "inferred"}}]
+
+        misses = _group_misses(signals)
+
+        self.assertNotIn("avoids", misses)
+
+    def test_append_growth_miss_writes_one_jsonl_line(self):
+        append_growth_miss(
+            self.profile / "data",
+            requester="run-1",
+            subject="subject/fixture",
+            purpose="artistic-research",
+            section="avoids",
+            reason="empty",
+            evidence_count=0,
+        )
+
+        lines = self.read_misses()
+        self.assertEqual(1, len(lines))
+        record = lines[0]
+        self.assertEqual(record["contract_version"], GROWTH_MISS_CONTRACT)
+        self.assertEqual(record["requester"], "run-1")
+        self.assertEqual(record["section"], "avoids")
+        self.assertEqual(record["reason"], "empty")
+        self.assertEqual(record["evidence_count"], 0)
+        self.assertNotIn("synthetic", json.dumps(record, ensure_ascii=False))
+
+    def test_cli_appends_misses_on_successful_export(self):
+        result = self.cli(
+            "--profile-root", str(self.profile), "--purpose", "artistic-research",
+            "--requester", "run-a",
+        )
+        self.assertEqual(0, result.returncode, result.stderr)
+
+        lines = self.read_misses()
+        self.assertTrue(lines)
+        for record in lines:
+            self.assertEqual(record["requester"], "run-a")
+            self.assertEqual(record["subject"], "subject/fixture")
+            self.assertIn(record["section"], GROWTH_MISS_SECTIONS)
+            self.assertIn(record["reason"], ("empty", "unknown"))
+
+    def test_cli_two_runs_are_identical_except_timestamp(self):
+        self.cli("--profile-root", str(self.profile), "--purpose", "artistic-research", "--requester", "run-a")
+        first = self.read_misses()
+        self.cli("--profile-root", str(self.profile), "--purpose", "artistic-research", "--requester", "run-a")
+        second = self.read_misses()
+
+        self.assertEqual(len(first) * 2, len(second))
+        for before, after in zip(first, second[len(first):]):
+            self.assertEqual({k: v for k, v in before.items() if k != "ts"}, {k: v for k, v in after.items() if k != "ts"})
+
+    def test_cli_without_profile_root_writes_no_miss(self):
+        result = subprocess.run(
+            [sys.executable, "tools/export_signals.py", "--purpose", "artistic-research"],
+            cwd=ROOT,
+            text=True,
+            capture_output=True,
+        )
+        self.assertNotEqual(0, result.returncode)
+        self.assertFalse(self.misses_path().exists())
+
+    def test_cli_denied_export_records_denied_miss(self):
+        result = self.cli(
+            "--profile-root", str(self.profile), "--purpose", "clinical-diagnosis",
+            "--requester", "run-denied",
+        )
+        self.assertNotEqual(0, result.returncode)
+
+        lines = self.read_misses()
+        self.assertTrue(any(record["reason"] == "denied" and record["section"] == "all" for record in lines))
 
 
 if __name__ == "__main__":
