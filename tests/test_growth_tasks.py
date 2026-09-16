@@ -11,10 +11,16 @@ from tools.kb import Entity, serialize_markdown
 from tools.growth_tasks import (
     claim_growth_task,
     complete_growth_task,
+    event_context_domain_count,
+    event_span_days,
     generate,
+    growth_report_path,
+    load_milestones,
     next_task,
     question_bank_forbidden_tokens,
     queue_path,
+    report,
+    sections_supported_status,
     snapshot_before,
     load_question_bank,
     GrowthTaskError,
@@ -364,6 +370,71 @@ class MissDrivenTests(GrowthTasksTestCase):
         queue = generate(self.profile)
         avoid_tasks = [task for task in queue["tasks"] if task["target"].get("section") == "avoidance_targets"]
         self.assertTrue(avoid_tasks)
+
+
+class MilestoneConfigTests(unittest.TestCase):
+    def test_growth_milestones_config_defines_the_three_dimensions(self):
+        milestones = load_milestones()
+
+        self.assertIn("sections_supported", milestones)
+        self.assertNotIn("value", milestones["sections_supported"])
+        self.assertEqual(milestones["min_event_contexts"]["value"], 2)
+        self.assertEqual(milestones["min_event_span_days"]["value"], 30)
+
+
+class ReportTests(GrowthTasksTestCase):
+    def test_report_on_empty_profile_shows_all_sections_unsatisfied(self):
+        content = report(self.profile)
+        written = growth_report_path(self.profile).read_text(encoding="utf-8")
+
+        self.assertEqual(content, written)
+        self.assertIn("# Growth", content)
+        for section in (
+            "dominant_triggers", "dominant_rewards", "avoidance_targets",
+            "protective_factors", "context_dependencies", "tensions",
+        ):
+            self.assertIn(f"| {section} | no |", content)
+        self.assertIn("observed domains: 0", content)
+        self.assertIn("threshold: 2", content)
+        self.assertIn("No ready growth task.", content)
+
+    def test_event_context_and_span_helpers(self):
+        self.write(
+            make_entity(
+                "event", "e1", subject="subject/fixture", source_refs=[],
+                time={"observed_at": "2026-01-01T00:00:00+09:00", "precision": "day"},
+                context={"domains": ["work"], "social": ["alone"], "uncertainty": "unknown", "control": "unknown"},
+            )
+        )
+        self.write(
+            make_entity(
+                "event", "e2", subject="subject/fixture", source_refs=[],
+                time={"observed_at": "2026-02-15T00:00:00+09:00", "precision": "day"},
+                context={"domains": ["learning"], "social": ["alone"], "uncertainty": "unknown", "control": "unknown"},
+            )
+        )
+        from tools.kb import discover_entities
+        entities = discover_entities(self.profile / "entities")
+
+        self.assertEqual(event_context_domain_count(entities), 2)
+        self.assertGreaterEqual(event_span_days(entities), 30)
+
+    def test_sections_supported_status_reflects_current_claims(self):
+        from tools.kb import discover_entities
+
+        before = sections_supported_status(discover_entities(self.profile / "entities"))
+        self.assertFalse(before["tensions"])
+
+        self.write(make_entity("event", "grounding", subject="subject/fixture", source_refs=[]))
+        self.write(
+            make_entity(
+                "claim", "tension-one", subject="subject/fixture", layer="tension",
+                motivation_direction=None, scope="state", status="supported",
+                counterevidence=["event/grounding"], supporting_evidence=["event/grounding"],
+            )
+        )
+        after = sections_supported_status(discover_entities(self.profile / "entities"))
+        self.assertTrue(after["tensions"])
 
 
 if __name__ == "__main__":

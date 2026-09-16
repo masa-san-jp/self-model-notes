@@ -1,0 +1,25 @@
+contract_version: growth-milestones/v1
+milestones:
+  sections_supported:
+    description: >
+      Every self-model/v2 section (dominant_triggers, dominant_rewards,
+      avoidance_targets, protective_factors, context_dependencies,
+      tensions) has at least one record with status: supported and a
+      non-empty counterevidence_refs. Uses only the existing Claim/Pattern
+      status vocabulary; no new confidence or promotion threshold.
+  min_event_contexts:
+    value: 2
+    description: >
+      Event context.domains has at least this many distinct observed
+      values across all current Events.
+  min_event_span_days:
+    value: 30
+    description: >
+      The span between the earliest and latest Event time.observed_at is
+      at least this many days.
+notes: >
+  Thresholds are owner-decided defaults (Issue #108). Changing a value is
+  an ordinary config PR; it does not require reopening the growth-queue
+  task series. sections_supported has no numeric value: it is judged
+  entirely by existing Claim/Pattern status and counterevidence fields,
+  never by a new score.
