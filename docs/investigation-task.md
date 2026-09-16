@@ -54,3 +54,18 @@ python3 tools/agent_runtime.py tools/audit.py --subject subject/<id>
 ## 7. 完了
 
 変更entity、検証結果、同意判定、未確認事項をPRへ記載する。新たなschema判断が必要なら実装せずIssueを作る。
+
+## 8. 次に何を調べるか（gap駆動の育成queue、Issue #108）
+
+対象・task内容を毎回考えるのではなく、`tools/growth_tasks.py`が生成するlocal queueから選ぶ。
+
+```bash
+python3 tools/agent_runtime.py tools/growth_tasks.py generate --profile-root <profile-root>
+python3 tools/agent_runtime.py tools/growth_tasks.py next --profile-root <profile-root> --json
+python3 tools/agent_runtime.py tools/growth_tasks.py claim <task-id> --actor <name> --profile-root <profile-root> --expected-queue-sha256 <sha>
+python3 tools/agent_runtime.py tools/growth_tasks.py complete <task-id> --profile-root <profile-root> --expected-queue-sha256 <sha>
+```
+
+優先順位は miss（consuming runが得られなかった signal） → audit 指摘 → coverage の未観測 → milestone 未達の順。`acquire-event` だけが本人への1問（`question`フィールド、schema語彙なし）を必要とし、`derive-claim`・`search-counterevidence`・`refresh-claim`は既存entityだけで完了できる。
+
+queueとmissの記録先は外部profile root（`growth/queue.yaml`、`data/misses.jsonl`）だけであり、公開repoのIssueには置かない。CASはqueueファイルのsha256で行い、gitを要求しない。育成sessionは制作runと独立していつでも起動できるが、同じprofile rootへ同時に書き込まない（`generate`はin-progress taskがあれば`QUEUE_BUSY`で拒否する）。
