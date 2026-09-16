@@ -1754,7 +1754,7 @@ tasks:
   - id: SM-040
     title: Generate growth tasks and run the local queue
     phase: 10
-    status: ready
+    status: blocked
     depends_on: [SM-039]
     issue: https://github.com/masa-san-jp/self-model-notes/issues/108
     allowed_paths:
@@ -1793,7 +1793,7 @@ tasks:
   - id: SM-041
     title: Milestone report and operator docs for the growth queue
     phase: 10
-    status: ready
+    status: blocked
     depends_on: [SM-040]
     issue: https://github.com/masa-san-jp/self-model-notes/issues/108
     allowed_paths:
