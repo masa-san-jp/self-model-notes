@@ -1,0 +1,70 @@
+contract_version: question-bank/v1
+forbidden_tokens:
+  - appraisal
+  - emotion
+  - body
+  - cognition
+  - trigger
+  - observed_facts
+  - raw_voice
+  - immediate_outcome
+  - delayed_outcome
+  - context
+  - domains
+  - social
+  - uncertainty
+  - control
+  - state
+  - fatigue
+  - stress
+  - claim
+  - pattern
+  - source
+  - subject
+  - event
+  - motivation_direction
+  - seek
+  - protect
+  - avoid
+  - mixed
+  - confidence
+  - evidence
+  - counterevidence
+  - alternative
+  - layer
+  - scope
+  - trait
+  - drive
+  - unknown
+  - "null"
+  - schema
+  - slot
+  - coverage
+  - audit
+questions:
+  - id: trigger
+    section: dominant_triggers
+    text: "最近、理由もなく手が止まった瞬間はある?"
+  - id: rewards
+    section: dominant_rewards
+    text: "最近、やっていて時間を忘れたことは?"
+  - id: avoidance
+    section: avoidance_targets
+    text: "最近、つい後回しにしたことは?"
+  - id: protective
+    section: protective_factors
+    text: "誰かの言動に、思ったより強く反応した瞬間は?"
+  - id: context
+    section: context_dependencies
+    text: "同じことでも、場所や相手によってやり方が変わることはある?"
+  - id: tension
+    section: tensions
+    text: "やりたいのに、やらないと決めていることはある?"
+  - id: emotion-slot
+    section: null
+    slot: emotion
+    text: "そのとき、どんな気持ちだった?"
+  - id: body-slot
+    section: null
+    slot: body
+    text: "そのとき、体に何か感じた?"
