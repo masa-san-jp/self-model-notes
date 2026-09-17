@@ -68,6 +68,33 @@ class GrowthTasksTestCase(unittest.TestCase):
 
 
 class GenerateTests(GrowthTasksTestCase):
+    def test_checks_command_quotes_a_profile_root_containing_spaces(self):
+        import shlex
+
+        spaced_root = Path(self.temp.name).resolve() / "Application Support" / "profile"
+        shutil.copytree(self.profile, spaced_root)
+
+        queue = generate(spaced_root)
+
+        self.assertTrue(queue["tasks"])
+        for task in queue["tasks"]:
+            for command in task["checks"]:
+                argv = shlex.split(command)
+                self.assertIn(str(spaced_root), argv, command)
+
+    def test_regeneration_refreshes_checks_for_still_ready_tasks(self):
+        first = generate(self.profile)
+        path = queue_path(self.profile)
+        queue = load_yaml(path)
+        queue["tasks"][0]["checks"] = ["this is a stale, wrong command"]
+        path.write_text(json.dumps(queue), encoding="utf-8")
+
+        second = generate(self.profile)
+
+        self.assertEqual(second["tasks"][0]["id"], first["tasks"][0]["id"])
+        self.assertNotEqual(second["tasks"][0]["checks"], ["this is a stale, wrong command"])
+        self.assertEqual(second["tasks"][0]["checks"], first["tasks"][0]["checks"])
+
     def test_empty_profile_is_idempotent_and_starts_with_acquire_event(self):
         first = generate(self.profile)
         first_bytes = queue_path(self.profile).read_bytes()

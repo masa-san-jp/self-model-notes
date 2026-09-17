@@ -388,7 +388,10 @@ def _task_checks(profile_root: Path) -> list[str]:
     # there is no prior generated data/graph.json to compare against. This
     # step is the structural-validity gate; --check freshness is a separate,
     # normal-operation concern (docs/operations.md).
-    return [f"python3 tools/agent_runtime.py tools/build_graph.py --profile-root {profile_root}"]
+    # shlex.quote: a real profile root can contain spaces (e.g. under
+    # "Application Support"); an unquoted path would be split apart by
+    # _run_checks' shlex.split and silently corrupted.
+    return [f"python3 tools/agent_runtime.py tools/build_graph.py --profile-root {shlex.quote(str(profile_root))}"]
 
 
 def _allowed_paths(kind: str, target: dict[str, Any]) -> list[str]:
@@ -447,7 +450,12 @@ def build_queue(profile_root: Path, *, now: datetime | None = None) -> dict[str,
         if gap["gap_key"] in kept_gap_keys:
             continue
         if gap["gap_key"] in existing_tasks:
-            tasks.append(existing_tasks[gap["gap_key"]])
+            # A still-ready gap keeps only its id (Issue #108). checks and
+            # allowed_paths are recomputed fresh every time, the same as a
+            # brand-new task -- they are pure functions of the gap and the
+            # profile root, never customized by hand, so silently freezing
+            # a stale value (e.g. a fixed bug) would be worse than recomputing.
+            tasks.append(_new_task(existing_tasks[gap["gap_key"]]["id"], gap, profile_root))
             continue
         max_seq += 1
         tasks.append(_new_task(f"GT-{max_seq:04d}", gap, profile_root))
