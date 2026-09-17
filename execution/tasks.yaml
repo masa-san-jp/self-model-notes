@@ -1845,3 +1845,58 @@ tasks:
           - "python3 tools/agent_runtime.py tools/profile_root.py validate-repository --json — passed"
           - "git diff --check — passed"
 
+  - id: SM-042
+    title: Register repository privacy guard tasks
+    phase: 10
+    status: done
+    depends_on: [SM-041]
+    issue: https://github.com/masa-san-jp/self-model-notes/issues/119
+    allowed_paths:
+      - execution/tasks.yaml
+      - tests/test_execution_tasks.py
+    acceptance:
+      - SM-042 and SM-043 are registered with Issue #119 allowed_paths, acceptance, checks, and stop_if
+      - The contiguous ID range and EXPECTED_DEPENDENCIES extend through SM-043; existing task content, status, and evidence are unchanged
+    checks:
+      - python3 tools/agent_runtime.py tools/task_harness.py validate
+      - python3 tools/agent_runtime.py -m unittest tests.test_execution_tasks
+      - python3 tools/agent_runtime.py tools/task_harness.py next --json
+    stop_if:
+      - An existing task must be changed to register this series
+      - A path outside execution/tasks.yaml or tests/test_execution_tasks.py is required
+    claim: null
+    evidence:
+      - note: "Repository privacy guard registration is introduced by this change; the completion commit is recorded after the setup PR is created."
+
+  - id: SM-043
+    title: "Repository privacy guard: validate-repository extension, permanent test, CI step"
+    phase: 10
+    status: ready
+    depends_on: [SM-042]
+    issue: https://github.com/masa-san-jp/self-model-notes/issues/119
+    allowed_paths:
+      - tools/profile_root.py
+      - tests/test_repository_privacy.py
+      - tests/test_profile_root.py
+      - .github/workflows/validate.yml
+      - AGENTS.md
+      - docs/operations.md
+      - docs/privacy-consent.md
+      - execution/tasks.yaml
+    acceptance:
+      - validate_repository classifies tracked files into entity-record, legacy-entity-tree, profile-contract, growth-log, intake-draft, and raw-quote categories per Issue #119, exempting only synthetic fixtures under tests/fixtures/**, and returns BLOCKED_PERSONAL_RECORD with category counts only (no path, no content) when any category is non-empty
+      - A permanent tests/test_repository_privacy.py asserts PASS against the real repository's tracked files, and asserts BLOCKED_PERSONAL_RECORD with correct category counts and no leaked path/content for one synthetic violation per category in a temporary Git repository
+      - The validate CI job runs validate-repository before the test step and fails the job on a non-zero exit
+      - AGENTS.md section 6, docs/operations.md, and docs/privacy-consent.md document the guard command and the rule against pasting answer text, raw voice, or real paths into PR bodies, Issues, or commit messages
+      - The existing BLOCKED_LEGACY_PROFILE meaning and tests/test_profile_root.py's existing tests are unchanged
+    checks:
+      - python3 tools/agent_runtime.py -m unittest tests.test_repository_privacy tests.test_profile_root
+      - python3 tools/agent_runtime.py -m unittest discover -s tests -p "test_*.py"
+      - python3 tools/agent_runtime.py tools/profile_root.py validate-repository --json
+      - git diff --check
+    stop_if:
+      - Existing synthetic fixtures must change for validate-repository to PASS (for example a fixture subject other than subject/fixture)
+      - The workflow requires new permissions or secrets
+    claim: null
+    evidence: []
+
