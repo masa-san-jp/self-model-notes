@@ -78,6 +78,8 @@ jobs:
         with:
           python-version: "3.12"
       - run: python3 -m pip install -e .
+      - name: Repository privacy guard
+        run: python3 tools/agent_runtime.py tools/profile_root.py validate-repository --json
       - name: Structural validation and generated-data freshness
         run: |
           profile_root="$RUNNER_TEMP/self-model-profile-structural"

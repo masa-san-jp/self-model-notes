@@ -39,6 +39,18 @@ PROFILE_FIELDS = frozenset(
     {"contract_version", "profile_id", "subject_ids", "storage_scope"}
 )
 
+# Repository privacy guard (Issue #119): categories of tracked file that must
+# never carry a real personal record, independent of the legacy entities/
+# tree check below. Every category is content-based (parsed structure, not a
+# text search) so protocol docs and config/*-schema.yaml files that merely
+# mention these contract names in prose are not misclassified.
+FIXTURE_PATH_PREFIX = "tests/fixtures/"
+ENTITY_RECORD_TYPES = frozenset(
+    {"subject", "source", "event", "claim", "pattern", "measurement"}
+)
+GROWTH_LOG_JSONL_CONTRACTS = frozenset({"growth-miss/v1", "growth-hearing/v1"})
+GROWTH_QUEUE_CONTRACT = "growth-queue/v1"
+
 
 class ProfileRootError(ValueError):
     """A stable, safe-to-display profile boundary error."""
@@ -223,6 +235,143 @@ def _external_subject_ids(entity_root: Path) -> set[str]:
         ):
             result.add(entity_id)
     return result
+
+
+def _is_fixture_path(path: str) -> bool:
+    return path.startswith(FIXTURE_PATH_PREFIX)
+
+
+def _yaml_document_or_none(path: Path) -> Any:
+    try:
+        value = yaml.safe_load(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, yaml.YAMLError):
+        return None
+    return value
+
+
+def _first_nonempty_line(path: Path) -> str | None:
+    try:
+        with path.open("r", encoding="utf-8") as handle:
+            for line in handle:
+                stripped = line.strip()
+                if stripped:
+                    return stripped
+    except (OSError, UnicodeError):
+        return None
+    return None
+
+
+def _identifier_pattern_hit(meta: dict[str, Any]) -> bool:
+    """Reuse intake_conversation's direct-identifier patterns on fixture text fields.
+
+    A deferred import avoids a circular import: intake_conversation imports
+    this module at load time.
+    """
+    try:
+        from .intake_conversation import EMAIL_RE, IDENTIFIER_LABEL_RE, PHONE_RE
+    except ImportError:  # pragma: no cover - exercised when run as a script
+        from intake_conversation import EMAIL_RE, IDENTIFIER_LABEL_RE, PHONE_RE
+
+    texts: list[str] = []
+    trigger = meta.get("trigger")
+    if isinstance(trigger, str):
+        texts.append(trigger)
+    observed_facts = meta.get("observed_facts")
+    if isinstance(observed_facts, list):
+        texts.extend(value for value in observed_facts if isinstance(value, str))
+    raw_voice = meta.get("raw_voice")
+    if isinstance(raw_voice, list):
+        for item in raw_voice:
+            if isinstance(item, dict) and isinstance(item.get("text"), str):
+                texts.append(item["text"])
+    return any(
+        EMAIL_RE.search(text) or PHONE_RE.search(text) or IDENTIFIER_LABEL_RE.search(text)
+        for text in texts
+    )
+
+
+def _classify_privacy_path(repository_root: Path, path: str) -> str | None:
+    """Classify one tracked file for the repository privacy guard (Issue #119).
+
+    Returns a category name when the file looks like a real personal record,
+    profile contract, growth log, or intake draft, or None when it is exempt
+    (a synthetic fixture) or not one of the recognized shapes. Content is
+    always parsed structurally; a substring match on prose is never enough.
+    """
+    if Path(path).name == "README.md":
+        return None
+    lower = path.lower()
+    file_path = repository_root / path
+
+    if lower.endswith(".md"):
+        meta = _frontmatter(file_path)
+        if isinstance(meta, dict) and meta.get("type") in ENTITY_RECORD_TYPES:
+            fixture_subject = meta.get("id") if meta.get("type") == "subject" else meta.get("subject")
+            if _is_fixture_path(path) and fixture_subject == "subject/fixture":
+                if _identifier_pattern_hit(meta):
+                    return "raw-quote"
+                return None
+            return "entity-record"
+        if path.endswith(".source.draft.md") or path.endswith(".event.draft.md"):
+            return "intake-draft"
+        try:
+            body = file_path.read_text(encoding="utf-8")
+        except (OSError, UnicodeError):
+            body = ""
+        if any(line.strip() == "# Intake draft" for line in body.splitlines()):
+            return "intake-draft"
+        return None
+
+    if lower.endswith((".yaml", ".yml")):
+        document = _yaml_document_or_none(file_path)
+        if not isinstance(document, dict):
+            return None
+        if document.get("contract_version") == CONTRACT_VERSION:
+            if not (isinstance(document.get("profile_id"), str) and isinstance(document.get("subject_ids"), list)):
+                return None
+            if _is_fixture_path(path) and str(document.get("profile_id", "")).startswith("synthetic-"):
+                return None
+            return "profile-contract"
+        if document.get("contract_version") == GROWTH_QUEUE_CONTRACT and "generated_from" in document and "tasks" in document:
+            if _is_fixture_path(path):
+                return None
+            return "growth-log"
+        return None
+
+    if lower.endswith(".jsonl"):
+        if _is_fixture_path(path):
+            return None
+        first_line = _first_nonempty_line(file_path)
+        if first_line is None:
+            return None
+        try:
+            record = json.loads(first_line)
+        except json.JSONDecodeError:
+            return None
+        if isinstance(record, dict) and record.get("contract_version") in GROWTH_LOG_JSONL_CONTRACTS:
+            return "growth-log"
+        return None
+
+    return None
+
+
+def _list_all_tracked_paths(repository_root: Path) -> list[str]:
+    git_dir = repository_root / ".git"
+    if not git_dir.exists():
+        return []
+    try:
+        result = subprocess.run(
+            ["git", "ls-files"],
+            cwd=repository_root,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+    except OSError:
+        return []
+    if result.returncode != 0:
+        return []
+    return result.stdout.splitlines()
 
 
 def _validate_layout(layout: ProfileLayout) -> None:
@@ -492,37 +641,36 @@ def validate_repository(
     *,
     tracked_paths: Iterable[str] | None = None,
 ) -> dict[str, Any]:
-    """Classify the protocol tree without exposing legacy entity content."""
+    """Classify the protocol tree without exposing legacy entity content.
+
+    Two checks run in order. The first (unchanged since before Issue #119)
+    looks only at tracked entities/**/*.md paths and returns
+    BLOCKED_LEGACY_PROFILE, exactly as before. Only when that check finds
+    nothing does the second, broader guard run: it classifies every tracked
+    file that could be a real personal record, self-model-profile/v1
+    contract, growth-miss/growth-hearing/growth-queue log, or intake draft
+    (Issue #119), and returns BLOCKED_PERSONAL_RECORD with per-category
+    counts only -- never a path or file content -- when any is found.
+    """
 
     if tracked_paths is None:
-        tracked_paths = []
-        git_dir = repository_root / ".git"
-        if git_dir.exists():
-            try:
-                result = subprocess.run(
-                    ["git", "ls-files", "entities"],
-                    cwd=repository_root,
-                    text=True,
-                    capture_output=True,
-                    check=False,
-                )
-            except OSError:
-                result = None
-            if result is not None and result.returncode == 0:
-                tracked_paths = result.stdout.splitlines()
-        if not tracked_paths:
+        all_tracked_paths = _list_all_tracked_paths(repository_root)
+        if not all_tracked_paths:
             # Without a trustworthy Git index, classify any legacy-looking
             # record conservatively.  This is a read-only migration gate.
             entity_root = repository_root / "entities"
             if entity_root.is_dir() and not entity_root.is_symlink():
-                tracked_paths = [
+                all_tracked_paths = [
                     path.relative_to(repository_root).as_posix()
                     for path in entity_root.rglob("*.md")
                     if path.is_file() and not path.is_symlink()
                 ]
+    else:
+        all_tracked_paths = list(tracked_paths)
+
     legacy_records = sorted(
         path
-        for path in tracked_paths
+        for path in all_tracked_paths
         if path.startswith("entities/")
         and path.endswith(".md")
         and not path.endswith("/README.md")
@@ -532,11 +680,26 @@ def validate_repository(
             "status": "BLOCKED_LEGACY_PROFILE",
             "remediation": "complete the human-approved external profile migration before removing tracked records",
             "legacy_record_count": len(legacy_records),
+            "blocked": {},
+        }
+
+    blocked: dict[str, int] = {}
+    for path in all_tracked_paths:
+        category = _classify_privacy_path(repository_root, path)
+        if category is not None:
+            blocked[category] = blocked.get(category, 0) + 1
+    if blocked:
+        return {
+            "status": "BLOCKED_PERSONAL_RECORD",
+            "remediation": "remove the tracked personal record, profile contract, growth log, or intake draft; real records belong only in the external profile root",
+            "legacy_record_count": 0,
+            "blocked": blocked,
         }
     return {
         "status": "PASS",
         "remediation": "protocol tree contains no tracked real profile record",
         "legacy_record_count": 0,
+        "blocked": {},
     }
 
 
@@ -552,7 +715,7 @@ def main(argv: list[str] | None = None) -> int:
             print(json.dumps(result, ensure_ascii=False, sort_keys=True))
         else:
             print(f"{result['status']}: {result['remediation']}")
-        return 0
+        return 0 if result["status"] == "PASS" else 2
     try:
         layout = resolve_profile_root(args.profile_root)
     except ProfileRootError as error:

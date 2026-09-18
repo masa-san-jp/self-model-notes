@@ -90,8 +90,11 @@ python3 tools/agent_runtime.py tools/build_graph.py --check --profile-root /abso
 python3 tools/agent_runtime.py -m unittest discover -s tests -p "test_*.py"
 python3 tools/agent_runtime.py tools/build_graph.py --profile-root /absolute/path/to/profile
 python3 tools/agent_runtime.py tools/audit.py --dry-run --profile-root /absolute/path/to/profile
+python3 tools/agent_runtime.py tools/profile_root.py validate-repository --json
 git diff --exit-code -- data/ overviews/coverage.md
 ```
+
+`validate-repository`は`PASS`以外（`BLOCKED_LEGACY_PROFILE`、`BLOCKED_PERSONAL_RECORD`）で非零終了する（repository privacy guard、Issue #119）。tracked fileにentity record・`self-model-profile/v1`契約・growth log・intake draftが混入していないことの機械検査であり、commit前に必ず通す。
 
 タスク固有の`checks`があれば追加で実行する。失敗した検証を削除・skipして通したことにしない。
 
