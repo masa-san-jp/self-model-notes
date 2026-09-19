@@ -167,6 +167,7 @@ E2E fixtureは実在の人物、直接識別情報、raw voice、credential、to
 - 同じallowed pathのtaskは並列に開始しない。別branchを作る前に`git status`と`git log`でbaseを確認する。
 - 自分の変更外で衝突やテスト失敗が起きたら、対象ファイルと再現コマンドを報告して停止する。
 - commit前に変更path、diff、機微情報、生成物のstalenessを確認する。pushとmergeはCI成功後に行う。
+- commit前に`python3 tools/agent_runtime.py tools/profile_root.py validate-repository --json`を実行し、`PASS`であることを確認する（repository privacy guard、Issue #119）。`BLOCKED_PERSONAL_RECORD`または`BLOCKED_LEGACY_PROFILE`が出たら、報告されたcategoryに該当するtracked fileをrepositoryから外し、実データは外部profile rootへ置く。PR本文・Issue・commit messageに回答文・raw voice・実profile rootの絶対pathを書かない。
 
 ## Privacy and consent
 

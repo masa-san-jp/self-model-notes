@@ -15,6 +15,18 @@ canonicalなreal profile recordはprotocol repository外のprofile rootに保存
 
 実データCLIは明示した`--profile-root`だけを読み書きし、repositoryや環境変数からprofileを推測しない。migrationのplanはmetadataだけを表示し、applyはsourceを削除・移動・上書きしない。実n=1のapplyは、Issue #82の人間承認、目的、保存先、retentionが確認されるまで実行しない。
 
+## repository privacy guard（機械規則、Issue #119）
+
+commit前に必ず実行する。
+
+```bash
+python3 tools/agent_runtime.py tools/profile_root.py validate-repository --json
+```
+
+tracked fileのうち、entity record（frontmatterの`type`が`subject`/`source`/`event`/`claim`/`pattern`/`measurement`のいずれか）、`self-model-profile/v1`のprofile契約、`growth-miss/v1`・`growth-hearing/v1`・`growth-queue/v1`のログ、intakeのdraft（`*.source.draft.md`・`*.event.draft.md`・`# Intake draft`見出し）が、`tests/fixtures/**`の`subject/fixture`・`synthetic-`接頭辞以外の場所に1件でもあれば`BLOCKED_PERSONAL_RECORD`で非零終了する。出力はcategoryと件数だけで、path・内容は出さない。CIの`validate` jobも同じcommandを実行する。
+
+これは検出のための機械guardであり、規律の代わりにはならない。PR本文・Issue・commit messageに、回答文・raw voice・実profile rootの絶対pathを書かない。機微情報をcommitした場合は下記Incident対応に従う。
+
 ## export判定
 
 全根拠Sourceについて以下を満たす場合のみ許可する。
