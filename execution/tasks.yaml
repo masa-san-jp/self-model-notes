@@ -1909,4 +1909,138 @@ tasks:
           - "python3 tools/agent_runtime.py tools/profile_root.py validate-repository --json — passed"
           - "git diff --check — passed"
 
+  - id: SM-044
+    title: Register hearing task series
+    phase: 10
+    status: done
+    depends_on: [SM-043]
+    issue: https://github.com/masa-san-jp/self-model-notes/issues/118
+    allowed_paths:
+      - execution/tasks.yaml
+      - tests/test_execution_tasks.py
+    acceptance:
+      - SM-044 through SM-047 are registered with Issue #118 allowed_paths, acceptance, checks, and stop_if; SM-044 depends on SM-043, and SM-045 through SM-047 are gated in sequence
+      - The contiguous ID range and EXPECTED_DEPENDENCIES extend through SM-047; existing task content, status, and evidence are unchanged
+      - Issue #1 already carries this Issue's 2026-09-17 addendum (linked in the PR body)
+    checks:
+      - python3 tools/agent_runtime.py tools/task_harness.py validate
+      - python3 tools/agent_runtime.py -m unittest tests.test_execution_tasks
+      - python3 tools/agent_runtime.py tools/task_harness.py next --json
+    stop_if:
+      - An existing task must be changed to register this series
+      - A path outside execution/tasks.yaml or tests/test_execution_tasks.py is required
+      - Issue #1 does not carry the addendum
+    claim: null
+    evidence:
+      - note: "Hearing task series registration is introduced by this change; the completion commit is recorded after the setup PR is created."
+
+  - id: SM-045
+    title: "Hearing open/skip, outcome log, and config"
+    phase: 10
+    status: ready
+    depends_on: [SM-044]
+    issue: https://github.com/masa-san-jp/self-model-notes/issues/118
+    allowed_paths:
+      - tools/growth_tasks.py
+      - config/hearing.yaml
+      - config/growth-hearing-schema.yaml
+      - tests/test_growth_hearing.py
+      - docs/operations.md
+      - execution/tasks.yaml
+    external_paths:
+      - data/hearings.jsonl
+      - growth/queue.yaml
+    acceptance:
+      - growth_tasks.py hearing open returns a growth-hearing-packet/v1 following the hearing open procedure in Issue #118, returning unavailable for Source selection failure, cooldown, one-question-per-run, QUEUE_BUSY, and ENTITIES_INVALID, always exiting 0
+      - growth_tasks.py hearing skip keeps the queue byte-identical and appends one growth-hearing/v1 line with the given reason
+      - config/hearing.yaml (hearing/v1) defines intent, skip_ack, section_reasons, slot_reasons, max_questions_per_run 1, and skip_cooldown_days, and none of intent, section_reasons, slot_reasons, or skip_ack contains a question-bank.yaml forbidden_token
+      - The packet and the hearings.jsonl line contain no raw text other than anchors, no entity body, no absolute path, no credential, and no production theme
+    checks:
+      - python3 tools/agent_runtime.py -m unittest tests.test_growth_hearing tests.test_growth_tasks
+      - python3 tools/agent_runtime.py -m unittest discover -s tests -p "test_*.py"
+      - git diff --check
+    stop_if:
+      - A self-model-profile/v1 contract change is required
+      - A consent evaluation change is required
+      - A path outside the allowed_paths is required
+    claim: null
+    evidence: []
+
+  - id: SM-046
+    title: "Hearing answer: Event write, slot update, verify, rollback"
+    phase: 10
+    status: blocked
+    depends_on: [SM-045]
+    issue: https://github.com/masa-san-jp/self-model-notes/issues/118
+    allowed_paths:
+      - tools/growth_tasks.py
+      - tools/intake_conversation.py
+      - tests/test_growth_hearing.py
+      - tests/test_intake_conversation.py
+      - docs/operations.md
+      - execution/tasks.yaml
+    external_paths:
+      - entities/events/**
+      - growth/queue.yaml
+      - data/hearings.jsonl
+    acceptance:
+      - hearing answer reads the answer block from stdin only (no file argument); empty or over 1 MB input returns unavailable ANSWER_INVALID:empty or :too-large without writing anything
+      - A queue sha256 mismatch returns unavailable QUEUE_CONFLICT without writing anything
+      - The target task must be a ready acquire-event task; the Source is reselected with the same rule as hearing open and consent is re-verified, returning unavailable CONSENT_INVALID if it has lapsed
+      - "When target.slot is null, stdin must be exactly one annotated \"[event: <slug>]\" block reusing intake_conversation.py's _parse_transcript and _validate_event_values (same direct-identifier, raw_voice length, multiple-block, and unknown-field rejections); the new Event id is event/hearing-<YYYYMMDD>-<slug>, rejected if it already exists, with source_refs and raw_voice[].source_ref set to the selected Source"
+      - When target.slot is set, stdin is YAML with that slot and an optional raw_voice list; only the target Event's named slot is updated from null, with raw_voice appended against the selected Source and updated advanced; every other slot is unchanged
+      - After a successful write, the task's checks run and _verify_acquire_event validates the change before the task is marked done with evidence and an answered line is appended
+      - On verification failure, the written Event is removed (or the slot update is reverted to its original bytes), the queue is left unchanged, and unavailable ANSWER_INVALID:<code> is returned with exit 0
+      - No stdin content is written to stdout, stderr, or any log on any path
+    checks:
+      - python3 tools/agent_runtime.py -m unittest tests.test_growth_hearing tests.test_intake_conversation tests.test_growth_tasks
+      - python3 tools/agent_runtime.py -m unittest discover -s tests -p "test_*.py"
+      - git diff --check
+    stop_if:
+      - A change to the intake annotated block format is required
+      - A core entity type or closed vocabulary change is required
+      - A path outside the allowed_paths is required
+    claim: null
+    evidence: []
+
+  - id: SM-047
+    title: Personal-context questions, run-entry contract, end-to-end guarantee
+    phase: 10
+    status: blocked
+    depends_on: [SM-046]
+    issue: https://github.com/masa-san-jp/self-model-notes/issues/118
+    allowed_paths:
+      - config/question-bank.yaml
+      - config/hearing.yaml
+      - tools/growth_tasks.py
+      - tests/test_growth_hearing.py
+      - tests/test_growth_tasks.py
+      - tests/contracts/growth-hearing-v1.fixture.json
+      - docs/acquisition-protocol.md
+      - docs/for-other-personas.md
+      - docs/operations.md
+      - README.md
+      - execution/tasks.yaml
+    external_paths:
+      - data/hearings.jsonl
+      - data/misses.jsonl
+      - growth/queue.yaml
+      - entities/events/**
+    acceptance:
+      - question-bank.yaml's six section questions each gain a hearing_text tied to the person's current production work, and pass the forbidden_tokens check
+      - The packet's anchors field follows Issue #118's anchor rule (up to two prior raw_voice quotes, 120 characters or fewer, from the target Event for a slot task, or from the most recent Events with non-empty raw_voice for a section task)
+      - docs/for-other-personas.md documents the production-run entry contract (open -> present -> answer or skip -> export) and the rule that the parent treats a non-zero exit or timeout from the hearing CLI as unavailable and proceeds to export; tests/contracts/growth-hearing-v1.fixture.json fixes a synthetic packet and outcome example matching it
+      - "End-to-end: against a synthetic profile, each of the five paths (answered, skipped, no-response, unavailable with no consented Source, and a failed answer from a malformed block) is immediately followed by export_signals.py --requester <same-run-id> exiting 0 with an allowed payload"
+    checks:
+      - python3 tools/agent_runtime.py -m unittest tests.test_growth_hearing tests.test_growth_tasks tests.test_export_signals
+      - python3 tools/agent_runtime.py -m unittest discover -s tests -p "test_*.py"
+      - python3 tools/agent_runtime.py tools/profile_root.py validate-repository --json
+      - git diff --check
+    stop_if:
+      - A question cannot be phrased without a forbidden token
+      - The export output shape must change
+      - A path outside the allowed_paths is required
+    claim: null
+    evidence: []
+
 
