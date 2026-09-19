@@ -1871,7 +1871,7 @@ tasks:
   - id: SM-043
     title: "Repository privacy guard: validate-repository extension, permanent test, CI step"
     phase: 10
-    status: in-progress
+    status: done
     depends_on: [SM-042]
     issue: https://github.com/masa-san-jp/self-model-notes/issues/119
     allowed_paths:
@@ -1897,13 +1897,16 @@ tasks:
     stop_if:
       - Existing synthetic fixtures must change for validate-repository to PASS (for example a fixture subject other than subject/fixture)
       - The workflow requires new permissions or secrets
-    claim:
-      actor: claude-sonnet5
-      base: 3218e5ddfb0a113feea55592fd5f8c58c63b5903
-      branch: agent/sm-043-claude-sonnet5
-      remote: origin
-      lock_ref: refs/heads/harness-lock/sm-043
-      claimed_at: '2026-09-17T14:03:12.984210000Z'
+    claim: null
 
-    evidence: []
+    evidence:
+      - pr: 121
+        commit: fb34892741a9961d5364c1b668e4f05aeb2150f0
+        checks:
+          - "python3 tools/agent_runtime.py tools/task_harness.py verify-paths SM-043 --json — passed"
+          - "python3 tools/agent_runtime.py -m unittest tests.test_repository_privacy tests.test_profile_root — passed"
+          - "python3 tools/agent_runtime.py -m unittest discover -s tests -p \"test_*.py\" — passed"
+          - "python3 tools/agent_runtime.py tools/profile_root.py validate-repository --json — passed"
+          - "git diff --check — passed"
+
 
