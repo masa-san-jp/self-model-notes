@@ -1937,7 +1937,7 @@ tasks:
   - id: SM-045
     title: "Hearing open/skip, outcome log, and config"
     phase: 10
-    status: in-progress
+    status: done
     depends_on: [SM-044]
     issue: https://github.com/masa-san-jp/self-model-notes/issues/118
     allowed_paths:
@@ -1963,15 +1963,17 @@ tasks:
       - A self-model-profile/v1 contract change is required
       - A consent evaluation change is required
       - A path outside the allowed_paths is required
-    claim:
-      actor: claude-sonnet5
-      base: 3d18f68b886a465f05552d3e0e1c3ca369d389ef
-      branch: agent/sm-045-claude-sonnet5
-      remote: origin
-      lock_ref: refs/heads/harness-lock/sm-045
-      claimed_at: '2026-09-20T14:50:55.108467000Z'
+    claim: null
 
-    evidence: []
+    evidence:
+      - pr: 124
+        commit: 0aa035bbe310466219fb35a28363d789c241d747
+        checks:
+          - "python3 tools/agent_runtime.py tools/task_harness.py verify-paths SM-045 --json — passed"
+          - "python3 tools/agent_runtime.py -m unittest tests.test_growth_hearing tests.test_growth_tasks — passed"
+          - "python3 tools/agent_runtime.py -m unittest discover -s tests -p \"test_*.py\" — passed"
+          - "git diff --check — passed"
+
 
   - id: SM-046
     title: "Hearing answer: Event write, slot update, verify, rollback"
