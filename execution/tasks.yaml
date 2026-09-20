@@ -1937,7 +1937,7 @@ tasks:
   - id: SM-045
     title: "Hearing open/skip, outcome log, and config"
     phase: 10
-    status: ready
+    status: in-progress
     depends_on: [SM-044]
     issue: https://github.com/masa-san-jp/self-model-notes/issues/118
     allowed_paths:
@@ -1963,7 +1963,14 @@ tasks:
       - A self-model-profile/v1 contract change is required
       - A consent evaluation change is required
       - A path outside the allowed_paths is required
-    claim: null
+    claim:
+      actor: claude-sonnet5
+      base: 3d18f68b886a465f05552d3e0e1c3ca369d389ef
+      branch: agent/sm-045-claude-sonnet5
+      remote: origin
+      lock_ref: refs/heads/harness-lock/sm-045
+      claimed_at: '2026-09-20T14:50:55.108467000Z'
+
     evidence: []
 
   - id: SM-046

@@ -1,0 +1,95 @@
+growth_hearing_log:
+  contract_version: growth-hearing/v1
+  storage: "<profile-root>/data/hearings.jsonl, one JSON object per line, append-only"
+  required_fields:
+    - contract_version
+    - ts
+    - requester
+    - subject
+    - purpose
+    - task_id
+    - question_id
+    - outcome
+    - reason
+    - entity
+  allowed_fields:
+    - contract_version
+    - ts
+    - requester
+    - subject
+    - purpose
+    - task_id
+    - question_id
+    - outcome
+    - reason
+    - entity
+  outcome_values:
+    - offered
+    - answered
+    - skipped
+    - unavailable
+  notes: >
+    requester is the opaque run id passed to hearing open/answer/skip.
+    task_id and question_id are null when no task was selected. reason is
+    null for offered and answered, is skipped or no-response for skipped,
+    and is an unavailable code for unavailable. entity is the created or
+    updated Event id, set only for an answered line. Only a successful
+    hearing open (offered), a successful hearing answer (answered), and
+    hearing skip append a line; an unavailable outcome from hearing open
+    or a failed hearing answer does not append a line, so the
+    max_questions_per_run count in hearing/v1 only ever counts a real
+    offer. See self-model-notes#118 for the generating tool
+    (tools/growth_tasks.py hearing open/answer/skip).
+
+growth_hearing_packet:
+  contract_version: growth-hearing-packet/v1
+  storage: "stdout of tools/growth_tasks.py hearing open, one JSON object"
+  required_fields:
+    - contract_version
+    - outcome
+    - reason
+    - requester
+    - subject
+    - purpose
+    - queue_sha256
+    - task_id
+    - question_id
+    - source_ref
+    - answer_format
+    - intent
+    - why
+    - question
+    - anchors
+    - skip_ack
+    - constraints
+  allowed_fields:
+    - contract_version
+    - outcome
+    - reason
+    - requester
+    - subject
+    - purpose
+    - queue_sha256
+    - task_id
+    - question_id
+    - source_ref
+    - answer_format
+    - intent
+    - why
+    - question
+    - anchors
+    - skip_ack
+    - constraints
+  outcome_values:
+    - offered
+    - unavailable
+  answer_format_values:
+    - event-block
+    - slot-values
+  notes: >
+    Every field is always present. When outcome is unavailable, every
+    field other than contract_version, outcome, reason, requester,
+    subject, and purpose is null. anchors is the empty list under
+    SM-045; the anchor rule (Issue #118 self-model-notes#118) is
+    SM-047's scope. No absolute path, entity body, credential, or
+    production theme ever appears in a packet field.
