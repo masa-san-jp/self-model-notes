@@ -1978,7 +1978,7 @@ tasks:
   - id: SM-046
     title: "Hearing answer: Event write, slot update, verify, rollback"
     phase: 10
-    status: blocked
+    status: ready
     depends_on: [SM-045]
     issue: https://github.com/masa-san-jp/self-model-notes/issues/118
     allowed_paths:
