@@ -1978,7 +1978,7 @@ tasks:
   - id: SM-046
     title: "Hearing answer: Event write, slot update, verify, rollback"
     phase: 10
-    status: in-progress
+    status: done
     depends_on: [SM-045]
     issue: https://github.com/masa-san-jp/self-model-notes/issues/118
     allowed_paths:
@@ -2009,15 +2009,17 @@ tasks:
       - A change to the intake annotated block format is required
       - A core entity type or closed vocabulary change is required
       - A path outside the allowed_paths is required
-    claim:
-      actor: claude-sonnet5
-      base: 6c5e6d68d5332f9e1d480fdd229ab841d52ccf2a
-      branch: agent/sm-046-claude-sonnet5
-      remote: origin
-      lock_ref: refs/heads/harness-lock/sm-046
-      claimed_at: '2026-09-20T15:12:20.274865000Z'
+    claim: null
 
-    evidence: []
+    evidence:
+      - pr: 126
+        commit: 3263f6caf7ddc39891f87d6fab89a1645b7cefa3
+        checks:
+          - "python3 tools/agent_runtime.py tools/task_harness.py verify-paths SM-046 --json — passed"
+          - "python3 tools/agent_runtime.py -m unittest tests.test_growth_hearing tests.test_intake_conversation tests.test_growth_tasks — passed"
+          - "python3 tools/agent_runtime.py -m unittest discover -s tests -p \"test_*.py\" — passed"
+          - "git diff --check — passed"
+
 
   - id: SM-047
     title: Personal-context questions, run-entry contract, end-to-end guarantee
