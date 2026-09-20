@@ -201,3 +201,17 @@ python3 tools/agent_runtime.py tools/growth_tasks.py report --profile-root <prof
 - CASはqueueファイルのsha256で行い、gitを要求しない（実profile rootはGit worktreeではない）。`claim`/`complete`は`--expected-queue-sha256`が不一致だと`QUEUE_CONFLICT`で失敗し、queueを変更しない。
 - **単一書込の規律**：`generate`は、queueにin-progressのtaskが残っている間は`QUEUE_BUSY`で拒否する。制作runと育成sessionが同じprofile rootへ同時に書き込むことを想定しない——育成taskを1件claimしたら、completeするまで他の書込（制作runの`export_signals.py`実行を含む）と時間を分ける。
 - `report`は`overviews/growth.md`に、6節の充足有無・`min_event_contexts`・`min_event_span_days`・次のqueued taskを書き出す。
+
+## 制作runの入口ヒアリング（Issue #118）
+
+制作runの開始時、意図を説明した上で育成queueの1問を本人に提示できる。`open`はqueueを変更せず、`growth-hearing-packet/v1`をstdoutへ返す。
+
+```bash
+python3 tools/agent_runtime.py tools/growth_tasks.py hearing open --profile-root <profile-root> --requester <run-id> --purpose artistic-research --json
+python3 tools/agent_runtime.py tools/growth_tasks.py hearing skip <task-id> --profile-root <profile-root> --requester <run-id> --reason skipped|no-response --json
+```
+
+- 運用経路（`open`/`skip`、後続の`answer`）は agent を止めない。結果は必ず `unavailable` を含む JSON として exit 0 で返り、非零終了は `--profile-root` 不正等の usage error だけである。
+- `open`は1 run（同じ`--requester`）につき`config/hearing.yaml`の`max_questions_per_run`（既定1）問だけを提示する。Source選択・cooldown・queue busy・entity不整合は`unavailable`の理由コードとして返る。
+- 記録は`<profile-root>/data/hearings.jsonl`（`growth-hearing/v1`）だけで、公開repoには出ない。schemaは[`config/growth-hearing-schema.yaml`](../config/growth-hearing-schema.yaml)、質問・同意文言は[`config/hearing.yaml`](../config/hearing.yaml)。
+- 回答（`hearing answer`）はSM-046で実装する。標準入力から読み、ファイル引数を持たない。

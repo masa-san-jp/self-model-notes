@@ -17,10 +17,11 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import shlex
 import subprocess
 import sys
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -29,7 +30,7 @@ try:
     from build_graph import build_coverage
     from audit import findings as audit_findings
     from build_self_model import build_model
-    from export_signals import _group_misses, build_signal_export, export_signals
+    from export_signals import _as_date, _group_misses, build_signal_export, export_signals
     from profile_root import (
         ProfileRootError,
         add_profile_root_argument,
@@ -41,7 +42,7 @@ except ModuleNotFoundError:  # Imported as tools.growth_tasks by the test suite.
     from tools.build_graph import build_coverage
     from tools.audit import findings as audit_findings
     from tools.build_self_model import build_model
-    from tools.export_signals import _group_misses, build_signal_export, export_signals
+    from tools.export_signals import _as_date, _group_misses, build_signal_export, export_signals
     from tools.profile_root import (
         ProfileRootError,
         add_profile_root_argument,
@@ -52,8 +53,24 @@ except ModuleNotFoundError:  # Imported as tools.growth_tasks by the test suite.
 QUEUE_CONTRACT = "growth-queue/v1"
 QUESTION_BANK_PATH = REPO_ROOT / "config" / "question-bank.yaml"
 MILESTONES_PATH = REPO_ROOT / "config" / "growth-milestones.yaml"
+HEARING_CONFIG_PATH = REPO_ROOT / "config" / "hearing.yaml"
 STALE_CLAIM_DAYS = 180
 CHECK_TIMEOUT_SECONDS = 600
+
+# Hearing (Issue #118): a production-run entry that offers at most one
+# growth-queue question per run, explains why before asking, and never
+# blocks the run -- every outcome (offered/answered/skipped/unavailable)
+# still lets the caller proceed to export_signals.py.
+HEARING_LOG_CONTRACT = "growth-hearing/v1"
+HEARING_PACKET_CONTRACT = "growth-hearing-packet/v1"
+HEARING_SOURCE_KINDS = frozenset({"conversation", "interview"})
+HEARING_REQUIRED_OPERATIONS = frozenset({"store-reference", "analyze", "derive", "export-signals"})
+HEARING_CONSTRAINTS = (
+    "1問だけ",
+    "言い換え可・項目追加不可",
+    "制作テーマ・依頼文を記録に書かない",
+    "答えたくない反応が出たらすぐ skip",
+)
 
 # growth-miss section -> (question-bank id, self-model/v2 section)
 MISS_SECTION_TARGETS = {
@@ -139,6 +156,25 @@ def load_question_bank() -> dict[str, dict[str, Any]]:
 def question_bank_forbidden_tokens() -> list[str]:
     data = load_yaml(QUESTION_BANK_PATH)
     return list(data.get("forbidden_tokens", []))
+
+
+# -------------------------------------------------------------------- hearing config --
+
+
+def load_hearing_config() -> dict[str, Any]:
+    return load_yaml(HEARING_CONFIG_PATH)
+
+
+def hearing_config_text_fields(config: dict[str, Any] | None = None) -> list[str]:
+    """Every human-facing string in config/hearing.yaml, for the forbidden_tokens check."""
+    config = config if config is not None else load_hearing_config()
+    texts = list(config.get("intent", []))
+    skip_ack = config.get("skip_ack")
+    if skip_ack:
+        texts.append(skip_ack)
+    texts.extend(config.get("section_reasons", {}).values())
+    texts.extend(config.get("slot_reasons", {}).values())
+    return texts
 
 
 # ---------------------------------------------------------------- milestones --
@@ -757,6 +793,287 @@ def report(profile_root: Path) -> str:
     return content
 
 
+# ----------------------------------------------------------------- hearing --
+
+
+def _hearings_path(data_root: Path) -> Path:
+    return data_root / "hearings.jsonl"
+
+
+def _hearing_lines(data_root: Path) -> list[dict[str, Any]]:
+    path = _hearings_path(data_root)
+    if not path.exists():
+        return []
+    records: list[dict[str, Any]] = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            record = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(record, dict):
+            records.append(record)
+    return records
+
+
+def append_growth_hearing(
+    data_root: Path,
+    *,
+    requester: str,
+    subject: str | None,
+    purpose: str,
+    task_id: str | None,
+    question_id: str | None,
+    outcome: str,
+    reason: str | None,
+    entity: str | None,
+) -> dict[str, Any]:
+    """Build and append one growth-hearing/v1 line. Never raises; a log failure must not fail a run."""
+    record = {
+        "contract_version": HEARING_LOG_CONTRACT,
+        "ts": datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
+        "requester": requester,
+        "subject": subject,
+        "purpose": purpose,
+        "task_id": task_id,
+        "question_id": question_id,
+        "outcome": outcome,
+        "reason": reason,
+        "entity": entity,
+    }
+    line = json.dumps(record, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n"
+    try:
+        data_root.mkdir(parents=True, exist_ok=True)
+        fd = os.open(_hearings_path(data_root), os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o644)
+        try:
+            os.write(fd, line.encode("utf-8"))
+        finally:
+            os.close(fd)
+    except OSError:
+        pass
+    return record
+
+
+def _requester_line_count(data_root: Path, requester: str) -> int:
+    return sum(1 for record in _hearing_lines(data_root) if record.get("requester") == requester)
+
+
+def _skip_cooldown_active(data_root: Path, question_id: str | None, now: datetime, cooldown_days: int) -> bool:
+    if question_id is None:
+        return False
+    cutoff = now - timedelta(days=cooldown_days)
+    for record in _hearing_lines(data_root):
+        if record.get("outcome") != "skipped" or record.get("question_id") != question_id:
+            continue
+        try:
+            recorded_at = datetime.fromisoformat(str(record.get("ts")).replace("Z", "+00:00"))
+        except ValueError:
+            continue
+        if recorded_at >= cutoff:
+            return True
+    return False
+
+
+def _consent_is_valid_for_hearing(consent: Any, purpose: str, today: date) -> bool:
+    if not isinstance(consent, dict):
+        return False
+    if consent.get("obtained") is not True:
+        return False
+    if consent.get("revoked_at") is not None:
+        return False
+    expires_at = consent.get("expires_at")
+    if expires_at is not None:
+        expiry = _as_date(expires_at)
+        if expiry is None or expiry <= today:
+            return False
+    purposes = consent.get("purposes")
+    if not isinstance(purposes, list) or purpose not in purposes:
+        return False
+    operations = consent.get("allowed_operations")
+    if not isinstance(operations, list) or not HEARING_REQUIRED_OPERATIONS.issubset(operations):
+        return False
+    return True
+
+
+def _select_hearing_source(entities: list[Any], subject_id: str, purpose: str, *, today: date | None = None) -> Any | None:
+    today = today or datetime.now(timezone.utc).date()
+    candidates = [
+        entity
+        for entity in entities
+        if entity.type == "source"
+        and entity.meta.get("subject") == subject_id
+        and entity.meta.get("source_kind") in HEARING_SOURCE_KINDS
+        and _consent_is_valid_for_hearing(entity.meta.get("consent"), purpose, today)
+    ]
+    if not candidates:
+        return None
+
+    def _captured_at(entity: Any) -> str:
+        value = entity.meta.get("captured_at")
+        return value.isoformat() if hasattr(value, "isoformat") else str(value)
+
+    return max(candidates, key=_captured_at)
+
+
+def _select_hearing_task(
+    queue: dict[str, Any], data_root: Path, cooldown_days: int, now: datetime
+) -> tuple[dict[str, Any] | None, str | None]:
+    candidates = sorted(
+        (task for task in queue.get("tasks", []) if task["status"] == "ready" and task["kind"] == "acquire-event"),
+        key=lambda task: task["id"],
+    )
+    if not candidates:
+        return None, "NO_ACQUIRE_TASK"
+    eligible = [task for task in candidates if not _skip_cooldown_active(data_root, task.get("question_id"), now, cooldown_days)]
+    if not eligible:
+        return None, "ALL_SKIPPED_RECENTLY"
+    return eligible[0], None
+
+
+def _hearing_packet_base(*, requester: str, subject: str | None, purpose: str) -> dict[str, Any]:
+    return {
+        "contract_version": HEARING_PACKET_CONTRACT,
+        "outcome": None,
+        "reason": None,
+        "requester": requester,
+        "subject": subject,
+        "purpose": purpose,
+        "queue_sha256": None,
+        "task_id": None,
+        "question_id": None,
+        "source_ref": None,
+        "answer_format": None,
+        "intent": None,
+        "why": None,
+        "question": None,
+        "anchors": None,
+        "skip_ack": None,
+        "constraints": None,
+    }
+
+
+def _resolve_hearing_subject(layout: Any, subject: str | None) -> str | None:
+    if subject is not None:
+        return subject if subject in layout.subject_ids else None
+    if len(layout.subject_ids) == 1:
+        return layout.subject_ids[0]
+    return None
+
+
+def hearing_open(profile_root: Path, *, requester: str, purpose: str, subject: str | None = None) -> dict[str, Any]:
+    layout = resolve_profile_root(profile_root)
+    hearing_cfg = load_hearing_config()
+
+    def unavailable(reason: str, *, subject_value: str | None) -> dict[str, Any]:
+        packet = _hearing_packet_base(requester=requester, subject=subject_value, purpose=purpose)
+        packet["outcome"] = "unavailable"
+        packet["reason"] = reason
+        return packet
+
+    subject_id = _resolve_hearing_subject(layout, subject)
+    if subject_id is None:
+        return unavailable("SUBJECT_REQUIRED", subject_value=None)
+
+    max_questions = int(hearing_cfg.get("max_questions_per_run", 1))
+    if _requester_line_count(layout.data_root, requester) >= max_questions:
+        return unavailable("ALREADY_OFFERED_THIS_RUN", subject_value=subject_id)
+
+    try:
+        queue = generate(profile_root)
+    except GrowthTaskError as error:
+        if error.code in ("QUEUE_BUSY", "ENTITIES_INVALID"):
+            return unavailable(error.code, subject_value=subject_id)
+        raise
+
+    entities = discover_entities(layout.entity_root)
+    source = _select_hearing_source(entities, subject_id, purpose)
+    if source is None:
+        return unavailable("NO_CONSENTED_SOURCE", subject_value=subject_id)
+
+    cooldown_days = int(hearing_cfg.get("skip_cooldown_days", 14))
+    now = datetime.now(timezone.utc)
+    task, failure_reason = _select_hearing_task(queue, layout.data_root, cooldown_days, now)
+    if task is None:
+        return unavailable(failure_reason or "NO_ACQUIRE_TASK", subject_value=subject_id)
+
+    question_bank = load_question_bank()
+    question_item = question_bank.get(task["question_id"]) or {}
+    target = task["target"]
+    slot = target.get("slot")
+    why = (
+        hearing_cfg.get("slot_reasons", {}).get(slot)
+        if slot
+        else hearing_cfg.get("section_reasons", {}).get(target.get("section"))
+    )
+    packet = _hearing_packet_base(requester=requester, subject=subject_id, purpose=purpose)
+    packet.update(
+        {
+            "outcome": "offered",
+            "reason": None,
+            "queue_sha256": _queue_sha256(queue_path(profile_root)),
+            "task_id": task["id"],
+            "question_id": task["question_id"],
+            "source_ref": source.id,
+            "answer_format": "slot-values" if slot else "event-block",
+            "intent": list(hearing_cfg.get("intent", [])),
+            "why": why,
+            "question": question_item.get("hearing_text") or question_item.get("text"),
+            "anchors": [],
+            "skip_ack": hearing_cfg.get("skip_ack"),
+            "constraints": list(HEARING_CONSTRAINTS),
+        }
+    )
+    append_growth_hearing(
+        layout.data_root,
+        requester=requester,
+        subject=subject_id,
+        purpose=purpose,
+        task_id=task["id"],
+        question_id=task["question_id"],
+        outcome="offered",
+        reason=None,
+        entity=None,
+    )
+    return packet
+
+
+def hearing_skip(
+    profile_root: Path,
+    task_id: str,
+    *,
+    requester: str,
+    reason: str,
+    purpose: str = "artistic-research",
+    subject: str | None = None,
+) -> dict[str, Any]:
+    if reason not in ("skipped", "no-response"):
+        raise _error("HEARING_REASON_INVALID", "reason must be skipped or no-response")
+    layout = resolve_profile_root(profile_root)
+    subject_id = _resolve_hearing_subject(layout, subject)
+
+    question_id = None
+    path = queue_path(profile_root)
+    if path.exists():
+        queue = load_yaml(path)
+        task = next((item for item in queue.get("tasks", []) if item["id"] == task_id), None)
+        if task is not None:
+            question_id = task.get("question_id")
+
+    return append_growth_hearing(
+        layout.data_root,
+        requester=requester,
+        subject=subject_id,
+        purpose=purpose,
+        task_id=task_id,
+        question_id=question_id,
+        outcome="skipped",
+        reason=reason,
+        entity=None,
+    )
+
+
 # --------------------------------------------------------------------- CLI --
 
 
@@ -786,6 +1103,25 @@ def main() -> int:
 
     report_parser = sub.add_parser("report")
     add_profile_root_argument(report_parser)
+
+    hearing_parser = sub.add_parser("hearing")
+    hearing_sub = hearing_parser.add_subparsers(dest="hearing_command", required=True)
+
+    hearing_open_parser = hearing_sub.add_parser("open")
+    add_profile_root_argument(hearing_open_parser)
+    hearing_open_parser.add_argument("--requester", required=True)
+    hearing_open_parser.add_argument("--purpose", required=True)
+    hearing_open_parser.add_argument("--subject")
+    hearing_open_parser.add_argument("--json", action="store_true")
+
+    hearing_skip_parser = hearing_sub.add_parser("skip")
+    add_profile_root_argument(hearing_skip_parser)
+    hearing_skip_parser.add_argument("task_id")
+    hearing_skip_parser.add_argument("--requester", required=True)
+    hearing_skip_parser.add_argument("--reason", required=True, choices=("skipped", "no-response"))
+    hearing_skip_parser.add_argument("--purpose", default="artistic-research")
+    hearing_skip_parser.add_argument("--subject")
+    hearing_skip_parser.add_argument("--json", action="store_true")
 
     args = parser.parse_args()
     if args.profile_root is None:
@@ -829,6 +1165,20 @@ def main() -> int:
         if args.command == "report":
             report(args.profile_root)
             print(f"wrote {growth_report_path(args.profile_root).relative_to(Path(args.profile_root))}")
+            return 0
+        if args.command == "hearing":
+            if args.hearing_command == "open":
+                result = hearing_open(args.profile_root, requester=args.requester, purpose=args.purpose, subject=args.subject)
+            else:
+                result = hearing_skip(
+                    args.profile_root,
+                    args.task_id,
+                    requester=args.requester,
+                    reason=args.reason,
+                    purpose=args.purpose,
+                    subject=args.subject,
+                )
+            print(json.dumps(result, ensure_ascii=False, sort_keys=True))
             return 0
     except GrowthTaskError as error:
         print(json.dumps({"error": {"code": error.code, "message": str(error)}}, ensure_ascii=False), file=sys.stderr)
