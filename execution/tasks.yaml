@@ -1978,7 +1978,7 @@ tasks:
   - id: SM-046
     title: "Hearing answer: Event write, slot update, verify, rollback"
     phase: 10
-    status: ready
+    status: in-progress
     depends_on: [SM-045]
     issue: https://github.com/masa-san-jp/self-model-notes/issues/118
     allowed_paths:
@@ -2009,7 +2009,14 @@ tasks:
       - A change to the intake annotated block format is required
       - A core entity type or closed vocabulary change is required
       - A path outside the allowed_paths is required
-    claim: null
+    claim:
+      actor: claude-sonnet5
+      base: 6c5e6d68d5332f9e1d480fdd229ab841d52ccf2a
+      branch: agent/sm-046-claude-sonnet5
+      remote: origin
+      lock_ref: refs/heads/harness-lock/sm-046
+      claimed_at: '2026-09-20T15:12:20.274865000Z'
+
     evidence: []
 
   - id: SM-047

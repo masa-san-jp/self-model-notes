@@ -208,10 +208,11 @@ python3 tools/agent_runtime.py tools/growth_tasks.py report --profile-root <prof
 
 ```bash
 python3 tools/agent_runtime.py tools/growth_tasks.py hearing open --profile-root <profile-root> --requester <run-id> --purpose artistic-research --json
+python3 tools/agent_runtime.py tools/growth_tasks.py hearing answer <task-id> --profile-root <profile-root> --requester <run-id> --expected-queue-sha256 <sha> --json < <回答blockを標準入力で渡す>
 python3 tools/agent_runtime.py tools/growth_tasks.py hearing skip <task-id> --profile-root <profile-root> --requester <run-id> --reason skipped|no-response --json
 ```
 
-- 運用経路（`open`/`skip`、後続の`answer`）は agent を止めない。結果は必ず `unavailable` を含む JSON として exit 0 で返り、非零終了は `--profile-root` 不正等の usage error だけである。
+- 運用経路（`open`/`answer`/`skip`）は agent を止めない。結果は必ず `unavailable` を含む JSON として exit 0 で返り、非零終了は `--profile-root` 不正等の usage error だけである。
 - `open`は1 run（同じ`--requester`）につき`config/hearing.yaml`の`max_questions_per_run`（既定1）問だけを提示する。Source選択・cooldown・queue busy・entity不整合は`unavailable`の理由コードとして返る。
 - 記録は`<profile-root>/data/hearings.jsonl`（`growth-hearing/v1`）だけで、公開repoには出ない。schemaは[`config/growth-hearing-schema.yaml`](../config/growth-hearing-schema.yaml)、質問・同意文言は[`config/hearing.yaml`](../config/hearing.yaml)。
-- 回答（`hearing answer`）はSM-046で実装する。標準入力から読み、ファイル引数を持たない。
+- `answer`は回答blockを標準入力から読む（ファイル引数は無い）。対象taskの`target.slot`がnullなら`[event: <slug>]`形式の1block（`tools/intake_conversation.py`のparserを再利用し、直接識別情報・raw_voice超過・複数block・未知fieldを同じ理由で拒否する）、slotがあればYAML `{<slot>: [...]|[]|unknown, raw_voice: [...]}` で当該slotだけを更新する。検証に失敗した場合は書いたEvent・slot変更を取り消し、queueを変更せず`unavailable: ANSWER_INVALID:<code>`を返す。標準入力の内容はstdout/stderr/logに一切出さない。
