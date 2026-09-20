@@ -21,16 +21,35 @@ import os
 import shlex
 import subprocess
 import sys
+from dataclasses import replace
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
+import yaml
+
 try:
-    from kb import ROOT as REPO_ROOT, discover_entities, load_yaml, canonical_json, validate_entities
+    from kb import (
+        ROOT as REPO_ROOT,
+        Entity,
+        discover_entities,
+        load_yaml,
+        canonical_json,
+        parse_markdown,
+        serialize_markdown,
+        validate_entities,
+    )
     from build_graph import build_coverage
     from audit import findings as audit_findings
     from build_self_model import build_model
     from export_signals import _as_date, _group_misses, build_signal_export, export_signals
+    from intake_conversation import (
+        MAX_RAW_QUOTE_CHARS,
+        IntakeError,
+        _list_slot,
+        _parse_transcript,
+        _validate_event_values,
+    )
     from profile_root import (
         ProfileRootError,
         add_profile_root_argument,
@@ -38,11 +57,27 @@ try:
         resolve_profile_root,
     )
 except ModuleNotFoundError:  # Imported as tools.growth_tasks by the test suite.
-    from tools.kb import ROOT as REPO_ROOT, discover_entities, load_yaml, canonical_json, validate_entities
+    from tools.kb import (
+        ROOT as REPO_ROOT,
+        Entity,
+        discover_entities,
+        load_yaml,
+        canonical_json,
+        parse_markdown,
+        serialize_markdown,
+        validate_entities,
+    )
     from tools.build_graph import build_coverage
     from tools.audit import findings as audit_findings
     from tools.build_self_model import build_model
     from tools.export_signals import _as_date, _group_misses, build_signal_export, export_signals
+    from tools.intake_conversation import (
+        MAX_RAW_QUOTE_CHARS,
+        IntakeError,
+        _list_slot,
+        _parse_transcript,
+        _validate_event_values,
+    )
     from tools.profile_root import (
         ProfileRootError,
         add_profile_root_argument,
@@ -1074,6 +1109,211 @@ def hearing_skip(
     )
 
 
+MAX_HEARING_ANSWER_BYTES = 1_000_000
+
+
+class _HearingAnswerRejected(Exception):
+    def __init__(self, code: str):
+        super().__init__(code)
+        self.code = code
+
+
+def _intake_error_code(error: IntakeError) -> str:
+    return str(error).split(":", 1)[0]
+
+
+def _write_hearing_event(
+    layout: Any, stdin_text: str, *, subject_id: str, source: Any
+) -> tuple[str, Path]:
+    try:
+        events = _parse_transcript(stdin_text)
+    except IntakeError as error:
+        raise _HearingAnswerRejected(_intake_error_code(error)) from error
+    if len(events) != 1:
+        raise _HearingAnswerRejected("not-a-single-block")
+    event = events[0]
+    today_str = datetime.now(timezone.utc).date().isoformat()
+    event_id = f"event/hearing-{datetime.now(timezone.utc).strftime('%Y%m%d')}-{event['slug']}"
+    path = layout.entity_root / "events" / f"{event_id.split('/', 1)[1]}.md"
+    if path.exists():
+        raise _HearingAnswerRejected("event-exists")
+    try:
+        _validate_event_values(event, source_id=source.id)
+        domains = _list_slot(event["domain"], field="domain", allow_none=False)
+        social = _list_slot(event["social"], field="social", allow_none=False)
+        raw_voice = _list_slot(event["raw_voice"], field="raw_voice")
+    except IntakeError as error:
+        raise _HearingAnswerRejected(_intake_error_code(error)) from error
+    raw_voice_items = None if raw_voice is None else [{"text": quote, "source_ref": source.id} for quote in raw_voice]
+    meta = {
+        "id": event_id,
+        "type": "event",
+        "subject": subject_id,
+        "time": {"observed_at": event["observed_at"], "precision": event["precision"]},
+        "context": {
+            "domains": domains,
+            "social": social,
+            "uncertainty": event["uncertainty"],
+            "control": event["control"],
+        },
+        "state": {"fatigue": event["fatigue"], "stress": event["stress"]},
+        "trigger": event["trigger"],
+        "observed_facts": _list_slot(event["observed_fact"], field="observed_fact"),
+        "raw_voice": raw_voice_items,
+        "appraisal": _list_slot(event["appraisal"], field="appraisal"),
+        "emotion": _list_slot(event["emotion"], field="emotion"),
+        "body": _list_slot(event["body"], field="body"),
+        "cognition": _list_slot(event["cognition"], field="cognition"),
+        "action": _list_slot(event["action"], field="action"),
+        "immediate_outcome": _list_slot(event["immediate_outcome"], field="immediate_outcome"),
+        "delayed_outcome": _list_slot(event["delayed_outcome"], field="delayed_outcome"),
+        "source_refs": [source.id],
+        "created": today_str,
+        "updated": today_str,
+    }
+    text = serialize_markdown(Entity(path=path, meta=meta, body="\n"))
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text, encoding="utf-8")
+    return event_id, path
+
+
+def _apply_hearing_slot_answer(layout: Any, stdin_text: str, *, task: dict[str, Any], source: Any) -> tuple[str, Path, bytes]:
+    try:
+        document = yaml.safe_load(stdin_text)
+    except yaml.YAMLError as error:
+        raise _HearingAnswerRejected("malformed-yaml") from error
+    if not isinstance(document, dict):
+        raise _HearingAnswerRejected("malformed-yaml")
+    slot = task["target"]["slot"]
+    if slot not in document:
+        raise _HearingAnswerRejected("slot-missing")
+    value = document[slot]
+    if value == "unknown" or (isinstance(value, list) and all(isinstance(item, str) for item in value)):
+        slot_value = value
+    else:
+        raise _HearingAnswerRejected("slot-value-invalid")
+    raw_voice_input = document.get("raw_voice")
+    if raw_voice_input is not None:
+        if not isinstance(raw_voice_input, list) or not all(isinstance(item, str) for item in raw_voice_input):
+            raise _HearingAnswerRejected("raw-voice-invalid")
+        for quote in raw_voice_input:
+            if len(quote) > MAX_RAW_QUOTE_CHARS:
+                raise _HearingAnswerRejected("raw-quote-too-long")
+
+    entity_id = task["target"]["entity"]
+    path = layout.entity_root / "events" / f"{entity_id.split('/', 1)[1]}.md"
+    if not path.exists():
+        raise _HearingAnswerRejected("event-missing")
+    original_bytes = path.read_bytes()
+    entity = parse_markdown(path)
+    if entity.meta.get(slot) is not None:
+        raise _HearingAnswerRejected("slot-already-set")
+    new_meta = dict(entity.meta)
+    new_meta[slot] = slot_value
+    if raw_voice_input:
+        existing_raw_voice = list(entity.meta.get("raw_voice") or [])
+        existing_raw_voice.extend({"text": quote, "source_ref": source.id} for quote in raw_voice_input)
+        new_meta["raw_voice"] = existing_raw_voice
+    new_meta["updated"] = datetime.now(timezone.utc).date().isoformat()
+    text = serialize_markdown(replace(entity, meta=new_meta))
+    path.write_text(text, encoding="utf-8")
+    return entity_id, path, original_bytes
+
+
+def hearing_answer(
+    profile_root: Path,
+    task_id: str,
+    *,
+    requester: str,
+    stdin_text: str,
+    expected_queue_sha256: str | None,
+    purpose: str = "artistic-research",
+    subject: str | None = None,
+) -> dict[str, Any]:
+    layout = resolve_profile_root(profile_root)
+    subject_id = _resolve_hearing_subject(layout, subject)
+
+    def unavailable(reason: str, *, question_id: str | None = None) -> dict[str, Any]:
+        return {
+            "contract_version": HEARING_LOG_CONTRACT,
+            "outcome": "unavailable",
+            "reason": reason,
+            "requester": requester,
+            "subject": subject_id,
+            "purpose": purpose,
+            "task_id": task_id,
+            "question_id": question_id,
+            "entity": None,
+        }
+
+    if not stdin_text or not stdin_text.strip():
+        return unavailable("ANSWER_INVALID:empty")
+    if len(stdin_text.encode("utf-8")) > MAX_HEARING_ANSWER_BYTES:
+        return unavailable("ANSWER_INVALID:too-large")
+
+    try:
+        path, queue = _load_queue_checked(profile_root, expected_queue_sha256)
+    except GrowthTaskError as error:
+        return unavailable(error.code)
+
+    task = next((item for item in queue.get("tasks", []) if item["id"] == task_id), None)
+    if task is None or task["status"] != "ready" or task["kind"] != "acquire-event":
+        return unavailable("ANSWER_INVALID:task-not-ready")
+
+    question_id = task.get("question_id")
+    entities = discover_entities(layout.entity_root)
+    source = _select_hearing_source(entities, subject_id, purpose) if subject_id else None
+    if source is None:
+        return unavailable("CONSENT_INVALID", question_id=question_id)
+
+    before_snapshot = snapshot_before(profile_root, task)
+    slot = task["target"].get("slot")
+
+    try:
+        if slot is None:
+            entity_id, written_path = _write_hearing_event(layout, stdin_text, subject_id=subject_id, source=source)
+            original_bytes: bytes | None = None
+        else:
+            entity_id, written_path, original_bytes = _apply_hearing_slot_answer(layout, stdin_text, task=task, source=source)
+    except _HearingAnswerRejected as error:
+        return unavailable(f"ANSWER_INVALID:{error.code}", question_id=question_id)
+
+    def _rollback() -> None:
+        if original_bytes is None:
+            written_path.unlink(missing_ok=True)
+        else:
+            written_path.write_bytes(original_bytes)
+
+    try:
+        checks_run = _run_checks(task["checks"], repo=REPO_ROOT)
+        _verify_acquire_event(profile_root, task, before_snapshot.get("event_ids", set()))
+    except GrowthTaskError as error:
+        _rollback()
+        return unavailable(f"ANSWER_INVALID:{error.code}", question_id=question_id)
+
+    task["status"] = "done"
+    task["claim"] = None
+    task["evidence"] = {
+        "completed_at": datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
+        "queue_sha256": expected_queue_sha256,
+        "entities": [entity_id],
+        "checks": [f"{item['command']} — exit {item['exit_code']}" for item in checks_run],
+    }
+    _atomic_write(path, _dump_yaml(queue))
+
+    return append_growth_hearing(
+        layout.data_root,
+        requester=requester,
+        subject=subject_id,
+        purpose=purpose,
+        task_id=task_id,
+        question_id=question_id,
+        outcome="answered",
+        reason=None,
+        entity=entity_id,
+    )
+
+
 # --------------------------------------------------------------------- CLI --
 
 
@@ -1123,6 +1363,15 @@ def main() -> int:
     hearing_skip_parser.add_argument("--subject")
     hearing_skip_parser.add_argument("--json", action="store_true")
 
+    hearing_answer_parser = hearing_sub.add_parser("answer")
+    add_profile_root_argument(hearing_answer_parser)
+    hearing_answer_parser.add_argument("task_id")
+    hearing_answer_parser.add_argument("--requester", required=True)
+    hearing_answer_parser.add_argument("--expected-queue-sha256")
+    hearing_answer_parser.add_argument("--purpose", default="artistic-research")
+    hearing_answer_parser.add_argument("--subject")
+    hearing_answer_parser.add_argument("--json", action="store_true")
+
     args = parser.parse_args()
     if args.profile_root is None:
         profile_root_error(ProfileRootError("PROFILE_ROOT_REQUIRED", "pass --profile-root"))
@@ -1169,12 +1418,23 @@ def main() -> int:
         if args.command == "hearing":
             if args.hearing_command == "open":
                 result = hearing_open(args.profile_root, requester=args.requester, purpose=args.purpose, subject=args.subject)
-            else:
+            elif args.hearing_command == "skip":
                 result = hearing_skip(
                     args.profile_root,
                     args.task_id,
                     requester=args.requester,
                     reason=args.reason,
+                    purpose=args.purpose,
+                    subject=args.subject,
+                )
+            else:
+                stdin_text = sys.stdin.read()
+                result = hearing_answer(
+                    args.profile_root,
+                    args.task_id,
+                    requester=args.requester,
+                    stdin_text=stdin_text,
+                    expected_queue_sha256=args.expected_queue_sha256,
                     purpose=args.purpose,
                     subject=args.subject,
                 )

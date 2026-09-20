@@ -3,14 +3,18 @@ import shutil
 import tempfile
 import unittest
 from dataclasses import replace
+from datetime import datetime, timezone
 from pathlib import Path
+from unittest import mock
 
 from tests.test_validation import make_entity
-from tools.kb import Entity, load_yaml, serialize_markdown
+from tools.kb import Entity, load_yaml, parse_markdown, serialize_markdown
 from tools.growth_tasks import (
+    GrowthTaskError,
     _atomic_write,
     _dump_yaml,
     generate,
+    hearing_answer,
     hearing_config_text_fields,
     hearing_open,
     hearing_skip,
@@ -82,6 +86,29 @@ class GrowthHearingTestCase(unittest.TestCase):
         if not path.exists():
             return []
         return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+
+    def event_block(self, slug: str = "planning", *, trigger: str = "締切が変わった") -> str:
+        return (
+            f"[event: {slug}]\n"
+            'observed_at: "2026-09-20T09:00:00+09:00"\n'
+            "precision: minute\n"
+            "domain: creative-practice\n"
+            "social: alone\n"
+            "uncertainty: unknown\n"
+            "control: self-directed\n"
+            "fatigue: null\n"
+            "stress: unknown\n"
+            f"trigger: {trigger}\n"
+            "observed_fact: 作業順序を組み替えた\n"
+            'raw_voice: "自分で決めたい"\n'
+            "appraisal: []\n"
+            "emotion: []\n"
+            "body: []\n"
+            "cognition: []\n"
+            "action: 計画を変更した\n"
+            "immediate_outcome: 作業を再開した\n"
+            "delayed_outcome: []\n"
+        )
 
 
 class HearingConfigTests(GrowthHearingTestCase):
@@ -244,6 +271,236 @@ class HearingSkipTests(GrowthHearingTestCase):
         self.assertEqual("skipped", result["outcome"])
         self.assertIsNone(result["question_id"])
         self.assertEqual(1, len(self.hearings_lines()))
+
+
+class HearingAnswerTests(GrowthHearingTestCase):
+    def test_event_block_answer_creates_event_marks_task_done_and_logs(self):
+        self.write_consented_source()
+        offered = hearing_open(self.profile, requester="run-1", purpose="artistic-research")
+
+        result = hearing_answer(
+            self.profile,
+            offered["task_id"],
+            requester="run-1",
+            stdin_text=self.event_block("planning"),
+            expected_queue_sha256=offered["queue_sha256"],
+            purpose="artistic-research",
+        )
+
+        self.assertEqual("answered", result["outcome"])
+        self.assertIsNone(result["reason"])
+        self.assertEqual(offered["task_id"], result["task_id"])
+        self.assertEqual(offered["question_id"], result["question_id"])
+        entity_id = result["entity"]
+        self.assertTrue(entity_id.startswith("event/hearing-"))
+        self.assertTrue(entity_id.endswith("-planning"))
+
+        event_path = self.profile / "entities" / "events" / f"{entity_id.split('/', 1)[1]}.md"
+        self.assertTrue(event_path.exists())
+        entity = parse_markdown(event_path)
+        self.assertEqual(["source/conversation-20260901"], entity.meta["source_refs"])
+        self.assertEqual("source/conversation-20260901", entity.meta["raw_voice"][0]["source_ref"])
+
+        queue = self.load_queue()
+        task = next(t for t in queue["tasks"] if t["id"] == offered["task_id"])
+        self.assertEqual("done", task["status"])
+        self.assertIsNone(task["claim"])
+        self.assertEqual([entity_id], task["evidence"]["entities"])
+
+        lines = self.hearings_lines()
+        self.assertEqual(2, len(lines))
+        self.assertEqual("answered", lines[1]["outcome"])
+        self.assertEqual(entity_id, lines[1]["entity"])
+
+    def test_stdin_content_never_appears_in_the_result(self):
+        self.write_consented_source()
+        offered = hearing_open(self.profile, requester="run-1", purpose="artistic-research")
+        block = self.event_block("planning", trigger="非常に固有な合言葉トリガー12345")
+
+        result = hearing_answer(
+            self.profile,
+            offered["task_id"],
+            requester="run-1",
+            stdin_text=block,
+            expected_queue_sha256=offered["queue_sha256"],
+        )
+        serialized = json.dumps(result, ensure_ascii=False)
+        self.assertNotIn("非常に固有な合言葉トリガー12345", serialized)
+        self.assertNotIn(str(self.profile), serialized)
+
+    def test_empty_stdin_is_unavailable_without_writing(self):
+        self.write_consented_source()
+        offered = hearing_open(self.profile, requester="run-1", purpose="artistic-research")
+        before = queue_path(self.profile).read_bytes()
+
+        result = hearing_answer(
+            self.profile,
+            offered["task_id"],
+            requester="run-1",
+            stdin_text="   \n",
+            expected_queue_sha256=offered["queue_sha256"],
+        )
+        self.assertEqual("unavailable", result["outcome"])
+        self.assertEqual("ANSWER_INVALID:empty", result["reason"])
+        self.assertEqual(before, queue_path(self.profile).read_bytes())
+        self.assertEqual(1, len(self.hearings_lines()))
+
+    def test_oversized_stdin_is_unavailable_without_writing(self):
+        self.write_consented_source()
+        offered = hearing_open(self.profile, requester="run-1", purpose="artistic-research")
+
+        result = hearing_answer(
+            self.profile,
+            offered["task_id"],
+            requester="run-1",
+            stdin_text="x" * (1_000_001),
+            expected_queue_sha256=offered["queue_sha256"],
+        )
+        self.assertEqual("unavailable", result["outcome"])
+        self.assertEqual("ANSWER_INVALID:too-large", result["reason"])
+
+    def test_multiple_blocks_are_rejected_without_writing(self):
+        self.write_consented_source()
+        offered = hearing_open(self.profile, requester="run-1", purpose="artistic-research")
+
+        result = hearing_answer(
+            self.profile,
+            offered["task_id"],
+            requester="run-1",
+            stdin_text=self.event_block("a") + self.event_block("b"),
+            expected_queue_sha256=offered["queue_sha256"],
+        )
+        self.assertEqual("unavailable", result["outcome"])
+        self.assertTrue(result["reason"].startswith("ANSWER_INVALID:"))
+        self.assertEqual(0, len(list((self.profile / "entities" / "events").glob("*.md"))))
+
+    def test_direct_identifier_is_rejected_without_writing(self):
+        self.write_consented_source()
+        offered = hearing_open(self.profile, requester="run-1", purpose="artistic-research")
+
+        result = hearing_answer(
+            self.profile,
+            offered["task_id"],
+            requester="run-1",
+            stdin_text=self.event_block("planning", trigger="test@example.com からの連絡"),
+            expected_queue_sha256=offered["queue_sha256"],
+        )
+        self.assertEqual("unavailable", result["outcome"])
+        self.assertTrue(result["reason"].startswith("ANSWER_INVALID:"))
+        self.assertEqual(0, len(list((self.profile / "entities" / "events").glob("*.md"))))
+
+    def test_queue_conflict_on_sha_mismatch_writes_nothing(self):
+        self.write_consented_source()
+        offered = hearing_open(self.profile, requester="run-1", purpose="artistic-research")
+
+        result = hearing_answer(
+            self.profile,
+            offered["task_id"],
+            requester="run-1",
+            stdin_text=self.event_block("planning"),
+            expected_queue_sha256="0" * 64,
+        )
+        self.assertEqual("unavailable", result["outcome"])
+        self.assertEqual("QUEUE_CONFLICT", result["reason"])
+        self.assertEqual(0, len(list((self.profile / "entities" / "events").glob("*.md"))))
+
+    def test_existing_event_id_is_rejected(self):
+        self.write_consented_source()
+        offered = hearing_open(self.profile, requester="run-1", purpose="artistic-research")
+        slug = "dup"
+        existing_id = f"event/hearing-{datetime.now(timezone.utc).strftime('%Y%m%d')}-{slug}"
+        self.write(make_entity("event", existing_id.split("/", 1)[1], subject="subject/fixture", source_refs=["source/conversation-20260901"]))
+
+        result = hearing_answer(
+            self.profile,
+            offered["task_id"],
+            requester="run-1",
+            stdin_text=self.event_block(slug),
+            expected_queue_sha256=offered["queue_sha256"],
+        )
+        self.assertEqual("unavailable", result["outcome"])
+        self.assertEqual("ANSWER_INVALID:event-exists", result["reason"])
+
+    def test_verification_failure_rolls_back_new_event_and_leaves_queue_unchanged(self):
+        self.write_consented_source()
+        offered = hearing_open(self.profile, requester="run-1", purpose="artistic-research")
+        before = queue_path(self.profile).read_bytes()
+
+        with mock.patch("tools.growth_tasks._run_checks", side_effect=GrowthTaskError("CHECK_FAILED", "boom")):
+            result = hearing_answer(
+                self.profile,
+                offered["task_id"],
+                requester="run-1",
+                stdin_text=self.event_block("planning"),
+                expected_queue_sha256=offered["queue_sha256"],
+            )
+
+        self.assertEqual("unavailable", result["outcome"])
+        self.assertEqual("ANSWER_INVALID:CHECK_FAILED", result["reason"])
+        self.assertEqual(before, queue_path(self.profile).read_bytes())
+        self.assertEqual(0, len(list((self.profile / "entities" / "events").glob("*.md"))))
+        self.assertEqual(1, len(self.hearings_lines()))
+
+    def test_slot_answer_updates_only_target_slot_and_appends_raw_voice(self):
+        self.write_consented_source()
+        self.write(
+            make_entity(
+                "event",
+                "existing",
+                subject="subject/fixture",
+                source_refs=["source/conversation-20260901"],
+                emotion=None,
+                body=[],
+                raw_voice=[],
+            )
+        )
+        offered = hearing_open(self.profile, requester="run-1", purpose="artistic-research")
+        self.assertEqual("emotion-slot", offered["question_id"])
+
+        result = hearing_answer(
+            self.profile,
+            offered["task_id"],
+            requester="run-1",
+            stdin_text='emotion: ["驚き"]\nraw_voice: ["思ったより強く反応した"]\n',
+            expected_queue_sha256=offered["queue_sha256"],
+        )
+
+        self.assertEqual("answered", result["outcome"])
+        self.assertEqual("event/existing", result["entity"])
+        entity = parse_markdown(self.profile / "entities" / "events" / "existing.md")
+        self.assertEqual(["驚き"], entity.meta["emotion"])
+        self.assertEqual([], entity.meta["body"])
+        self.assertEqual(
+            [{"text": "思ったより強く反応した", "source_ref": "source/conversation-20260901"}],
+            entity.meta["raw_voice"],
+        )
+
+    def test_slot_answer_rejects_malformed_yaml_without_writing(self):
+        self.write_consented_source()
+        self.write(
+            make_entity(
+                "event",
+                "existing",
+                subject="subject/fixture",
+                source_refs=["source/conversation-20260901"],
+                emotion=None,
+                body=[],
+                raw_voice=[],
+            )
+        )
+        offered = hearing_open(self.profile, requester="run-1", purpose="artistic-research")
+        before = (self.profile / "entities" / "events" / "existing.md").read_bytes()
+
+        result = hearing_answer(
+            self.profile,
+            offered["task_id"],
+            requester="run-1",
+            stdin_text="not: [valid, yaml",
+            expected_queue_sha256=offered["queue_sha256"],
+        )
+        self.assertEqual("unavailable", result["outcome"])
+        self.assertTrue(result["reason"].startswith("ANSWER_INVALID:"))
+        self.assertEqual(before, (self.profile / "entities" / "events" / "existing.md").read_bytes())
 
 
 if __name__ == "__main__":
