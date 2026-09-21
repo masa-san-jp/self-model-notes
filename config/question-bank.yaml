@@ -45,21 +45,27 @@ questions:
   - id: trigger
     section: dominant_triggers
     text: "最近、理由もなく手が止まった瞬間はある?"
+    hearing_text: "今の制作で、理由もなく手が止まるところはある?"
   - id: rewards
     section: dominant_rewards
     text: "最近、やっていて時間を忘れたことは?"
+    hearing_text: "今の制作で、つい時間を忘れてしまう部分は?"
   - id: avoidance
     section: avoidance_targets
     text: "最近、つい後回しにしたことは?"
+    hearing_text: "今の制作で、つい後回しにしている部分は?"
   - id: protective
     section: protective_factors
     text: "誰かの言動に、思ったより強く反応した瞬間は?"
+    hearing_text: "今の制作について誰かに何か言われて、思ったより強く反応したことは?"
   - id: context
     section: context_dependencies
     text: "同じことでも、場所や相手によってやり方が変わることはある?"
+    hearing_text: "この制作、場所や相手が変わるとやり方も変わりそう?"
   - id: tension
     section: tensions
     text: "やりたいのに、やらないと決めていることはある?"
+    hearing_text: "この制作で、やりたいのに、やらないと決めていることは?"
   - id: emotion-slot
     section: null
     slot: emotion

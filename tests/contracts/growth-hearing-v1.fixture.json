@@ -1,0 +1,101 @@
+{
+  "packet_offered": {
+    "contract_version": "growth-hearing-packet/v1",
+    "outcome": "offered",
+    "reason": null,
+    "requester": "synthetic-run-001",
+    "subject": "subject/fixture",
+    "purpose": "artistic-research",
+    "queue_sha256": "0000000000000000000000000000000000000000000000000000000000aa",
+    "task_id": "GT-0001",
+    "question_id": "avoidance",
+    "source_ref": "source/conversation-fixture",
+    "answer_format": "event-block",
+    "intent": [
+      "計画を立てる前に、ひとつだけ聞かせてほしい。",
+      "あなたに合った計画にしたくて、今の様子を少し知りたい。",
+      "答えはあなたの手元にだけ残って、公開はされない。",
+      "今回の計画にはすぐには反映されず、次の制作から効いてくる。",
+      "答えたくなければ「スキップ」でいい。どちらでも計画は作る。"
+    ],
+    "why": "何を遠ざけたいのか、まだ分かっていない。",
+    "question": "今の制作で、つい後回しにしている部分は?",
+    "anchors": [
+      {"event": "event/fixture-planning", "text": "自分で決めたい"}
+    ],
+    "skip_ack": "了解。今回はこのまま計画を作る。",
+    "constraints": [
+      "1問だけ",
+      "言い換え可・項目追加不可",
+      "制作テーマ・依頼文を記録に書かない",
+      "答えたくない反応が出たらすぐ skip"
+    ]
+  },
+  "packet_unavailable": {
+    "contract_version": "growth-hearing-packet/v1",
+    "outcome": "unavailable",
+    "reason": "NO_CONSENTED_SOURCE",
+    "requester": "synthetic-run-002",
+    "subject": "subject/fixture",
+    "purpose": "artistic-research",
+    "queue_sha256": null,
+    "task_id": null,
+    "question_id": null,
+    "source_ref": null,
+    "answer_format": null,
+    "intent": null,
+    "why": null,
+    "question": null,
+    "anchors": null,
+    "skip_ack": null,
+    "constraints": null
+  },
+  "log_offered": {
+    "contract_version": "growth-hearing/v1",
+    "ts": "2026-09-20T00:00:00Z",
+    "requester": "synthetic-run-001",
+    "subject": "subject/fixture",
+    "purpose": "artistic-research",
+    "task_id": "GT-0001",
+    "question_id": "avoidance",
+    "outcome": "offered",
+    "reason": null,
+    "entity": null
+  },
+  "log_answered": {
+    "contract_version": "growth-hearing/v1",
+    "ts": "2026-09-20T00:05:00Z",
+    "requester": "synthetic-run-001",
+    "subject": "subject/fixture",
+    "purpose": "artistic-research",
+    "task_id": "GT-0001",
+    "question_id": "avoidance",
+    "outcome": "answered",
+    "reason": null,
+    "entity": "event/hearing-20260920-planning"
+  },
+  "log_skipped": {
+    "contract_version": "growth-hearing/v1",
+    "ts": "2026-09-20T00:05:00Z",
+    "requester": "synthetic-run-001",
+    "subject": "subject/fixture",
+    "purpose": "artistic-research",
+    "task_id": "GT-0001",
+    "question_id": "avoidance",
+    "outcome": "skipped",
+    "reason": "skipped",
+    "entity": null
+  },
+  "log_no_response": {
+    "contract_version": "growth-hearing/v1",
+    "ts": "2026-09-20T00:05:00Z",
+    "requester": "synthetic-run-001",
+    "subject": "subject/fixture",
+    "purpose": "artistic-research",
+    "task_id": "GT-0001",
+    "question_id": "avoidance",
+    "outcome": "skipped",
+    "reason": "no-response",
+    "entity": null
+  }
+}
