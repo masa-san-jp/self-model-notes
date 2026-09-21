@@ -997,6 +997,40 @@ def _resolve_hearing_subject(layout: Any, subject: str | None) -> str | None:
     return None
 
 
+MAX_HEARING_ANCHORS = 2
+
+
+def _hearing_anchors(entities: list[Any], subject_id: str, target: dict[str, Any]) -> list[dict[str, str]]:
+    """Up to two of the person's own past raw_voice quotes, per Issue #118's anchor rule."""
+    slot = target.get("slot")
+    anchors: list[dict[str, str]] = []
+    if slot is not None:
+        event = next((entity for entity in entities if entity.id == target.get("entity")), None)
+        if event is None:
+            return []
+        for item in event.meta.get("raw_voice") or []:
+            if isinstance(item, dict) and isinstance(item.get("text"), str):
+                anchors.append({"event": event.id, "text": item["text"]})
+            if len(anchors) == MAX_HEARING_ANCHORS:
+                break
+        return anchors
+
+    events = [
+        entity for entity in entities if entity.type == "event" and entity.meta.get("subject") == subject_id
+    ]
+    events.sort(key=lambda entity: str(entity.meta.get("time", {}).get("observed_at") or ""), reverse=True)
+    for event in events:
+        first_quote = next(
+            (item.get("text") for item in event.meta.get("raw_voice") or [] if isinstance(item, dict) and isinstance(item.get("text"), str)),
+            None,
+        )
+        if first_quote:
+            anchors.append({"event": event.id, "text": first_quote})
+        if len(anchors) == MAX_HEARING_ANCHORS:
+            break
+    return anchors
+
+
 def hearing_open(profile_root: Path, *, requester: str, purpose: str, subject: str | None = None) -> dict[str, Any]:
     layout = resolve_profile_root(profile_root)
     hearing_cfg = load_hearing_config()
@@ -1055,7 +1089,7 @@ def hearing_open(profile_root: Path, *, requester: str, purpose: str, subject: s
             "intent": list(hearing_cfg.get("intent", [])),
             "why": why,
             "question": question_item.get("hearing_text") or question_item.get("text"),
-            "anchors": [],
+            "anchors": _hearing_anchors(entities, subject_id, target),
             "skip_ack": hearing_cfg.get("skip_ack"),
             "constraints": list(HEARING_CONSTRAINTS),
         }

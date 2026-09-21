@@ -2024,7 +2024,7 @@ tasks:
   - id: SM-047
     title: Personal-context questions, run-entry contract, end-to-end guarantee
     phase: 10
-    status: ready
+    status: done
     depends_on: [SM-046]
     issue: https://github.com/masa-san-jp/self-model-notes/issues/118
     allowed_paths:
@@ -2059,6 +2059,16 @@ tasks:
       - The export output shape must change
       - A path outside the allowed_paths is required
     claim: null
-    evidence: []
+
+    evidence:
+      - pr: 128
+        commit: 894d0253132ef19642586368ff8a11c028c091b7
+        checks:
+          - "python3 tools/agent_runtime.py tools/task_harness.py verify-paths SM-047 --json — passed"
+          - "python3 tools/agent_runtime.py -m unittest tests.test_growth_hearing tests.test_growth_tasks tests.test_export_signals — passed"
+          - "python3 tools/agent_runtime.py -m unittest discover -s tests -p \"test_*.py\" — passed"
+          - "python3 tools/agent_runtime.py tools/profile_root.py validate-repository --json — passed"
+          - "git diff --check — passed"
+
 
 

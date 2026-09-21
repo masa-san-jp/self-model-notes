@@ -1,5 +1,7 @@
 import json
 import shutil
+import subprocess
+import sys
 import tempfile
 import unittest
 from dataclasses import replace
@@ -11,8 +13,11 @@ from tests.test_validation import make_entity
 from tools.kb import Entity, load_yaml, parse_markdown, serialize_markdown
 from tools.growth_tasks import (
     GrowthTaskError,
+    HEARING_LOG_CONTRACT,
+    HEARING_PACKET_CONTRACT,
     _atomic_write,
     _dump_yaml,
+    _hearing_packet_base,
     generate,
     hearing_answer,
     hearing_config_text_fields,
@@ -23,6 +28,10 @@ from tools.growth_tasks import (
     question_bank_forbidden_tokens,
     queue_path,
 )
+
+
+CONTRACTS_ROOT = Path(__file__).resolve().parent / "contracts"
+ROOT = Path(__file__).resolve().parents[1]
 
 
 PLURAL = {
@@ -110,6 +119,21 @@ class GrowthHearingTestCase(unittest.TestCase):
             "delayed_outcome: []\n"
         )
 
+    def export_signals_cli(self, requester: str) -> subprocess.CompletedProcess:
+        return subprocess.run(
+            [
+                sys.executable,
+                "tools/export_signals.py",
+                "--subject", "subject/fixture",
+                "--purpose", "artistic-research",
+                "--profile-root", str(self.profile),
+                "--requester", requester,
+            ],
+            cwd=ROOT,
+            text=True,
+            capture_output=True,
+        )
+
 
 class HearingConfigTests(GrowthHearingTestCase):
     def test_hearing_config_has_required_fields(self):
@@ -137,6 +161,17 @@ class HearingConfigTests(GrowthHearingTestCase):
             for token in forbidden:
                 self.assertNotIn(token, text.lower(), text)
 
+    def test_every_section_question_has_a_hearing_text_without_forbidden_tokens(self):
+        forbidden = [token.lower() for token in question_bank_forbidden_tokens()]
+        bank = load_question_bank()
+        section_question_ids = {"trigger", "rewards", "avoidance", "protective", "context", "tension"}
+        for question_id in section_question_ids:
+            hearing_text = bank[question_id].get("hearing_text")
+            self.assertTrue(hearing_text, question_id)
+            lowered = hearing_text.lower()
+            for token in forbidden:
+                self.assertNotIn(token, lowered, f"{question_id} leaks {token!r}")
+
 
 class HearingOpenTests(GrowthHearingTestCase):
     def test_offered_packet_has_every_field_and_logs_one_line(self):
@@ -158,7 +193,7 @@ class HearingOpenTests(GrowthHearingTestCase):
         self.assertEqual(
             load_hearing_config()["section_reasons"]["avoidance_targets"], packet["why"]
         )
-        self.assertEqual(load_question_bank()["avoidance"]["text"], packet["question"])
+        self.assertEqual(load_question_bank()["avoidance"]["hearing_text"], packet["question"])
         self.assertEqual([], packet["anchors"])
         self.assertEqual(load_hearing_config()["skip_ack"], packet["skip_ack"])
         self.assertEqual(4, len(packet["constraints"]))
@@ -214,6 +249,57 @@ class HearingOpenTests(GrowthHearingTestCase):
         packet = hearing_open(self.profile, requester="run-1", purpose="artistic-research")
         self.assertEqual("unavailable", packet["outcome"])
         self.assertEqual("NO_CONSENTED_SOURCE", packet["reason"])
+
+    def test_section_task_anchors_use_the_persons_own_recent_raw_voice(self):
+        self.write_consented_source()
+        self.write(
+            make_entity(
+                "event",
+                "older",
+                subject="subject/fixture",
+                source_refs=["source/conversation-20260901"],
+                raw_voice=[{"text": "古い方の発言", "source_ref": "source/conversation-20260901"}],
+                time={"observed_at": "2026-09-01T09:00:00+09:00", "precision": "minute"},
+            )
+        )
+        self.write(
+            make_entity(
+                "event",
+                "newer",
+                subject="subject/fixture",
+                source_refs=["source/conversation-20260901"],
+                raw_voice=[{"text": "新しい方の発言", "source_ref": "source/conversation-20260901"}],
+                time={"observed_at": "2026-09-15T09:00:00+09:00", "precision": "minute"},
+            )
+        )
+        packet = hearing_open(self.profile, requester="run-1", purpose="artistic-research")
+        self.assertEqual([
+            {"event": "event/newer", "text": "新しい方の発言"},
+            {"event": "event/older", "text": "古い方の発言"},
+        ], packet["anchors"])
+
+    def test_slot_task_anchors_use_the_target_events_raw_voice(self):
+        self.write_consented_source()
+        self.write(
+            make_entity(
+                "event",
+                "existing",
+                subject="subject/fixture",
+                source_refs=["source/conversation-20260901"],
+                emotion=None,
+                raw_voice=[
+                    {"text": "一つ目の発言", "source_ref": "source/conversation-20260901"},
+                    {"text": "二つ目の発言", "source_ref": "source/conversation-20260901"},
+                    {"text": "三つ目の発言", "source_ref": "source/conversation-20260901"},
+                ],
+            )
+        )
+        packet = hearing_open(self.profile, requester="run-1", purpose="artistic-research")
+        self.assertEqual("emotion-slot", packet["question_id"])
+        self.assertEqual([
+            {"event": "event/existing", "text": "一つ目の発言"},
+            {"event": "event/existing", "text": "二つ目の発言"},
+        ], packet["anchors"])
 
     def test_queue_busy_is_unavailable(self):
         self.write_consented_source()
@@ -271,6 +357,51 @@ class HearingSkipTests(GrowthHearingTestCase):
         self.assertEqual("skipped", result["outcome"])
         self.assertIsNone(result["question_id"])
         self.assertEqual(1, len(self.hearings_lines()))
+
+
+class HearingContractFixtureTests(unittest.TestCase):
+    def load_fixture(self) -> dict:
+        path = CONTRACTS_ROOT / "growth-hearing-v1.fixture.json"
+        return json.loads(path.read_text(encoding="utf-8"))
+
+    def test_fixture_packets_match_the_packet_field_set(self):
+        fixture = self.load_fixture()
+        expected_fields = set(_hearing_packet_base(requester="x", subject="x", purpose="x"))
+        for key in ("packet_offered", "packet_unavailable"):
+            packet = fixture[key]
+            self.assertEqual(HEARING_PACKET_CONTRACT, packet["contract_version"])
+            self.assertEqual(expected_fields, set(packet), key)
+        self.assertEqual("offered", fixture["packet_offered"]["outcome"])
+        self.assertEqual("unavailable", fixture["packet_unavailable"]["outcome"])
+        for field, value in fixture["packet_unavailable"].items():
+            if field in {"contract_version", "outcome", "reason", "requester", "subject", "purpose"}:
+                continue
+            self.assertIsNone(value, field)
+
+    def test_fixture_log_lines_match_the_log_field_set(self):
+        fixture = self.load_fixture()
+        expected_fields = {
+            "contract_version", "ts", "requester", "subject", "purpose",
+            "task_id", "question_id", "outcome", "reason", "entity",
+        }
+        for key in ("log_offered", "log_answered", "log_skipped", "log_no_response"):
+            record = fixture[key]
+            self.assertEqual(HEARING_LOG_CONTRACT, record["contract_version"])
+            self.assertEqual(expected_fields, set(record), key)
+
+    def test_fixture_contains_no_absolute_path(self):
+        fixture = self.load_fixture()
+        serialized = json.dumps(fixture, ensure_ascii=False)
+        self.assertNotIn("/Users/", serialized)
+        self.assertNotIn(str(Path.home()), serialized)
+
+    def test_fixture_question_text_has_no_forbidden_token(self):
+        fixture = self.load_fixture()
+        forbidden = [token.lower() for token in question_bank_forbidden_tokens()]
+        for text in (fixture["packet_offered"]["question"], fixture["packet_offered"]["why"], *fixture["packet_offered"]["intent"]):
+            lowered = text.lower()
+            for token in forbidden:
+                self.assertNotIn(token, lowered, text)
 
 
 class HearingAnswerTests(GrowthHearingTestCase):
@@ -501,6 +632,66 @@ class HearingAnswerTests(GrowthHearingTestCase):
         self.assertEqual("unavailable", result["outcome"])
         self.assertTrue(result["reason"].startswith("ANSWER_INVALID:"))
         self.assertEqual(before, (self.profile / "entities" / "events" / "existing.md").read_bytes())
+
+
+class HearingRunEntryEndToEndTests(GrowthHearingTestCase):
+    """Issue #118: whatever the hearing outcome, the run always reaches export."""
+
+    def assert_export_allowed(self, requester: str) -> None:
+        result = self.export_signals_cli(requester)
+        self.assertEqual(0, result.returncode, result.stderr)
+        payload = json.loads(result.stdout)
+        self.assertEqual("research-signal-export/v1", payload["contract_version"])
+        self.assertIn("signal_count", payload)
+
+    def test_answered_path_then_export_succeeds(self):
+        self.write_consented_source()
+        offered = hearing_open(self.profile, requester="run-answered", purpose="artistic-research")
+        answer = hearing_answer(
+            self.profile,
+            offered["task_id"],
+            requester="run-answered",
+            stdin_text=self.event_block("planning"),
+            expected_queue_sha256=offered["queue_sha256"],
+        )
+        self.assertEqual("answered", answer["outcome"])
+        self.assert_export_allowed("run-answered")
+
+    def test_skipped_path_then_export_succeeds(self):
+        self.write_consented_source()
+        offered = hearing_open(self.profile, requester="run-skipped", purpose="artistic-research")
+        skip = hearing_skip(self.profile, offered["task_id"], requester="run-skipped", reason="skipped")
+        self.assertEqual("skipped", skip["outcome"])
+        self.assert_export_allowed("run-skipped")
+
+    def test_no_response_path_then_export_succeeds(self):
+        self.write_consented_source()
+        offered = hearing_open(self.profile, requester="run-no-response", purpose="artistic-research")
+        skip = hearing_skip(self.profile, offered["task_id"], requester="run-no-response", reason="no-response")
+        self.assertEqual("no-response", skip["reason"])
+        self.assert_export_allowed("run-no-response")
+
+    def test_unavailable_no_consented_source_path_then_export_still_succeeds(self):
+        # source_kind is not conversation/interview, so hearing_open rejects it, but its
+        # consent is otherwise valid, so export_signals accepts it independently.
+        self.write_consented_source(source_kind="behavior-log")
+        offered = hearing_open(self.profile, requester="run-unavailable", purpose="artistic-research")
+        self.assertEqual("unavailable", offered["outcome"])
+        self.assertEqual("NO_CONSENTED_SOURCE", offered["reason"])
+        self.assert_export_allowed("run-unavailable")
+
+    def test_failed_answer_path_then_export_still_succeeds(self):
+        self.write_consented_source()
+        offered = hearing_open(self.profile, requester="run-failed-answer", purpose="artistic-research")
+        answer = hearing_answer(
+            self.profile,
+            offered["task_id"],
+            requester="run-failed-answer",
+            stdin_text=self.event_block("a") + self.event_block("b"),
+            expected_queue_sha256=offered["queue_sha256"],
+        )
+        self.assertEqual("unavailable", answer["outcome"])
+        self.assert_export_allowed("run-failed-answer")
 
 
 if __name__ == "__main__":

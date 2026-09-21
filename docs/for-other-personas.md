@@ -22,6 +22,19 @@ exportはSourceごとの同意を再検証し、1件でも不足があれば全�
 | Unknown | 未観測・拒否・判定不能 | 推測で補わない |
 | tension | 両立する葛藤 | 一方へ丸めない |
 
+## 制作runの入口（Issue #118）
+
+制作runを実行する利用agentは、`export_signals.py`を呼ぶ前に、次の順で本人へのヒアリングを行える。実装は[`docs/operations.md`](operations.md)、固定例は[`tests/contracts/growth-hearing-v1.fixture.json`](../tests/contracts/growth-hearing-v1.fixture.json)。
+
+1. `hearing open`を実行する。`outcome: offered`なら2へ、それ以外（`unavailable`、非零終了、timeout）は4へ進む。
+2. `offered`のpacketにある`intent`（全行、省略不可。言い換え可）→`why`→`anchors`（あれば、本人の過去の言葉として質問の前に示す）→`question`を、本人に1問だけ提示する。項目を増やさない。
+3. 本人が答えたら1 blockに構造化して`hearing answer`。断られた・無応答なら`hearing skip`。どちらの結果でも4へ進む。
+4. `export_signals.py --purpose <p> --profile-root <root> --requester <run-id>`を実行し、制作計画へ進む。
+
+**不変条件**: ヒアリングの結果が何であれ（`answered`/`skipped`/`unavailable`）、また`hearing`系CLIが非零終了・timeoutしても、runは止めず4へ進む。ヒアリングはexportの前提条件ではない。回答は今回の計画には反映されず、次回以降の育成taskの解消として効く。
+
+回答文・`anchors`・`intent`等のpacket内容は、利用agent側のevidence・state・Git・公開projectionへ保存しない。
+
 ## 禁止
 
 - Self Modelから診断名を作る。
