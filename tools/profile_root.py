@@ -355,9 +355,14 @@ def _classify_privacy_path(repository_root: Path, path: str) -> str | None:
         first_line = _first_nonempty_line(file_path)
         if first_line is None:
             return None
+        try:
+            record = json.loads(first_line)
+        except json.JSONDecodeError:
+            record = None
+        if isinstance(record, dict) and record.get("contract_version") in GROWTH_LOG_JSONL_CONTRACTS:
+            return "growth-log"
         if any(f'"contract_version":"{contract}"' in first_line for contract in GROWTH_LOG_JSONL_CONTRACTS):
-            if not _is_fixture_path(path):
-                return "growth-log"
+            return "growth-log"
         return None
 
     return None

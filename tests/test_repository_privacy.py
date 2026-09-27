@@ -157,6 +157,21 @@ class RepositoryPrivacyTests(unittest.TestCase):
             self.commit(repository, "data/misses.jsonl")
             self.assert_blocked(repository, category="growth-log")
 
+    def test_growth_miss_jsonl_with_json_whitespace_is_blocked(self):
+        with tempfile.TemporaryDirectory(prefix="repo-privacy-") as directory:
+            repository = Path(directory)
+            self.make_git_repository(repository)
+            path = repository / "data" / "misses.jsonl"
+            path.parent.mkdir(parents=True)
+            path.write_text(
+                '{"contract_version": "growth-miss/v1", "ts": "2026-01-01T00:00:00Z",'
+                ' "requester": null, "subject": "subject/real-person", "purpose": "artistic-research",'
+                ' "section": "avoids", "reason": "empty", "evidence_count": 0}\n',
+                encoding="utf-8",
+            )
+            self.commit(repository, "data/misses.jsonl")
+            self.assert_blocked(repository, category="growth-log")
+
     def test_growth_hearing_jsonl_outside_fixtures_is_blocked(self):
         with tempfile.TemporaryDirectory(prefix="repo-privacy-") as directory:
             repository = Path(directory)
