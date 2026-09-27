@@ -6,6 +6,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from tools.export_signals import _source_commit
+
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -185,9 +187,7 @@ class CLITests(unittest.TestCase):
                 encoding="utf-8"
             )
         )
-        head = subprocess.run(
-            ["git", "rev-parse", "HEAD"], cwd=ROOT, text=True, capture_output=True, check=True
-        ).stdout.strip()
+        head = _source_commit(ROOT)
 
         self.assertRegex(snapshot["source_commit"], r"^[0-9a-f]{40}$")
         self.assertNotEqual(snapshot["source_commit"], head)
