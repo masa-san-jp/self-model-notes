@@ -1010,7 +1010,7 @@ def _hearing_anchors(entities: list[Any], subject_id: str, target: dict[str, Any
             return []
         for item in event.meta.get("raw_voice") or []:
             if isinstance(item, dict) and isinstance(item.get("text"), str):
-                anchors.append({"event": event.id, "text": item["text"]})
+                anchors.append({"event": event.id, "text": item["text"][:MAX_RAW_QUOTE_CHARS]})
             if len(anchors) == MAX_HEARING_ANCHORS:
                 break
         return anchors
@@ -1025,7 +1025,7 @@ def _hearing_anchors(entities: list[Any], subject_id: str, target: dict[str, Any
             None,
         )
         if first_quote:
-            anchors.append({"event": event.id, "text": first_quote})
+            anchors.append({"event": event.id, "text": first_quote[:MAX_RAW_QUOTE_CHARS]})
         if len(anchors) == MAX_HEARING_ANCHORS:
             break
     return anchors
@@ -1039,6 +1039,17 @@ def hearing_open(profile_root: Path, *, requester: str, purpose: str, subject: s
         packet = _hearing_packet_base(requester=requester, subject=subject_value, purpose=purpose)
         packet["outcome"] = "unavailable"
         packet["reason"] = reason
+        append_growth_hearing(
+            layout.data_root,
+            requester=requester,
+            subject=subject_value,
+            purpose=purpose,
+            task_id=None,
+            question_id=None,
+            outcome="unavailable",
+            reason=reason,
+            entity=None,
+        )
         return packet
 
     subject_id = _resolve_hearing_subject(layout, subject)
@@ -1268,7 +1279,7 @@ def hearing_answer(
     subject_id = _resolve_hearing_subject(layout, subject)
 
     def unavailable(reason: str, *, question_id: str | None = None) -> dict[str, Any]:
-        return {
+        result = {
             "contract_version": HEARING_LOG_CONTRACT,
             "outcome": "unavailable",
             "reason": reason,
@@ -1279,6 +1290,18 @@ def hearing_answer(
             "question_id": question_id,
             "entity": None,
         }
+        append_growth_hearing(
+            layout.data_root,
+            requester=requester,
+            subject=subject_id,
+            purpose=purpose,
+            task_id=task_id,
+            question_id=question_id,
+            outcome="unavailable",
+            reason=reason,
+            entity=None,
+        )
+        return result
 
     if not stdin_text or not stdin_text.strip():
         return unavailable("ANSWER_INVALID:empty")
