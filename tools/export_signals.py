@@ -38,6 +38,8 @@ except ModuleNotFoundError:  # Imported as tools.export_signals by the test suit
 RESEARCH_SIGNALS_SCHEMA = "urn:self-model-notes:research-signals:v1"
 SOURCE_REPOSITORY = "masa-san-jp/self-model-notes"
 SIGNAL_ID_RE = re.compile(r"^[a-z0-9]+(?:[._:-][a-z0-9]+)*$")
+ARCHIVE_COMMIT_FILE = ".archive-commit"
+COMMIT_SHA = re.compile(r"^[0-9a-f]{40}$")
 
 
 def _list_refs(meta: dict[str, Any], field: str) -> list[str]:
@@ -118,13 +120,41 @@ def _consent_denials(source, purpose: str, operation: str, today: date) -> list[
 
 
 def _source_commit(root: Path = ROOT) -> str:
+    """Resolve provenance from Git, or from an immutable archive marker.
+
+    ``git archive`` removes repository metadata, so the marker is the only
+    acceptable fallback.  A missing or unexpanded marker is an error rather
+    than an empty or guessed provenance value.
+    """
+    root = Path(root)
     try:
-        commit = subprocess.check_output(
-            ["git", "rev-parse", "HEAD"], cwd=root, text=True, stderr=subprocess.DEVNULL
-        ).strip()
-    except (OSError, subprocess.CalledProcessError):
-        return ""
-    return commit if re.fullmatch(r"[0-9a-f]{40}", commit) else ""
+        result = subprocess.run(
+            ["git", "-C", str(root), "rev-parse", "HEAD"],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+    except OSError:
+        result = None
+    if result is not None and result.returncode == 0:
+        commit = result.stdout.strip()
+        if COMMIT_SHA.fullmatch(commit):
+            return commit
+
+    marker = root / ARCHIVE_COMMIT_FILE
+    if marker.is_symlink() or not marker.is_file():
+        raise ValueError(
+            "source commit unavailable: expected a Git checkout or .archive-commit"
+        )
+    try:
+        commit = marker.read_text(encoding="utf-8").strip()
+    except (OSError, UnicodeError) as error:
+        raise ValueError("source commit unavailable: .archive-commit cannot be read") from error
+    if not COMMIT_SHA.fullmatch(commit):
+        raise ValueError(
+            "source commit unavailable: .archive-commit must contain a 40-character lowercase SHA"
+        )
+    return commit
 
 
 def _worktree_is_dirty(root: Path = ROOT) -> bool:
@@ -804,7 +834,11 @@ def main() -> int:
         if not subjects:
             print("Export denied: no subject entity found", file=sys.stderr)
             return 1
-        source_commit = _source_commit(ROOT)
+        try:
+            source_commit = _source_commit(ROOT)
+        except ValueError as error:
+            print(f"Export denied: {error}", file=sys.stderr)
+            return 1
         results = [
             export_signals(
                 entities,

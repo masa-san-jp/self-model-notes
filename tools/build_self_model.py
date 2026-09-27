@@ -40,6 +40,8 @@ MODEL_FIELDS = (
 )
 
 MODEL_SCHEMA_VERSION = 2
+ARCHIVE_COMMIT_FILE = ".archive-commit"
+COMMIT_SHA = re.compile(r"^[0-9a-f]{40}$")
 
 
 class SnapshotError(RuntimeError):
@@ -81,12 +83,36 @@ def _raw_voice_refs(meta: dict[str, Any]) -> list[str]:
 
 
 def current_source_commit(root: Path = ROOT) -> str:
+    """Resolve the immutable source commit for a checkout or archive."""
+    root = Path(root)
     try:
-        return subprocess.check_output(
-            ["git", "rev-parse", "HEAD"], cwd=root, text=True, stderr=subprocess.DEVNULL
-        ).strip()
-    except (OSError, subprocess.CalledProcessError):
-        return "unknown"
+        result = subprocess.run(
+            ["git", "-C", str(root), "rev-parse", "HEAD"],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+    except OSError:
+        result = None
+    if result is not None and result.returncode == 0:
+        commit = result.stdout.strip()
+        if COMMIT_SHA.fullmatch(commit):
+            return commit
+
+    marker = root / ARCHIVE_COMMIT_FILE
+    if marker.is_symlink() or not marker.is_file():
+        raise SnapshotError(
+            "source commit unavailable: expected a Git checkout or .archive-commit"
+        )
+    try:
+        commit = marker.read_text(encoding="utf-8").strip()
+    except (OSError, UnicodeError) as error:
+        raise SnapshotError("source commit unavailable: .archive-commit cannot be read") from error
+    if not COMMIT_SHA.fullmatch(commit):
+        raise SnapshotError(
+            "source commit unavailable: .archive-commit must contain a 40-character lowercase SHA"
+        )
+    return commit
 
 
 def _has_git_root(root: Path) -> bool:
@@ -153,13 +179,13 @@ def latest_entity_commit(
     if not paths:
         raise SnapshotError(f"no canonical entities found for {subject_id}")
     if not _has_git_root(root):
-        if fallback_root is not None:
-            commit = current_source_commit(fallback_root)
-            if re.fullmatch(r"[0-9a-f]{40}", commit):
-                return commit
-        raise SnapshotError(
-            "profile entity root must be a Git worktree or provide a protocol source commit"
-        )
+        provenance_root = fallback_root if fallback_root is not None else root
+        try:
+            return current_source_commit(provenance_root)
+        except SnapshotError as error:
+            raise SnapshotError(
+                "profile entity root must be a Git worktree or provide a protocol source commit"
+            ) from error
     dirty = dirty_entity_paths(entities, subject_id, root)
     if dirty:
         rendered = ", ".join(str(path) for path in dirty)

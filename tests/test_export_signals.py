@@ -13,6 +13,7 @@ from tools.export_signals import (
     FIXED_SIGNAL_FIELDS,
     GROWTH_MISS_CONTRACT,
     GROWTH_MISS_SECTIONS,
+    _source_commit,
     _group_misses,
     append_growth_miss,
     build_research_signals,
@@ -29,6 +30,24 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class ExportSignalsContractTests(unittest.TestCase):
+    def test_source_commit_uses_archive_marker_without_git_metadata(self):
+        with tempfile.TemporaryDirectory(prefix="archive-provenance-") as directory:
+            root = Path(directory)
+            commit = "a" * 40
+            (root / ".archive-commit").write_text(commit + "\n", encoding="utf-8")
+
+            self.assertEqual(_source_commit(root), commit)
+
+    def test_source_commit_rejects_missing_or_unexpanded_archive_marker(self):
+        with tempfile.TemporaryDirectory(prefix="archive-provenance-") as directory:
+            root = Path(directory)
+            with self.assertRaisesRegex(ValueError, r"expected a Git checkout or \.archive-commit"):
+                _source_commit(root)
+
+            (root / ".archive-commit").write_text("$Format:%H$\n", encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "40-character lowercase SHA"):
+                _source_commit(root)
+
     def approved_result(self):
         return export_signals(
             fixture_entities(),
