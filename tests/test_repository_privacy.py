@@ -172,6 +172,27 @@ class RepositoryPrivacyTests(unittest.TestCase):
             self.commit(repository, "data/misses.jsonl")
             self.assert_blocked(repository, category="growth-log")
 
+    def test_growth_miss_jsonl_fixture_is_exempt_for_json_and_compact_markers(self):
+        with tempfile.TemporaryDirectory(prefix="repo-privacy-") as directory:
+            repository = Path(directory)
+            self.make_git_repository(repository)
+            fixture_root = repository / "tests" / "fixtures" / "growth"
+            fixture_root.mkdir(parents=True)
+            parsed_path = fixture_root / "parsed-miss.jsonl"
+            parsed_path.write_text(
+                '{"contract_version":"growth-miss/v1","section":"avoids"}\n',
+                encoding="utf-8",
+            )
+            compact_path = fixture_root / "compact-miss.jsonl"
+            compact_path.write_text(
+                'prefix "contract_version":"growth-miss/v1" suffix\n',
+                encoding="utf-8",
+            )
+            self.commit(repository, "tests/fixtures/growth/parsed-miss.jsonl")
+            self.commit(repository, "tests/fixtures/growth/compact-miss.jsonl")
+            result = validate_repository(repository)
+            self.assertEqual("PASS", result["status"])
+
     def test_growth_hearing_jsonl_outside_fixtures_is_blocked(self):
         with tempfile.TemporaryDirectory(prefix="repo-privacy-") as directory:
             repository = Path(directory)
