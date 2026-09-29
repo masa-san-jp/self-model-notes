@@ -302,6 +302,15 @@ def _audit_gaps(entities: list[Any]) -> list[dict[str, Any]]:
                     SECTION_QUESTION["context_dependencies"],
                 )
             )
+        elif code == "TENSION_AXIS_BIAS":
+            gaps.append(
+                _gap(
+                    f"audit:TENSION_AXIS_BIAS:{entity_ref}",
+                    "acquire-event",
+                    _target(section="tensions", entity=None, slot=None) | {"axis": "different"},
+                    "tension-axis-diversity",
+                )
+            )
         elif code == "TRAIT_BREADTH_REVIEW":
             gaps.append(_gap(f"audit:TRAIT_BREADTH_REVIEW:{entity_ref}", "derive-claim", _target(entity=entity_ref)))
     return gaps

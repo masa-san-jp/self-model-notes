@@ -66,6 +66,10 @@ questions:
     section: tensions
     text: "やりたいのに、やらないと決めていることはある?"
     hearing_text: "この制作で、やりたいのに、やらないと決めていることは?"
+  - id: tension-axis-diversity
+    section: tensions
+    text: "この制作で、近さとは別に、両立しにくいものはある?"
+    hearing_text: "この制作で、近さとは別に、両立しにくいものはある?"
   - id: emotion-slot
     section: null
     slot: emotion

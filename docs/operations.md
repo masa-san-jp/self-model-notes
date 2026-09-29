@@ -202,6 +202,18 @@ python3 tools/agent_runtime.py tools/growth_tasks.py report --profile-root <prof
 - **単一書込の規律**：`generate`は、queueにin-progressのtaskが残っている間は`QUEUE_BUSY`で拒否する。制作runと育成sessionが同じprofile rootへ同時に書き込むことを想定しない——育成taskを1件claimしたら、completeするまで他の書込（制作runの`export_signals.py`実行を含む）と時間を分ける。
 - `report`は`overviews/growth.md`に、6節の充足有無・`min_event_contexts`・`min_event_span_days`・次のqueued taskを書き出す。
 
+## 緊張の軸と偏りの検出（Issue #131）
+
+緊張のClaimには、記録時に内部の閉じた語彙から`axis`を明示できる。未指定または語彙外の値は`unclassified`として数え、文面のキーワード・LLM・ネットワークからの推定は行わない。語彙と偏り判定の設定はprotocol repositoryの`config/tension-axes.yaml`にあり、本人向けの質問文には表示されない。
+
+監査は既存のsoft auditに軸別件数、分類済みの軸数、最多軸の比率、設定閾値を超えたかを含める。
+
+```bash
+python3 tools/agent_runtime.py tools/audit.py --dry-run --profile-root /absolute/path/to/profile
+```
+
+偏りが検出されると、既存の`tensions` hearing経路に「別の緊張を聞く」taskが追加される。Claimを下流へ出せるかは、Claimの根拠Eventから`source_refs`をたどった各Sourceの既存consent（目的、操作、期限、撤回）をすべて確認して決める。consent契約自体はこの判定で拡張しない。
+
 ## 制作runの入口ヒアリング（Issue #118）
 
 制作runの開始時、意図を説明した上で育成queueの1問を本人に提示できる。`open`はqueueを変更せず、`growth-hearing-packet/v1`をstdoutへ返す。
