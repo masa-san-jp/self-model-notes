@@ -220,7 +220,7 @@ class HearingOpenTests(GrowthHearingTestCase):
         queue = self.load_queue()
         self.assertTrue(all(task["status"] == "ready" for task in queue["tasks"]))
 
-    def test_second_open_same_requester_is_already_offered_and_does_not_log(self):
+    def test_second_open_same_requester_is_already_offered_and_logs_unavailable(self):
         self.write_consented_source()
         hearing_open(self.profile, requester="run-1", purpose="artistic-research")
         second = hearing_open(self.profile, requester="run-1", purpose="artistic-research")
@@ -230,13 +230,19 @@ class HearingOpenTests(GrowthHearingTestCase):
         self.assertEqual("subject/fixture", second["subject"])
         self.assertIsNone(second["task_id"])
         self.assertIsNone(second["queue_sha256"])
-        self.assertEqual(1, len(self.hearings_lines()))
+        lines = self.hearings_lines()
+        self.assertEqual(2, len(lines))
+        self.assertEqual("unavailable", lines[1]["outcome"])
+        self.assertEqual("ALREADY_OFFERED_THIS_RUN", lines[1]["reason"])
 
-    def test_no_consented_source_is_unavailable_and_does_not_log(self):
+    def test_no_consented_source_is_unavailable_and_logs(self):
         packet = hearing_open(self.profile, requester="run-1", purpose="artistic-research")
         self.assertEqual("unavailable", packet["outcome"])
         self.assertEqual("NO_CONSENTED_SOURCE", packet["reason"])
-        self.assertEqual([], self.hearings_lines())
+        lines = self.hearings_lines()
+        self.assertEqual(1, len(lines))
+        self.assertEqual("unavailable", lines[0]["outcome"])
+        self.assertEqual("NO_CONSENTED_SOURCE", lines[0]["reason"])
 
     def test_revoked_source_is_not_selected(self):
         self.write_consented_source(consent={**CONSENTED_CONVERSATION_CONSENT, "revoked_at": "2026-09-02"})
@@ -300,6 +306,22 @@ class HearingOpenTests(GrowthHearingTestCase):
             {"event": "event/existing", "text": "一つ目の発言"},
             {"event": "event/existing", "text": "二つ目の発言"},
         ], packet["anchors"])
+
+    def test_anchors_are_limited_to_120_characters(self):
+        self.write_consented_source()
+        long_quote = "あ" * 121
+        self.write(
+            make_entity(
+                "event",
+                "long-quote",
+                subject="subject/fixture",
+                source_refs=["source/conversation-20260901"],
+                raw_voice=[{"text": long_quote, "source_ref": "source/conversation-20260901"}],
+                time={"observed_at": "2026-09-15T09:00:00+09:00", "precision": "minute"},
+            )
+        )
+        packet = hearing_open(self.profile, requester="run-1", purpose="artistic-research")
+        self.assertEqual(120, len(packet["anchors"][0]["text"]))
 
     def test_queue_busy_is_unavailable(self):
         self.write_consented_source()
@@ -474,7 +496,7 @@ class HearingAnswerTests(GrowthHearingTestCase):
         self.assertEqual("unavailable", result["outcome"])
         self.assertEqual("ANSWER_INVALID:empty", result["reason"])
         self.assertEqual(before, queue_path(self.profile).read_bytes())
-        self.assertEqual(1, len(self.hearings_lines()))
+        self.assertEqual(2, len(self.hearings_lines()))
 
     def test_oversized_stdin_is_unavailable_without_writing(self):
         self.write_consented_source()
@@ -534,6 +556,7 @@ class HearingAnswerTests(GrowthHearingTestCase):
         self.assertEqual("unavailable", result["outcome"])
         self.assertEqual("QUEUE_CONFLICT", result["reason"])
         self.assertEqual(0, len(list((self.profile / "entities" / "events").glob("*.md"))))
+        self.assertEqual(2, len(self.hearings_lines()))
 
     def test_existing_event_id_is_rejected(self):
         self.write_consented_source()
@@ -570,7 +593,7 @@ class HearingAnswerTests(GrowthHearingTestCase):
         self.assertEqual("ANSWER_INVALID:CHECK_FAILED", result["reason"])
         self.assertEqual(before, queue_path(self.profile).read_bytes())
         self.assertEqual(0, len(list((self.profile / "entities" / "events").glob("*.md"))))
-        self.assertEqual(1, len(self.hearings_lines()))
+        self.assertEqual(2, len(self.hearings_lines()))
 
     def test_slot_answer_updates_only_target_slot_and_appends_raw_voice(self):
         self.write_consented_source()
