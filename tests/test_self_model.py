@@ -10,6 +10,7 @@ from tools.bundle import render_bundle
 from tools.build_self_model import (
     SnapshotError,
     build_model,
+    current_source_commit,
     latest_entity_commit,
     model_path,
     stale_artifacts,
@@ -88,6 +89,20 @@ def assert_schema(test_case, value, schema, *, path="$", root=SCHEMA):
 
 
 class SelfModelTests(unittest.TestCase):
+    def test_source_commit_uses_archive_marker_without_git_metadata(self):
+        with TemporaryDirectory(prefix="archive-provenance-") as directory:
+            root = Path(directory)
+            commit = "b" * 40
+            (root / ".archive-commit").write_text(commit + "\n", encoding="utf-8")
+
+            self.assertEqual(current_source_commit(root), commit)
+
+    def test_source_commit_rejects_unavailable_archive_provenance(self):
+        with TemporaryDirectory(prefix="archive-provenance-") as directory:
+            root = Path(directory)
+            with self.assertRaisesRegex(SnapshotError, r"expected a Git checkout or \.archive-commit"):
+                current_source_commit(root)
+
     def entities_with_history(self):
         entities = valid_entities()
         entities.append(
