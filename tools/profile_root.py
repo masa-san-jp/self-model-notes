@@ -303,6 +303,23 @@ def _classify_privacy_path(repository_root: Path, path: str) -> str | None:
     lower = path.lower()
     file_path = repository_root / path
 
+    # Draft suffixes are a stronger, explicit signal than an entity-shaped
+    # frontmatter block.  Check them first so a copied intake draft is
+    # reported as intake-draft rather than being silently folded into the
+    # legacy entity-record category.
+    if lower.endswith((".source.draft.md", ".event.draft.md")):
+        return "intake-draft"
+
+    # The heading rule applies to any tracked file, not only Markdown.  Read
+    # failures are treated as non-matches; Git's tracked path list may include
+    # binary or otherwise undecodable files that are handled by other guards.
+    try:
+        body = file_path.read_text(encoding="utf-8")
+    except (OSError, UnicodeError):
+        body = ""
+    if any(line.strip() == "# Intake draft" for line in body.splitlines()):
+        return "intake-draft"
+
     if lower.endswith(".md"):
         meta = _frontmatter(file_path)
         if isinstance(meta, dict) and meta.get("type") in ENTITY_RECORD_TYPES:
@@ -312,44 +329,39 @@ def _classify_privacy_path(repository_root: Path, path: str) -> str | None:
                     return "raw-quote"
                 return None
             return "entity-record"
-        if path.endswith(".source.draft.md") or path.endswith(".event.draft.md"):
-            return "intake-draft"
-        try:
-            body = file_path.read_text(encoding="utf-8")
-        except (OSError, UnicodeError):
-            body = ""
-        if any(line.strip() == "# Intake draft" for line in body.splitlines()):
-            return "intake-draft"
         return None
 
     if lower.endswith((".yaml", ".yml")):
         document = _yaml_document_or_none(file_path)
         if not isinstance(document, dict):
             return None
+        if path.startswith("config/") and Path(path).stem.endswith("-schema"):
+            return None
         if document.get("contract_version") == CONTRACT_VERSION:
-            if not (isinstance(document.get("profile_id"), str) and isinstance(document.get("subject_ids"), list)):
-                return None
             if _is_fixture_path(path) and str(document.get("profile_id", "")).startswith("synthetic-"):
                 return None
             return "profile-contract"
-        if document.get("contract_version") == GROWTH_QUEUE_CONTRACT and "generated_from" in document and "tasks" in document:
+        if document.get("contract_version") == GROWTH_QUEUE_CONTRACT:
+            # config/*-schema.yaml documents describe the contract and carry
+            # a storage: field; they are not a profile's queue log.
             if _is_fixture_path(path):
                 return None
             return "growth-log"
         return None
 
     if lower.endswith(".jsonl"):
-        if _is_fixture_path(path):
-            return None
         first_line = _first_nonempty_line(file_path)
         if first_line is None:
             return None
+        is_fixture = _is_fixture_path(path)
         try:
             record = json.loads(first_line)
         except json.JSONDecodeError:
-            return None
+            record = None
         if isinstance(record, dict) and record.get("contract_version") in GROWTH_LOG_JSONL_CONTRACTS:
-            return "growth-log"
+            return None if is_fixture else "growth-log"
+        if any(f'"contract_version":"{contract}"' in first_line for contract in GROWTH_LOG_JSONL_CONTRACTS):
+            return None if is_fixture else "growth-log"
         return None
 
     return None

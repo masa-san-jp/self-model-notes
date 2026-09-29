@@ -101,6 +101,16 @@ class RepositoryPrivacyTests(unittest.TestCase):
             self.commit(repository, "scratch/profile.yaml")
             self.assert_blocked(repository, category="profile-contract")
 
+    def test_profile_contract_marker_is_blocked_without_profile_fields(self):
+        with tempfile.TemporaryDirectory(prefix="repo-privacy-") as directory:
+            repository = Path(directory)
+            self.make_git_repository(repository)
+            path = repository / "scratch" / "profile-marker.yaml"
+            path.parent.mkdir(parents=True)
+            path.write_text("contract_version: self-model-profile/v1\n", encoding="utf-8")
+            self.commit(repository, "scratch/profile-marker.yaml")
+            self.assert_blocked(repository, category="profile-contract")
+
     def test_profile_contract_fixture_with_synthetic_id_is_exempt(self):
         with tempfile.TemporaryDirectory(prefix="repo-privacy-") as directory:
             repository = Path(directory)
@@ -147,6 +157,42 @@ class RepositoryPrivacyTests(unittest.TestCase):
             self.commit(repository, "data/misses.jsonl")
             self.assert_blocked(repository, category="growth-log")
 
+    def test_growth_miss_jsonl_with_json_whitespace_is_blocked(self):
+        with tempfile.TemporaryDirectory(prefix="repo-privacy-") as directory:
+            repository = Path(directory)
+            self.make_git_repository(repository)
+            path = repository / "data" / "misses.jsonl"
+            path.parent.mkdir(parents=True)
+            path.write_text(
+                '{"contract_version": "growth-miss/v1", "ts": "2026-01-01T00:00:00Z",'
+                ' "requester": null, "subject": "subject/real-person", "purpose": "artistic-research",'
+                ' "section": "avoids", "reason": "empty", "evidence_count": 0}\n',
+                encoding="utf-8",
+            )
+            self.commit(repository, "data/misses.jsonl")
+            self.assert_blocked(repository, category="growth-log")
+
+    def test_growth_miss_jsonl_fixture_is_exempt_for_json_and_compact_markers(self):
+        with tempfile.TemporaryDirectory(prefix="repo-privacy-") as directory:
+            repository = Path(directory)
+            self.make_git_repository(repository)
+            fixture_root = repository / "tests" / "fixtures" / "growth"
+            fixture_root.mkdir(parents=True)
+            parsed_path = fixture_root / "parsed-miss.jsonl"
+            parsed_path.write_text(
+                '{"contract_version":"growth-miss/v1","section":"avoids"}\n',
+                encoding="utf-8",
+            )
+            compact_path = fixture_root / "compact-miss.jsonl"
+            compact_path.write_text(
+                'prefix "contract_version":"growth-miss/v1" suffix\n',
+                encoding="utf-8",
+            )
+            self.commit(repository, "tests/fixtures/growth/parsed-miss.jsonl")
+            self.commit(repository, "tests/fixtures/growth/compact-miss.jsonl")
+            result = validate_repository(repository)
+            self.assertEqual("PASS", result["status"])
+
     def test_growth_hearing_jsonl_outside_fixtures_is_blocked(self):
         with tempfile.TemporaryDirectory(prefix="repo-privacy-") as directory:
             repository = Path(directory)
@@ -182,6 +228,16 @@ class RepositoryPrivacyTests(unittest.TestCase):
             self.commit(repository, "growth/queue.yaml")
             self.assert_blocked(repository, category="growth-log")
 
+    def test_growth_queue_marker_is_blocked_without_queue_fields(self):
+        with tempfile.TemporaryDirectory(prefix="repo-privacy-") as directory:
+            repository = Path(directory)
+            self.make_git_repository(repository)
+            path = repository / "scratch" / "queue.yaml"
+            path.parent.mkdir(parents=True)
+            path.write_text("contract_version: growth-queue/v1\n", encoding="utf-8")
+            self.commit(repository, "scratch/queue.yaml")
+            self.assert_blocked(repository, category="growth-log")
+
     def test_growth_queue_schema_documentation_is_not_misclassified(self):
         with tempfile.TemporaryDirectory(prefix="repo-privacy-") as directory:
             repository = Path(directory)
@@ -207,7 +263,30 @@ class RepositoryPrivacyTests(unittest.TestCase):
                 encoding="utf-8",
             )
             self.commit(repository, "scratch/conversation-20260901--planning.event.draft.md")
-            self.assert_blocked(repository, category="entity-record")
+            self.assert_blocked(repository, category="intake-draft")
+
+    def test_intake_draft_heading_is_blocked_in_any_tracked_file(self):
+        with tempfile.TemporaryDirectory(prefix="repo-privacy-") as directory:
+            repository = Path(directory)
+            self.make_git_repository(repository)
+            path = repository / "scratch" / "draft-copy.txt"
+            path.parent.mkdir(parents=True)
+            path.write_text("# Intake draft\n", encoding="utf-8")
+            self.commit(repository, "scratch/draft-copy.txt")
+            self.assert_blocked(repository, category="intake-draft")
+
+    def test_jsonl_contract_marker_is_blocked_from_first_line(self):
+        with tempfile.TemporaryDirectory(prefix="repo-privacy-") as directory:
+            repository = Path(directory)
+            self.make_git_repository(repository)
+            path = repository / "data" / "misses.jsonl"
+            path.parent.mkdir(parents=True)
+            path.write_text(
+                'prefix "contract_version":"growth-miss/v1" suffix\n',
+                encoding="utf-8",
+            )
+            self.commit(repository, "data/misses.jsonl")
+            self.assert_blocked(repository, category="growth-log")
 
     def test_intake_draft_heading_without_suffix_is_blocked(self):
         with tempfile.TemporaryDirectory(prefix="repo-privacy-") as directory:
