@@ -1,0 +1,16 @@
+contract_version: tension-axes/v1
+
+# Internal classification only. These identifiers must not be used as
+# owner-facing question-bank vocabulary.
+axes:
+  - proximity
+  - control
+  - visibility
+  - uncertainty
+  - commitment
+  - other
+
+bias:
+  minimum_claims: 2
+  maximum_majority_share: 0.6
+  minimum_distinct_axes: 2

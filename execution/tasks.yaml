@@ -1517,8 +1517,6 @@ tasks:
           - "python3 tools/agent_runtime.py tools/profile_root.py validate-repository --json — passed"
           - "git diff --check — passed"
 
-
-
   - id: SM-035
     title: Add metadata-only profile migration and operational completion evidence
     phase: 10
@@ -2070,5 +2068,43 @@ tasks:
           - "python3 tools/agent_runtime.py tools/profile_root.py validate-repository --json — passed"
           - "git diff --check — passed"
 
-
-
+  - id: SM-048
+    title: "Tension axis coverage, bias queue, and consent status"
+    phase: 10
+    status: ready
+    depends_on: [SM-047]
+    issue: https://github.com/masa-san-jp/self-model-notes/issues/131
+    allowed_paths:
+      - config/question-bank.yaml
+      - config/tension-axes.yaml
+      - tools/audit.py
+      - tools/growth_tasks.py
+      - tests/test_tension_axes.py
+      - tests/test_growth_tasks.py
+      - tests/test_execution_tasks.py
+      - docs/operations.md
+      - execution/tasks.yaml
+    external_paths:
+      - entities/claims/**
+      - entities/events/**
+      - growth/queue.yaml
+      - data/audit.json
+    acceptance:
+      - tension Claims use an explicit Claim.axis value from config/tension-axes.yaml; missing or invalid values are counted as unclassified without keyword or network inference
+      - The audit exposes per-axis counts, distinct classified axes, majority share, and a configurable bias flag without introducing a confidence or promotion threshold
+      - A bias finding creates a ready growth queue task that reuses the existing tensions hearing path and asks for a different tension axis without exposing internal axis vocabulary in owner-facing text
+      - Claim evidence Events are followed through source_refs to Source.consent and a machine-readable consent status denies missing, revoked, expired, purpose-mismatched, or operation-mismatched sources using the existing consent contract
+      - Repository-tracked files remain protocol/config/tests only; real profile records, queue, hearing, and audit output remain external
+    checks:
+      - python3 tools/agent_runtime.py -m unittest tests.test_tension_axes tests.test_growth_tasks tests.test_execution_tasks
+      - python3 tools/agent_runtime.py -m unittest discover -s tests -p "test_*.py"
+      - python3 tools/agent_runtime.py tools/profile_root.py validate-repository --json
+      - python3 tools/agent_runtime.py tools/task_harness.py validate
+      - python3 tools/agent_runtime.py tools/build_graph.py --check --root entities
+      - git diff --check
+    stop_if:
+      - A new entity type, core schema vocabulary, consent contract, or external profile record is required
+      - An axis must be inferred from claim wording, an LLM, or a network call
+      - A threshold for confidence or Claim/Pattern promotion is required
+    claim: null
+    evidence: []
