@@ -50,6 +50,7 @@ EXPECTED_DEPENDENCIES = {
     "SM-046": ["SM-045"],
     "SM-047": ["SM-046"],
     "SM-048": ["SM-047"],
+    "SM-049": ["SM-047"],
 }
 
 HARNESS_ISSUES = {
@@ -72,6 +73,7 @@ for index in range(42, 44):
 for index in range(44, 48):
     HARNESS_ISSUES[f"SM-{index:03d}"] = "https://github.com/masa-san-jp/self-model-notes/issues/118"
 HARNESS_ISSUES["SM-048"] = "https://github.com/masa-san-jp/self-model-notes/issues/131"
+HARNESS_ISSUES["SM-049"] = "https://github.com/masa-san-jp/self-model-notes/issues/136"
 
 SIBLING_REPOSITORY_LINKS = {
     "self-model-notes": "https://github.com/masa-san-jp/self-model-notes",
@@ -102,7 +104,7 @@ class ExecutionTaskQueueTests(unittest.TestCase):
         self.assertEqual(3, self.queue["version"])
         ids = [task["id"] for task in self.tasks]
         self.assertEqual(len(ids), len(set(ids)))
-        self.assertEqual([f"SM-{index:03d}" for index in range(1, 49)], ids)
+        self.assertEqual([f"SM-{index:03d}" for index in range(1, 50)], ids)
 
     def test_dependencies_are_existing_and_acyclic_by_id(self):
         for task in self.tasks:

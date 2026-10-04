@@ -71,6 +71,58 @@ Source → Event → Claim → Pattern → Derived Self Model → Research Signa
 
 ## 外部profile rootと実行境界
 
+### 初めて自分の自己モデルを作る（Issue #136）
+
+clone 後、PyYAML が使える Python を用意します。fresh clone の準備は後述の
+[初回だけの依存関係準備](#初回だけの依存関係準備)を参照してください。以降は repository のルートから実行します。
+本人記録は Git に入れず、repository・worktree・公開 projection の外の、symlink を含まない
+絶対 path を選びます。親ディレクトリは先に作り、最後の `profile` は未作成にしてください。
+`my-self` は実名ではなく、本人が選ぶ小文字 kebab-case の識別子です。
+
+```bash
+python3 tools/agent_runtime.py tools/profile_root.py init \
+  --profile-root /absolute/path/to/profile --subject my-self --json
+```
+
+`init` は `profile.yaml` と `subject/my-self`、空の `growth/`・`data/`・`overviews/` と
+entity ディレクトリを一緒に作ります。既存ディレクトリは空でも拒否し、同意は作りません。
+
+次に本人が、会話を自己モデルの観測として保存・分析・派生し、制作の研究へ派生 signal を
+渡す範囲と有効期限を確認します。**agent は本人に確認せず同意を作ってはいけません。**
+下記は本人がこの範囲を明示承認した場合だけ実行する例です。引数は承認された範囲そのものに
+合わせ、既定値で補いません。`none` は「期限なし」を本人が選んだ場合だけ使い、期限付きなら
+未来の `YYYY-MM-DD` を渡します。flag は本人の確認を記録するためで、同意を代行するものではありません。
+
+```bash
+python3 tools/agent_runtime.py tools/profile_root.py consent \
+  --profile-root /absolute/path/to/profile --subject my-self \
+  --purpose artistic-research \
+  --allowed-operation store-reference --allowed-operation analyze \
+  --allowed-operation derive --allowed-operation export-signals \
+  --expires-at none --confirm-owner-consent --json
+```
+
+目的は `--purpose`、操作は `--allowed-operation` を繰り返します。上記4操作と質問時の目的が
+ヒアリングに必要です。狭い同意もそのまま記録されますが、条件を満たさなければ
+`NO_CONSENTED_SOURCE` になります。`source/hearing-consent-my-self` は `conversation` として
+作成され、subject の `consent_refs` から参照されます。同じ Source は再実行しても上書きしません。
+撤回・期限切れを再実行で消さず、[同意運用](docs/privacy-consent.md)に従って明示的に見直します。
+
+準備が済んだら、親 [Orchestration の制作入口](https://github.com/masa-san-jp/agentic-art-orchestration#利用者向けの最短ルート)
+でこの外部 profile root を指定し、入口のヒアリングに答えます。初回は空のモデルの gap から
+1問が出ます。断ることもできます。回答は外部 profile の Event として保存されます。
+単独での確認方法と stdin の合成例は [新規利用者の実行手順](docs/for-other-personas.md#ゼロから始める実行手順issue-136)にあります。
+
+**回答回数だけでは親の候補生成用 signal は増えません。** 初回の1回答直後は Event が1件で、
+export は成功しても `signal_count: 0` です。次に育成 session で agent がその Event から
+根拠・反証の探索結果・異なる代替説明2件・不確実性を持つ Claim を作ると、最短で
+「1回答 + 1件の Claim 派生」により低確度の仮説 signal を1件 export できます。
+Event → Claim は自動変換されず、空の queue が自動で Claim 派生を予約するとも限りません。
+[記録・推論の手順](docs/investigation-task.md)に従う agent 作業が必要です。
+親の候補生成が要求する signal の量・種類は親の契約に従い、1件で制作が進むとは保証しません。
+単発から Pattern や Trait を確定しません。育成 milestone は全6欄の supported な根拠と反証、
+2 context、30日の観測幅であり、session 回数の保証ではありません。
+
 実データを扱うときは、`profile.yaml`とcanonical entityをprotocol repositoryの外に置きます。profile契約は`self-model-profile/v1`で、必須値は`contract_version`、`profile_id`、`subject_ids`、`storage_scope: external-local`です。profile rootは既存の通常ディレクトリで、repository、worktree、public projectionの外側でなければなりません。
 
 `build_graph.py`、`build_self_model.py`、`bundle.py`、`audit.py`、`export_signals.py`、`new_entity.py`、`intake_conversation.py`の実データ実行には、毎回明示的な絶対pathを渡します。環境変数やrepository内`entities/`への暗黙fallbackはありません。生成物は選択したrootの`data/`と`overviews/`だけへatomicに書かれます。

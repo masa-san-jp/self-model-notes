@@ -2108,3 +2108,51 @@ tasks:
       - A threshold for confidence or Claim/Pattern promotion is required
     claim: null
     evidence: []
+
+  - id: SM-049
+    title: "Initialize a new external profile and record explicit hearing consent"
+    phase: 10
+    status: review
+    depends_on: [SM-047]
+    issue: https://github.com/masa-san-jp/self-model-notes/issues/136
+    allowed_paths:
+      - tools/profile_root.py
+      - tests/test_profile_onboarding.py
+      - tests/test_execution_tasks.py
+      - README.md
+      - docs/for-other-personas.md
+      - execution/tasks.yaml
+    external_paths:
+      - profile.yaml
+      - entities/subjects/*.md
+      - entities/sources/*.md
+      - growth/**
+      - data/**
+      - overviews/**
+    acceptance:
+      - init creates profile.yaml, a canonical subject and empty growth structure together outside the repository, refusing existing destinations and symlink aliases
+      - consent records only owner-confirmed purposes, operations and expiry using the existing Source consent contract; init grants no consent and no existing Source is overwritten
+      - A synthetic profile created only through init and consent offers the first gap-driven hearing question and accepts a synthetic stdin answer
+      - README and for-other-personas document init, explicit consent, production entry hearing and the measured Event-to-Claim-to-export path without promising signal readiness from an answer count
+      - validate-repository remains PASS and no personal profile or hearing record is committed
+    checks:
+      - python3 tools/agent_runtime.py -m unittest tests.test_profile_onboarding tests.test_execution_tasks
+      - python3 tools/agent_runtime.py -m unittest discover -s tests -p "test_*.py"
+      - python3 tools/agent_runtime.py tools/profile_root.py validate-repository --json
+      - python3 tools/agent_runtime.py tools/task_harness.py validate
+      - python3 tools/agent_runtime.py tools/build_graph.py --check --root entities
+      - git diff --check
+    stop_if:
+      - A core entity type, vocabulary, consent evaluation or self-model-profile/v1 contract change is required
+      - A real profile or repository-tracked personal record must be modified
+    claim: null
+    evidence:
+      - note: "Issue #136 is implemented for local orchestrator review under the assigned branch. Remote claim, PR and completion are reserved for the orchestrator; this registration does not assert trusted-base acceptance or harness completion."
+        checks:
+          - "python3 tools/agent_runtime.py -m unittest tests.test_profile_onboarding tests.test_execution_tasks — 25 tests passed"
+          - "Synthetic README init -> consent -> hearing open -> answer -> export — exit 0; zero signals after one answer, one uncertain avoidance signal after one scoped Claim derivation"
+          - "Synthetic graph regeneration/check, audit dry-run, Self Model and bundle generation/check, growth generate/next/report — exit 0"
+          - "python3 tools/agent_runtime.py tools/profile_root.py validate-repository --json — PASS"
+          - "python3 tools/agent_runtime.py tools/task_harness.py validate — valid"
+          - "python3 tools/agent_runtime.py tools/build_graph.py --check --root entities — OK, 0 entities"
+          - "git diff --check; git diff --exit-code -- data/ overviews/coverage.md — exit 0"

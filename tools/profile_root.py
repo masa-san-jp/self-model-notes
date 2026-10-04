@@ -14,11 +14,13 @@ import argparse
 import json
 import os
 import re
+import shutil
 import stat
 import subprocess
 import sys
 import tempfile
 from dataclasses import dataclass
+from datetime import datetime, date, timezone
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -648,6 +650,167 @@ def validate_external_directory(
     return resolved_candidate
 
 
+def _onboarding_imports():
+    # Deferred: kb/new_entity also import this resolver.
+    try:
+        from .kb import discover_entities, validate_entities, vocabularies
+        from .new_entity import template
+    except ImportError:  # CLI entry
+        from kb import discover_entities, validate_entities, vocabularies
+        from new_entity import template
+    return discover_entities, validate_entities, vocabularies, template
+
+
+def _onboarding_root(value: str | Path | None) -> Path:
+    if value is None:
+        raise ProfileRootError("PROFILE_ROOT_REQUIRED", "pass an explicit absolute external profile root")
+    raw = Path(value)
+    root = validate_external_directory(raw)
+    if any(component.is_symlink() for component in (raw, *raw.parents)):
+        raise ProfileRootError("PROFILE_ROOT_INVALID", "use a canonical directory path without symlink aliases")
+    return root
+
+
+def _onboarding_slug(slug: str | None) -> str:
+    if not isinstance(slug, str) or not PROFILE_ID_RE.fullmatch(slug):
+        raise ProfileRootError("PROFILE_SUBJECT_IDS_INVALID", "pass --subject as an opaque lowercase kebab-case slug")
+    return slug
+
+
+def _entity_text(meta: dict[str, Any]) -> str:
+    return "---\n" + yaml.safe_dump(meta, allow_unicode=True, sort_keys=False) + "---\n\n# Notes\n"
+
+
+def _onboarding_entities(layout: ProfileLayout, discover, validate):
+    # Never follow an entity alias or display parser errors containing text.
+    if any(path.is_symlink() for path in layout.entity_root.iterdir()) or any(
+        path.is_symlink() for path in layout.entity_root.glob("*/*.md")
+    ):
+        raise ProfileRootError("PROFILE_LAYOUT_INVALID", "onboarding requires canonical entity paths without symlinks")
+    try:
+        entities = discover(layout.entity_root)
+        errors = validate(entities, root=layout.root)
+    except (OSError, UnicodeError, ValueError, TypeError, yaml.YAMLError) as exc:
+        raise ProfileRootError("PROFILE_ENTITIES_INVALID", "repair the external entities before recording consent") from exc
+    if errors:
+        raise ProfileRootError("PROFILE_ENTITIES_INVALID", "repair the external entities before recording consent")
+    return entities
+
+
+def init_profile(value: str | Path | None, *, subject: str | None) -> ProfileLayout:
+    """Create a subject and profile together, without inventing consent."""
+    slug = _onboarding_slug(subject)
+    root = _onboarding_root(value)
+    if root.exists():
+        raise ProfileRootError("PROFILE_ROOT_EXISTS", "init requires a new directory; existing directories are never overwritten")
+    if not root.parent.is_dir():
+        raise ProfileRootError("PROFILE_ROOT_INVALID", "create the normal external parent directory before init")
+    discover, validate, vocabularies, template = _onboarding_imports()
+    created = False
+    try:
+        root.mkdir(mode=0o700)
+        created = True
+        for plural in vocabularies()["plural_paths"].values():
+            (root / PROFILE_ENTITIES / plural).mkdir(parents=True, mode=0o700)
+        for name in ("growth", PROFILE_DATA, PROFILE_OVERVIEWS):
+            (root / name).mkdir(mode=0o700)
+        meta = template("subject", slug, None)
+        meta["allowed_purposes"] = []
+        atomic_write_text(root / PROFILE_ENTITIES / "subjects" / f"{slug}.md", _entity_text(meta))
+        profile = {"contract_version": CONTRACT_VERSION, "profile_id": slug,
+                   "subject_ids": [f"subject/{slug}"], "storage_scope": STORAGE_SCOPE}
+        atomic_write_text(root / PROFILE_FILE, yaml.safe_dump(profile, sort_keys=False))
+        layout = resolve_profile_root(root)
+        if validate(discover(layout.entity_root), root=root):
+            raise ProfileRootError("PROFILE_ENTITIES_INVALID", "initial subject did not pass the existing entity validator")
+        return layout
+    except OSError as exc:
+        raise ProfileRootError("PROFILE_OUTPUT_UNWRITABLE", "profile could not be created; choose a new writable external directory") from exc
+    finally:
+        # Only our exclusively-created root is removed after a failed init.
+        if created and sys.exc_info()[0] is not None:
+            shutil.rmtree(root)
+
+
+def record_hearing_consent(
+    value: str | Path | None, *, subject: str | None, purposes: list[str] | None,
+    allowed_operations: list[str] | None, expires_at: str | None,
+    confirm_owner_consent: bool = False,
+) -> ProfileLayout:
+    """Record the owner's explicit scope as a conversation Source, create-only.
+
+    The flag attests to prior owner confirmation; it is not an agent's grant
+    of consent. No purpose, operation, or expiry is defaulted or added.
+    """
+    slug = _onboarding_slug(subject)
+    root = _onboarding_root(value)
+    layout = resolve_profile_root(root)
+    if f"subject/{slug}" not in layout.subject_ids:
+        raise ProfileRootError("PROFILE_SUBJECT_NOT_DECLARED", "choose a subject declared by this profile")
+    discover, validate, vocabularies, template = _onboarding_imports()
+    vocab = vocabularies()
+    if not confirm_owner_consent:
+        raise ProfileRootError("CONSENT_CONFIRMATION_REQUIRED", "obtain the owner's explicit confirmation before using --confirm-owner-consent")
+    if (not purposes or not allowed_operations or expires_at is None
+        or any(purpose not in vocab["allowed_purposes"] for purpose in purposes)
+        or any(operation not in vocab["allowed_operations"] for operation in allowed_operations)):
+        raise ProfileRootError("CONSENT_SCOPE_INVALID", "pass explicit purposes, allowed operations, and expiry using the existing consent vocabulary")
+    expiry = None
+    if expires_at != "none":
+        try:
+            expiry = date.fromisoformat(expires_at)
+            if expiry.isoformat() != expires_at or expiry <= datetime.now(timezone.utc).date():
+                raise ValueError
+        except ValueError as exc:
+            raise ProfileRootError("CONSENT_EXPIRY_INVALID", "use a future YYYY-MM-DD date, or explicitly choose none for no expiry") from exc
+    entities = _onboarding_entities(layout, discover, validate)
+    subject_entity = next(entity for entity in entities if entity.id == f"subject/{slug}")
+    sources = root / PROFILE_ENTITIES / "sources"
+    if sources.is_symlink() or not sources.is_dir() or subject_entity.path.is_symlink():
+        raise ProfileRootError("PROFILE_LAYOUT_INVALID", "subject and sources must be normal paths inside the external profile")
+    source_slug = f"hearing-consent-{slug}"
+    source_path = sources / f"{source_slug}.md"
+    if source_path.exists() or source_path.is_symlink():
+        raise ProfileRootError("CONSENT_SOURCE_EXISTS", "consent Source already exists; review its scope, revocation and expiry without overwriting it")
+    now = datetime.now(timezone.utc).replace(microsecond=0)
+    meta = template("source", source_slug, f"subject/{slug}")
+    meta.update(source_kind="conversation", captured_at=now.isoformat())
+    meta["consent"] = {"obtained": True, "obtained_at": now.date().isoformat(),
+                       "purposes": list(dict.fromkeys(purposes)),
+                       "allowed_operations": list(dict.fromkeys(allowed_operations)),
+                       "expires_at": expiry.isoformat() if expiry else None,
+                       "revoked_at": None, "notes": None}
+    # Preserve the subject body and only add this explicitly confirmed scope.
+    original = subject_entity.path.read_text(encoding="utf-8")
+    subject_meta = dict(subject_entity.meta)
+    subject_meta["consent_refs"] = [*subject_meta["consent_refs"], meta["id"]]
+    subject_meta["allowed_purposes"] = list(dict.fromkeys([*subject_meta["allowed_purposes"], *purposes]))
+    subject_meta["updated"] = now.date().isoformat()
+    subject_text = "---\n" + yaml.safe_dump(subject_meta, allow_unicode=True, sort_keys=False) + "---\n" + subject_entity.body
+    created = False
+    updated = False
+    try:
+        # O_EXCL prevents a second writer from replacing any prior Source.
+        descriptor = os.open(source_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        created = True
+        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+            handle.write(_entity_text(meta))
+            handle.flush()
+            os.fsync(handle.fileno())
+        atomic_write_text(subject_entity.path, subject_text)
+        updated = True
+        _onboarding_entities(layout, discover, validate)
+    except OSError as exc:
+        raise ProfileRootError("PROFILE_OUTPUT_UNWRITABLE", "consent could not be recorded in the external profile") from exc
+    finally:
+        if sys.exc_info()[0] is not None:
+            if updated:
+                atomic_write_text(subject_entity.path, original)
+            if created:
+                source_path.unlink()
+    return layout
+
+
 def validate_repository(
     repository_root: Path = ROOT,
     *,
@@ -718,7 +881,12 @@ def validate_repository(
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser()
     add_profile_root_argument(parser)
-    parser.add_argument("command", nargs="?", choices=("resolve", "validate-repository"), default="resolve")
+    parser.add_argument("command", nargs="?", choices=("resolve", "validate-repository", "init", "consent"), default="resolve")
+    parser.add_argument("--subject", help="opaque lowercase kebab-case subject slug for init/consent")
+    parser.add_argument("--purpose", action="append", help="owner-confirmed purpose; repeat for each purpose")
+    parser.add_argument("--allowed-operation", action="append", help="owner-confirmed operation; repeat for each operation")
+    parser.add_argument("--expires-at", help="owner-confirmed future YYYY-MM-DD, or explicit none")
+    parser.add_argument("--confirm-owner-consent", action="store_true", help="attest that the owner explicitly confirmed this exact scope")
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args(argv)
     if args.command == "validate-repository":
@@ -729,7 +897,16 @@ def main(argv: list[str] | None = None) -> int:
             print(f"{result['status']}: {result['remediation']}")
         return 0 if result["status"] == "PASS" else 2
     try:
-        layout = resolve_profile_root(args.profile_root)
+        if args.command == "init":
+            if args.purpose or args.allowed_operation or args.expires_at or args.confirm_owner_consent:
+                raise ProfileRootError("CONSENT_SCOPE_INVALID", "init creates no consent; use the separate consent command after owner confirmation")
+            layout = init_profile(args.profile_root, subject=args.subject)
+        elif args.command == "consent":
+            layout = record_hearing_consent(args.profile_root, subject=args.subject, purposes=args.purpose,
+                allowed_operations=args.allowed_operation, expires_at=args.expires_at,
+                confirm_owner_consent=args.confirm_owner_consent)
+        else:
+            layout = resolve_profile_root(args.profile_root)
     except ProfileRootError as error:
         profile_root_error(error)
         return 2
