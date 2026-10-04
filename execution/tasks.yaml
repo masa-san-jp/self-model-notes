@@ -2161,3 +2161,6 @@ tasks:
         checks:
           - "python3 tools/agent_runtime.py -m unittest discover -s tests -p \"test_*.py\" — clean-worktree run, exit 0, Ran 279 tests in 248.539s, OK"
           - "python3 tools/agent_runtime.py -m unittest tests.test_consent — clean-worktree run, exit 0, 5 tests passed"
+      - note: "Issue #136 review corrections: rollback handles only exceptions raised by the current operation, with explicit success state and BaseException cleanup; init and consent reject any Git checkout detected from the nearest existing directory. Six synthetic regression tests cover caller exception handlers, cancellation cleanup and unrelated checkout rejection."
+        checks:
+          - "python3 tools/agent_runtime.py -m unittest tests.test_profile_onboarding tests.test_execution_tasks — exit 0, 31 tests passed"

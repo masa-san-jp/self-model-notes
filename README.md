@@ -75,7 +75,7 @@ Source → Event → Claim → Pattern → Derived Self Model → Research Signa
 
 clone 後、PyYAML が使える Python を用意します。fresh clone の準備は後述の
 [初回だけの依存関係準備](#初回だけの依存関係準備)を参照してください。以降は repository のルートから実行します。
-本人記録は Git に入れず、repository・worktree・公開 projection の外の、symlink を含まない
+本人記録は Git に入れず、すべての Git checkout・worktree・公開 projection の外の、symlink を含まない
 絶対 path を選びます。親ディレクトリは先に作り、最後の `profile` は未作成にしてください。
 `my-self` は実名ではなく、本人が選ぶ小文字 kebab-case の識別子です。
 
@@ -86,6 +86,7 @@ python3 tools/agent_runtime.py tools/profile_root.py init \
 
 `init` は `profile.yaml` と `subject/my-self`、空の `growth/`・`data/`・`overviews/` と
 entity ディレクトリを一緒に作ります。既存ディレクトリは空でも拒否し、同意は作りません。
+`init` と `consent` は、この repo 以外の Git checkout の配下も拒否します。
 
 次に本人が、会話を自己モデルの観測として保存・分析・派生し、制作の研究へ派生 signal を
 渡す範囲と有効期限を確認します。**agent は本人に確認せず同意を作ってはいけません。**

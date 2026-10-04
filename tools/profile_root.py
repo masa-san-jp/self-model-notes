@@ -668,6 +668,18 @@ def _onboarding_root(value: str | Path | None) -> Path:
     root = validate_external_directory(raw)
     if any(component.is_symlink() for component in (raw, *raw.parents)):
         raise ProfileRootError("PROFILE_ROOT_INVALID", "use a canonical directory path without symlink aliases")
+    existing_parent = root
+    while not existing_parent.exists():
+        existing_parent = existing_parent.parent
+    try:
+        repository = subprocess.run(
+            ["git", "rev-parse", "--show-toplevel"], cwd=existing_parent,
+            capture_output=True, check=False,
+        )
+    except OSError as exc:
+        raise ProfileRootError("PROFILE_ROOT_INVALID", "external profile repository boundary could not be checked") from exc
+    if repository.returncode == 0:
+        raise ProfileRootError("PROFILE_ROOT_REPOSITORY_OVERLAP", "onboarding profile root must be outside every Git checkout")
     return root
 
 
@@ -707,6 +719,7 @@ def init_profile(value: str | Path | None, *, subject: str | None) -> ProfileLay
         raise ProfileRootError("PROFILE_ROOT_INVALID", "create the normal external parent directory before init")
     discover, validate, vocabularies, template = _onboarding_imports()
     created = False
+    succeeded = False
     try:
         root.mkdir(mode=0o700)
         created = True
@@ -723,13 +736,15 @@ def init_profile(value: str | Path | None, *, subject: str | None) -> ProfileLay
         layout = resolve_profile_root(root)
         if validate(discover(layout.entity_root), root=root):
             raise ProfileRootError("PROFILE_ENTITIES_INVALID", "initial subject did not pass the existing entity validator")
-        return layout
-    except OSError as exc:
-        raise ProfileRootError("PROFILE_OUTPUT_UNWRITABLE", "profile could not be created; choose a new writable external directory") from exc
-    finally:
+        succeeded = True
+    except BaseException as exc:
         # Only our exclusively-created root is removed after a failed init.
-        if created and sys.exc_info()[0] is not None:
+        if created and not succeeded:
             shutil.rmtree(root)
+        if isinstance(exc, OSError):
+            raise ProfileRootError("PROFILE_OUTPUT_UNWRITABLE", "profile could not be created; choose a new writable external directory") from exc
+        raise
+    return layout
 
 
 def record_hearing_consent(
@@ -789,6 +804,7 @@ def record_hearing_consent(
     subject_text = "---\n" + yaml.safe_dump(subject_meta, allow_unicode=True, sort_keys=False) + "---\n" + subject_entity.body
     created = False
     updated = False
+    succeeded = False
     try:
         # O_EXCL prevents a second writer from replacing any prior Source.
         descriptor = os.open(source_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
@@ -800,14 +816,18 @@ def record_hearing_consent(
         atomic_write_text(subject_entity.path, subject_text)
         updated = True
         _onboarding_entities(layout, discover, validate)
-    except OSError as exc:
-        raise ProfileRootError("PROFILE_OUTPUT_UNWRITABLE", "consent could not be recorded in the external profile") from exc
-    finally:
-        if sys.exc_info()[0] is not None:
-            if updated:
-                atomic_write_text(subject_entity.path, original)
-            if created:
-                source_path.unlink()
+        succeeded = True
+    except BaseException as exc:
+        if not succeeded:
+            try:
+                if updated:
+                    atomic_write_text(subject_entity.path, original)
+            finally:
+                if created:
+                    source_path.unlink()
+        if isinstance(exc, OSError):
+            raise ProfileRootError("PROFILE_OUTPUT_UNWRITABLE", "consent could not be recorded in the external profile") from exc
+        raise
     return layout
 
 

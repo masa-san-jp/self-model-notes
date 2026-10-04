@@ -106,6 +106,69 @@ class ProfileOnboardingTests(unittest.TestCase):
                 init_profile(self.root, subject="fixture")
         self.assertFalse(self.root.exists())
 
+    def test_successful_init_inside_caller_exception_handler_keeps_profile(self):
+        try:
+            raise RuntimeError("synthetic caller failure")
+        except RuntimeError:
+            layout = init_profile(self.root, subject="fixture")
+        self.assertEqual(layout, resolve_profile_root(self.root))
+        self.assertTrue((self.root / "entities/subjects/fixture.md").is_file())
+
+    def test_successful_consent_inside_caller_exception_handler_keeps_records(self):
+        init_profile(self.root, subject="fixture")
+        try:
+            raise RuntimeError("synthetic caller failure")
+        except RuntimeError:
+            layout = self.consent()
+        source_path = self.root / "entities/sources/hearing-consent-fixture.md"
+        source = parse_markdown(source_path)
+        subject = parse_markdown(self.root / "entities/subjects/fixture.md")
+        self.assertTrue(source.meta["consent"]["obtained"])
+        self.assertEqual([source.id], subject.meta["consent_refs"])
+        self.assertEqual([], validate_entities(discover_entities(layout.entity_root), root=self.root))
+
+    def test_init_cancellation_rolls_back_and_reraises_original_exception(self):
+        cancelled = KeyboardInterrupt("synthetic cancellation")
+        with mock.patch("tools.profile_root.atomic_write_text", side_effect=cancelled):
+            with self.assertRaises(KeyboardInterrupt) as error:
+                init_profile(self.root, subject="fixture")
+        self.assertIs(cancelled, error.exception)
+        self.assertFalse(self.root.exists())
+
+    def test_consent_cancellation_restores_subject_and_removes_source(self):
+        init_profile(self.root, subject="fixture")
+        before = self.snapshot()
+        cancelled = KeyboardInterrupt("synthetic cancellation")
+        # Cancel after both writes; cleanup must preserve the original subject.
+        with mock.patch("tools.kb.validate_entities", side_effect=[[], cancelled]):
+            with self.assertRaises(KeyboardInterrupt) as error:
+                self.consent()
+        self.assertIs(cancelled, error.exception)
+        self.assertEqual(before, self.snapshot())
+
+    def test_init_rejects_unrelated_git_checkout_and_missing_nested_destination(self):
+        checkout = self.parent / "unrelated-checkout"
+        checkout.mkdir()
+        subprocess.run(["git", "init", "-q", str(checkout)], check=True, capture_output=True)
+        for root in (checkout / "profile", checkout / "missing-parent/profile"):
+            with self.subTest(root=root), self.assertRaises(ProfileRootError) as error:
+                init_profile(root, subject="fixture")
+            self.assertEqual("PROFILE_ROOT_REPOSITORY_OVERLAP", error.exception.code)
+            self.assertNotIn(str(checkout), str(error.exception))
+            self.assertFalse(root.exists())
+        self.assertEqual([".git"], sorted(path.name for path in checkout.iterdir()))
+
+    def test_consent_rejects_profile_inside_unrelated_git_checkout_without_writes(self):
+        init_profile(self.root, subject="fixture")
+        before = self.snapshot()
+        # A checkout introduced around an existing profile must also be denied.
+        subprocess.run(["git", "init", "-q", str(self.parent)], check=True, capture_output=True)
+        with self.assertRaises(ProfileRootError) as error:
+            self.consent()
+        self.assertEqual("PROFILE_ROOT_REPOSITORY_OVERLAP", error.exception.code)
+        self.assertNotIn(str(self.root), str(error.exception))
+        self.assertEqual(before, self.snapshot())
+
     def test_consent_records_exact_scope_and_preserves_subject_body(self):
         init_profile(self.root, subject="fixture")
         subject_path = self.root / "entities/subjects/fixture.md"

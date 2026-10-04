@@ -5,6 +5,7 @@
 まず [README の初期化と同意](../README.md#初めて自分の自己モデルを作るissue-136) の順に
 `profile_root.py init --profile-root <絶対path> --subject <slug>` と、本人が確認した範囲での
 `profile_root.py consent` を実行します。init は新しい path 専用で、同意は作りません。
+保存先は、この repo 以外も含むすべての Git checkout の外を選びます。
 **agent は本人に目的・操作・有効期限を確認せず、`--confirm-owner-consent` を付けてはいけません。**
 同意の Source はヒアリング用の `conversation` です。全文や識別情報は保存しません。
 同じ profile へ制作 run と育成 session が同時に書き込まないでください。
