@@ -2162,5 +2162,16 @@ tasks:
           - "python3 tools/agent_runtime.py -m unittest discover -s tests -p \"test_*.py\" — clean-worktree run, exit 0, Ran 279 tests in 248.539s, OK"
           - "python3 tools/agent_runtime.py -m unittest tests.test_consent — clean-worktree run, exit 0, 5 tests passed"
       - note: "Issue #136 review corrections: rollback handles only exceptions raised by the current operation, with explicit success state and BaseException cleanup; init and consent reject any Git checkout detected from the nearest existing directory. Six synthetic regression tests cover caller exception handlers, cancellation cleanup and unrelated checkout rejection."
+        commit: 1224d984f4a7bcb2ffdaef191130a3514fb93741
         checks:
           - "python3 tools/agent_runtime.py -m unittest tests.test_profile_onboarding tests.test_execution_tasks — exit 0, 31 tests passed"
+          - "python3 tools/agent_runtime.py -m unittest discover -s tests -p \"test_*.py\" — clean-worktree run, exit 0, Ran 285 tests in 71.030s, OK"
+          - "python3 tools/agent_runtime.py -m unittest tests.test_consent — exit 0, 5 tests passed"
+          - "python3 tools/agent_runtime.py -m unittest tests.test_execution_tasks — exit 0, 10 tests passed"
+          - "Existing CLI audit, bootstrap graph and bundle checks — exit 0, 5 tests passed"
+          - "Synthetic README init -> consent -> offered -> answered -> export — exit 0; zero signals after one answer, one uncertain avoidance signal after scoped Claim derivation"
+          - "Synthetic graph regeneration/check, audit dry-run and generation/check, Self Model and bundle generation/check, growth generate/next/report — exit 0"
+          - "python3 tools/agent_runtime.py tools/profile_root.py validate-repository --json — exit 0, PASS"
+          - "python3 tools/agent_runtime.py tools/task_harness.py validate — exit 0, valid"
+          - "python3 tools/agent_runtime.py tools/build_graph.py --check --root entities — exit 0, OK, 0 entities"
+          - "git diff --check; git diff --exit-code -- data/ overviews/coverage.md — exit 0"
