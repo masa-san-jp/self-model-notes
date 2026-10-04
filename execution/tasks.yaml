@@ -2156,3 +2156,8 @@ tasks:
           - "python3 tools/agent_runtime.py tools/task_harness.py validate — valid"
           - "python3 tools/agent_runtime.py tools/build_graph.py --check --root entities — OK, 0 entities"
           - "git diff --check; git diff --exit-code -- data/ overviews/coverage.md — exit 0"
+      - commit: e196a22980d8715ec7af52232f374b713fbd70c9
+        note: "Local implementation commit, pending orchestrator review and the trusted-base lifecycle. The preliminary dirty-worktree run finished all 278 tests with three consent assertions failing because worktree.clean denied before consent checks; no validator was changed or skipped."
+        checks:
+          - "python3 tools/agent_runtime.py -m unittest discover -s tests -p \"test_*.py\" — clean-worktree run, exit 0, Ran 279 tests in 248.539s, OK"
+          - "python3 tools/agent_runtime.py -m unittest tests.test_consent — clean-worktree run, exit 0, 5 tests passed"
