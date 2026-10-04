@@ -24,6 +24,8 @@ exportはSourceごとの同意を再検証し、1件でも不足があれば全�
 
 ## 制作runの入口（Issue #118）
 
+全repoをつないで制作プランまで進める場合は、親の [READMEの最短ルート](https://github.com/masa-san-jp/agentic-art-orchestration#利用者向けの最短ルート)から始める。環境準備、offline体験、pin済みworkspace、`credential_free.py`経由のヒアリングとrun、出力・復旧の詳細は [agent runtime guide](https://github.com/masa-san-jp/agentic-art-orchestration/blob/main/docs/agent-runtime-guide.md)を参照する。
+
 制作runを実行する利用agentは、`export_signals.py`を呼ぶ前に、次の順で本人へのヒアリングを行える。実装は[`docs/operations.md`](operations.md)、固定例は[`tests/contracts/growth-hearing-v1.fixture.json`](../tests/contracts/growth-hearing-v1.fixture.json)。
 
 1. `hearing open`を実行する。`outcome: offered`なら2へ、それ以外（`unavailable`、非零終了、timeout）は4へ進む。
