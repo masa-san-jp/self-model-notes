@@ -56,9 +56,9 @@ def scan_private(text):
 
 
 def terms(text):
-    """Exact Han words / Latin words; no semantic or model-based counting."""
+    """Literal script runs, including short Japanese/Latin owner words."""
     normalized = unicodedata.normalize('NFKC', text).casefold()
-    return set(re.findall(r'[一-龥々]{2,}|[ァ-ヶー]{2,}|[a-z][a-z0-9]{2,}', normalized))
+    return set(re.findall(r'[一-龥々]+|[ぁ-ゖ]{2,}|[ァ-ヶー]{2,}|[a-z][a-z0-9]+', normalized))
 
 
 def raw_text(event):
@@ -301,7 +301,11 @@ class HearingElements:
             fail('distinct_alternative', 'Give a different explanation.')
         if run['step'] == 'pattern-statement' and unicodedata.normalize('NFKC', run['repetition']['form']).casefold() not in normalized:
             fail('contains_shared_form', 'Include the mechanically counted shared word or form.')
-        if run['step'] != 'hearing-question' and run.get('event_text') and run['event_text'] in value:
+        # A derived sentence may use the person's words (e.g. a one-word
+        # feeling), but must not merely return the raw quote as its value.
+        def unquoted(text):
+            return unicodedata.normalize('NFKC', text).casefold().strip(' \t\n。.!?！？「」『』"“”')
+        if run['step'] != 'hearing-question' and run.get('event_text') and unquoted(run['event_text']) == unquoted(value):
             fail('derived_only', 'Write a derived statement rather than copying the full raw quote.')
         return failures
 

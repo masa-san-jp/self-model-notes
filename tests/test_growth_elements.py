@@ -101,6 +101,49 @@ class ElementHearingTests(GrowthHearingTestCase):
         self.assertEqual(SECTIONS['tensions'][1], report['next_action']['why'])
         self.assertEqual('event-block', report['next_action']['answer_format'])
 
+    def test_short_japanese_and_latin_words_use_existing_event_for_question(self):
+        cases = [('うれしい', 'うれしいと感じたとき、どんな迷いがあった？'),
+                 ('火を見た', '火を見たとき、気になっていたことは？'),
+                 ('AI', 'AIを使ったとき、迷っていたことは？')]
+        for index, (voice, question) in enumerate(cases):
+            seed = parse_markdown(self.seed)
+            seed.meta['raw_voice'][0]['text'] = voice
+            self.seed.write_text(serialize_markdown(seed))
+            engine = self.new_engine('short-word-' + str(index))
+            report = engine.next()
+            self.assertEqual('WAITING', report['status'])
+            self.assertEqual(voice, report['next_action']['request']['inputs']['recent_event'])
+            self.assertEqual('HEARING', self.answer(report, question, engine)['status'])
+
+    def test_short_raw_word_can_anchor_derived_claim_and_pattern_without_pure_copy(self):
+        seed = parse_markdown(self.seed)
+        seed.meta.update(trigger=None, action=[], raw_voice=[{
+            'text': 'うれしい', 'source_ref': 'source/conversation-20260901'}])
+        self.seed.write_text(serialize_markdown(seed))
+        report = self.answer(self.engine.next(), 'うれしいと感じたとき、どんな迷いがあった？')
+        block = self.event_block('short-reply').replace('自分で決めたい', 'うれしい')
+        report = self.engine.respond(block)
+        report = self.answer(report, '「うれしい。」')
+        self.assertEqual('A1.claim-statement', report['next_action']['request']['element_id'])
+        self.assertIn('derived_only', [failure['check'] for failure in report['next_action']['request']['previous_failure']])
+        report = self.answer(report, 'うれしい気持ちを保ちたい可能性がある。')
+        report = self.answer(report, 'emotion')
+        report = self.answer(report, report['next_action']['request']['answer_format']['choices'][0])
+        report = self.answer(report, 'state')
+        report = self.answer(report, '作業が終わった安堵だった可能性がある。')
+        report = self.answer(report, '周囲からの応答に安心した可能性がある。')
+        request = report['next_action']['request']
+        self.assertEqual('A1.pattern-statement', request['element_id'])
+        self.assertEqual('うれしい', request['inputs']['shared_form'])
+        report = self.answer(report, 'うれしい気持ちが別の場面にも現れる可能性がある。')
+        self.assertEqual('COMPLETED', report['status'])
+        self.assertEqual([], self.signals())
+        engine2 = self.new_engine('short-confirmation')
+        engine2.next()
+        engine2.confirm('yes')
+        engine2.confirm('yes')
+        self.assertEqual(2, len(self.signals()))
+
     def test_each_invalid_question_retries_only_same_element(self):
         invalid = [('予定を迷った。', 'ends_with_question'), ('何を感じましたか？', 'contains_event_term'),
                    ('予定のclaimは？', 'forbidden_tokens'), ('予定の制作テーマは？', 'no_production_context'),

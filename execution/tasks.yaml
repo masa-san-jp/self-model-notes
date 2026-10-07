@@ -2237,3 +2237,7 @@ tasks:
           - "python3 tools/agent_runtime.py tools/task_harness.py validate — exit 0, valid"
           - "python3 tools/agent_runtime.py tools/build_graph.py --check --root entities — exit 0, OK: 0 entities"
           - "git diff --check; git diff --exit-code -- data/ overviews/coverage.md — exit 0"
+      - note: "Clean-worktree rerun with the supplied Python environment on PATH completed all 315 tests, exit 0, Ran 315 tests in 1751.122s, OK."
+      - note: "Support short Japanese and Latin raw words as question material, and distinguish a bare raw-word copy from a derived sentence using the owner's words. No entity type, confidence promotion, consent or export rule was changed."
+        checks:
+          - "python3 tools/agent_runtime.py -m unittest tests.test_growth_elements tests.test_execution_tasks — exit 0, Ran 42 tests in 110.756s, OK"
