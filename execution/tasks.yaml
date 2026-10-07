@@ -2241,3 +2241,11 @@ tasks:
       - note: "Support short Japanese and Latin raw words as question material, and distinguish a bare raw-word copy from a derived sentence using the owner's words. No entity type, confidence promotion, consent or export rule was changed."
         checks:
           - "python3 tools/agent_runtime.py -m unittest tests.test_growth_elements tests.test_execution_tasks — exit 0, Ran 42 tests in 110.756s, OK"
+      - commit: 41df916978eb13ec8092619e946f572db3821385
+        note: "Final implementation validation used the supplied Python environment on PATH. SM-050 remains review: real-profile owner acceptance, parent wrapper/pin integration and the trusted-base remote lifecycle are reserved for the orchestrator."
+        checks:
+          - "python3 tools/agent_runtime.py -m unittest discover -s tests -p \"test_*.py\" — exit 0, Ran 317 tests in 2163.676s, OK"
+          - "python3 tools/agent_runtime.py tools/profile_root.py validate-repository --json — exit 0, PASS"
+          - "python3 tools/agent_runtime.py tools/task_harness.py validate — exit 0, valid"
+          - "python3 tools/agent_runtime.py tools/build_graph.py --check --root entities — exit 0, OK: 0 entities"
+          - "git diff --check; git diff --exit-code -- data/ overviews/coverage.md — exit 0"
