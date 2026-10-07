@@ -349,6 +349,17 @@ def _classify_privacy_path(repository_root: Path, path: str) -> str | None:
             if _is_fixture_path(path):
                 return None
             return "growth-log"
+        if _contains_element_record(document):
+            return "growth-log"
+        return None
+
+    if lower.endswith(".json"):
+        try:
+            document = json.loads(body)
+        except (ValueError, TypeError):
+            return None
+        if _contains_element_record(document):
+            return "growth-log"
         return None
 
     if lower.endswith(".jsonl"):
@@ -362,11 +373,22 @@ def _classify_privacy_path(repository_root: Path, path: str) -> str | None:
             record = None
         if isinstance(record, dict) and record.get("contract_version") in GROWTH_LOG_JSONL_CONTRACTS:
             return None if is_fixture else "growth-log"
+        if _contains_element_record(record):
+            return "growth-log"
         if any(f'"contract_version":"{contract}"' in first_line for contract in GROWTH_LOG_JSONL_CONTRACTS):
             return None if is_fixture else "growth-log"
         return None
 
     return None
+
+
+def _contains_element_record(value: Any) -> bool:
+    if isinstance(value, dict):
+        version = value.get("contract_version")
+        return (isinstance(version, str) and version in {
+            "growth-elements/v1", "element-request/v1", "element-answer/v1"
+        }) or any(_contains_element_record(item) for item in value.values())
+    return isinstance(value, list) and any(_contains_element_record(item) for item in value)
 
 
 def _list_all_tracked_paths(repository_root: Path) -> list[str]:

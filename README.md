@@ -71,6 +71,12 @@ Source → Event → Claim → Pattern → Derived Self Model → Research Signa
 
 ## 外部profile rootと実行境界
 
+Issue #138 の要素ごとのヒアリング・派生の入口は `tools/growth_tasks.py element next|answer|respond|confirm|skip`。
+本人の出来事一件から問いを推論し、不正な値はその要素だけをやり直します。主張の草案は profile 内に保持し、
+次の run で本人が一つずつ確認したものだけを export の材料へ進めます。
+親 wrapper の切り替え方法、stdin 契約、本人確認、実 run の残る条件は [要素ヒアリング](docs/element-hearing.md) を参照してください。
+以下の `hearing` 操作は旧 pin の互換経路です。
+
 ### 初めて自分の自己モデルを作る（Issue #136）
 
 clone 後、PyYAML が使える Python を用意します。fresh clone の準備は後述の

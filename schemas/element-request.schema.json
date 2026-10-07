@@ -1,0 +1,164 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "element-request/v1",
+  "title": "element-request/v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "run_id",
+    "element_id",
+    "attempt",
+    "instruction",
+    "inputs",
+    "answer_format",
+    "checks",
+    "previous_failure"
+  ],
+  "properties": {
+    "contract_version": {
+      "const": "element-request/v1"
+    },
+    "run_id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+    },
+    "element_id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+    },
+    "attempt": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "instruction": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 400
+    },
+    "inputs": {
+      "type": "object"
+    },
+    "answer_format": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "max_chars"
+          ],
+          "properties": {
+            "type": {
+              "const": "text"
+            },
+            "max_chars": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "min_chars": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "choices"
+          ],
+          "properties": {
+            "type": {
+              "const": "choice"
+            },
+            "choices": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "max_chars"
+          ],
+          "properties": {
+            "type": {
+              "const": "boolean_with_reason"
+            },
+            "max_chars": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ],
+          "properties": {
+            "type": {
+              "const": "url"
+            },
+            "max_chars": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        }
+      ]
+    },
+    "checks": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 256
+      },
+      "uniqueItems": true
+    },
+    "previous_failure": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "check",
+              "reason"
+            ],
+            "properties": {
+              "check": {
+                "type": "string",
+                "minLength": 1
+              },
+              "reason": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

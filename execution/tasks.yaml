@@ -2175,3 +2175,56 @@ tasks:
           - "python3 tools/agent_runtime.py tools/task_harness.py validate — exit 0, valid"
           - "python3 tools/agent_runtime.py tools/build_graph.py --check --root entities — exit 0, OK, 0 entities"
           - "git diff --check; git diff --exit-code -- data/ overviews/coverage.md — exit 0"
+
+  - id: SM-050
+    title: "Profile-local element hearing and owner-confirmed derivation"
+    phase: 10
+    status: review
+    depends_on: [SM-047]
+    issue: https://github.com/masa-san-jp/self-model-notes/issues/138
+    allowed_paths:
+      - tools/growth_tasks.py
+      - tools/growth_elements.py
+      - tools/profile_root.py
+      - schemas/element-request.schema.json
+      - schemas/element-answer.schema.json
+      - tests/test_growth_elements.py
+      - tests/test_execution_tasks.py
+      - docs/element-hearing.md
+      - README.md
+      - execution/tasks.yaml
+    external_paths:
+      - growth/elements/**
+      - entities/events/**
+      - entities/claims/**
+      - entities/patterns/**
+      - data/**
+      - overviews/**
+    acceptance:
+      - Exported sections with empty or thin distinct Event evidence receive deterministic priority without alphabetical question selection
+      - Each question uses one recent Event quote and one item description with mechanical question, length, term and forbidden-vocabulary checks
+      - Each inference returns exactly one value and retries only that element up to five attempts using the parent element request and answer contracts
+      - Answer Event derivation separates statement, layer and real Event reference; repeated literal words or forms require two distinct Events before Pattern inference
+      - Draft hypotheses remain profile-local and enter canonical entities only after explicit owner yes confirmation in a later run; consent and privacy are rechecked
+      - Synthetic question to answer to draft to owner confirmation to exported signal succeeds and repository privacy guard remains PASS
+      - Owner accepts a meaningful entrance question in a real run after orchestrator review; the implementation agent never accesses a real profile
+    checks:
+      - python3 tools/agent_runtime.py -m unittest tests.test_growth_elements tests.test_execution_tasks
+      - python3 tools/agent_runtime.py -m unittest discover -s tests -p "test_*.py"
+      - python3 tools/agent_runtime.py tools/profile_root.py validate-repository --json
+      - python3 tools/agent_runtime.py tools/task_harness.py validate
+      - python3 tools/agent_runtime.py tools/build_graph.py --check --root entities
+      - git diff --check
+    stop_if:
+      - A core entity vocabulary or consent contract must be changed
+      - A real profile or sibling repository must be modified
+    claim: null
+    evidence:
+      - note: "Local Issue #138 implementation under the assigned branch for orchestrator review. Remote claim, PR, trusted-base acceptance and owner real-run acceptance remain pending; registration does not assert lifecycle completion."
+        checks:
+          - "python3 tools/agent_runtime.py -m unittest tests.test_growth_elements tests.test_execution_tasks — exit 0, Ran 38 tests, OK"
+          - "Synthetic question -> answer Event -> hypothesis drafts -> later-run owner confirmation -> signals, graph regeneration/check and audit dry-run — exit 0"
+          - "python3 tools/agent_runtime.py tools/profile_root.py validate-repository --json — exit 0, PASS"
+          - "python3 tools/agent_runtime.py tools/task_harness.py validate — exit 0, valid"
+          - "python3 tools/agent_runtime.py tools/build_graph.py --check --root entities — exit 0, OK: 0 entities"
+          - "git diff --check; git diff --cached --check; git diff --exit-code -- data/ overviews/coverage.md — exit 0"
