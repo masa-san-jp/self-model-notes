@@ -2228,3 +2228,12 @@ tasks:
           - "python3 tools/agent_runtime.py tools/task_harness.py validate — exit 0, valid"
           - "python3 tools/agent_runtime.py tools/build_graph.py --check --root entities — exit 0, OK: 0 entities"
           - "git diff --check; git diff --cached --check; git diff --exit-code -- data/ overviews/coverage.md — exit 0"
+      - commit: fc513f89777e73c75eb7e200780d60d2a27fec11
+        note: "Initial clean-worktree full run completed all 313 tests, exit 1, failures=5 and errors=5. The PATH-selected nested python3 lacked PyYAML (runtime exit 9), affecting the existing runtime, hearing, growth-completion and onboarding checks. No failing test was removed or skipped; rerun uses the supplied Python environment on PATH."
+      - note: "Harden one-sentence and normalized identifier/URL/slug checks and sanitize malformed entity errors at the element API boundary. All validation uses the supplied Python environment on PATH; real-run owner acceptance remains pending."
+        checks:
+          - "python3 tools/agent_runtime.py -m unittest tests.test_growth_elements tests.test_execution_tasks — exit 0, Ran 40 tests, OK"
+          - "python3 tools/agent_runtime.py tools/profile_root.py validate-repository --json — exit 0, PASS"
+          - "python3 tools/agent_runtime.py tools/task_harness.py validate — exit 0, valid"
+          - "python3 tools/agent_runtime.py tools/build_graph.py --check --root entities — exit 0, OK: 0 entities"
+          - "git diff --check; git diff --exit-code -- data/ overviews/coverage.md — exit 0"

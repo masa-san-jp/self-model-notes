@@ -106,7 +106,10 @@ class ElementHearingTests(GrowthHearingTestCase):
                    ('予定のclaimは？', 'forbidden_tokens'), ('予定の制作テーマは？', 'no_production_context'),
                    ('予定のslugは？', 'no_production_context'), ('予定の依頼文は？', 'no_production_context'),
                    ('予定は？\n迷う？', 'single_sentence'), ('予定' + '長' * 60 + '？', 'max_chars'),
-                   ('予定の連絡先はa@example.com？', 'privacy')]
+                   ('予定の連絡先はa@example.com？', 'privacy'),
+                   ('予定を迷った. Why?', 'single_sentence'),
+                   ('予定のRECENTとは？', 'no_production_context'),
+                   ('予定の参照はｈｔｔｐｓ：／／example.com？', 'privacy')]
         for index, (value, check) in enumerate(invalid):
             with self.subTest(value=value):
                 engine = self.new_engine('invalid-' + str(index))
@@ -345,6 +348,27 @@ class ElementHearingTests(GrowthHearingTestCase):
                                 cwd=ROOT, text=True, capture_output=True)
         self.assertEqual(2, result.returncode)
         self.assertIn('PROFILE_ROOT_REQUIRED', result.stderr)
+
+    def test_malformed_entity_errors_do_not_echo_private_yaml_or_path(self):
+        private = 'synthetic-private-marker-987'
+        self.seed.write_text('---\nraw_voice: ["' + private + '"\n---\n', encoding='utf-8')
+        with self.assertRaisesRegex(ValueError, '^ENTITIES_INVALID$'):
+            self.engine.next()
+        result = subprocess.run([sys.executable, 'tools/agent_runtime.py', 'tools/growth_tasks.py',
+                                 'element', 'next', '--run-id', 'malformed', '--purpose', 'artistic-research',
+                                 '--profile-root', str(self.profile)], cwd=ROOT, text=True, capture_output=True)
+        self.assertEqual(2, result.returncode)
+        self.assertNotIn(private, result.stdout + result.stderr)
+        self.assertNotIn(str(self.profile), result.stdout + result.stderr)
+
+    def test_joined_fullwidth_identifier_is_rejected_before_event_creation(self):
+        self.question()
+        before = self.engine.path.read_bytes()
+        for trigger in ('参照はｈｔｔｐｓ：／／example.com', '連絡先はａ＠example.com'):
+            with self.assertRaisesRegex(ValueError, 'direct-identifier-detected'):
+                self.engine.respond(self.event_block('bad-unicode', trigger=trigger))
+        self.assertEqual(before, self.engine.path.read_bytes())
+        self.assertEqual([self.seed], list((self.profile / 'entities' / 'events').glob('*.md')))
 
     def test_schema_copies_have_recorded_parent_digests(self):
         for name, digest in {

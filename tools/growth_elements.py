@@ -47,6 +47,14 @@ def canonical(value):
     return json.dumps(value, ensure_ascii=False, sort_keys=True, allow_nan=False) + '\n'
 
 
+def scan_private(text):
+    normalized = unicodedata.normalize('NFKC', text).casefold()
+    _scan_direct_identifiers(normalized)
+    # Unicode word boundaries can hide an address/URL joined to Japanese.
+    if '@' in normalized or 'http://' in normalized or 'https://' in normalized:
+        raise IntakeError('direct-identifier-detected')
+
+
 def terms(text):
     """Exact Han words / Latin words; no semantic or model-based counting."""
     normalized = unicodedata.normalize('NFKC', text).casefold()
@@ -148,7 +156,12 @@ class HearingElements:
         os.chmod(self.path, 0o600)
 
     def entities(self):
-        entities = discover_entities(self.layout.entity_root)
+        try:
+            entities = discover_entities(self.layout.entity_root)
+        except (OSError, ValueError):
+            # parse_markdown errors include the path and malformed YAML body.
+            # Keep the public API safe too, not just the CLI error renderer.
+            raise ValueError('ENTITIES_INVALID') from None
         # Existing root resolver doesn't inspect all nested entity aliases.
         for entity in entities:
             if entity.path.is_symlink() or entity.path.parent.is_symlink():
@@ -262,7 +275,7 @@ class HearingElements:
             return failures
         if len(value) > fmt['max_chars']:
             fail('max_chars', 'Use at most the declared character limit.')
-        if '\n' in value or len(re.findall(r'[。!?！？]', value)) > 1:
+        if '\n' in value or len(re.findall(r'[。.!?！？]', value)) > 1:
             fail('single_sentence', 'Return one sentence only.')
         try:
             from growth_tasks import question_bank_forbidden_tokens
@@ -272,11 +285,9 @@ class HearingElements:
         if any(token.casefold() in normalized for token in question_bank_forbidden_tokens()):
             fail('forbidden_tokens', 'Remove internal schema vocabulary.')
         try:
-            _scan_direct_identifiers(value)
+            scan_private(value)
         except IntakeError:
             fail('privacy', 'Remove direct identifiers and URLs.')
-        if '@' in normalized:
-            fail('privacy', 'Remove direct identifiers and addresses.')
         if any(word in normalized for word in ('テーマ', 'slug', '依頼文', 'プロンプト', 'theme', 'prompt')):
             fail('no_production_context', 'Do not refer to production instructions or a theme.')
         if run['step'] == 'hearing-question':
@@ -284,7 +295,7 @@ class HearingElements:
                 fail('ends_with_question', 'End the question with ? or ？.')
             if not any(term in normalized for term in terms(request['inputs']['recent_event'])):
                 fail('contains_event_term', 'Include a word from the supplied Event.')
-            if run['anchor'].split('/', 1)[1] in value:
+            if run['anchor'].split('/', 1)[1] in normalized:
                 fail('no_production_context', 'Do not name a record slug.')
         if run['step'] == 'alternative-2' and value == run['values']['alternative-1']:
             fail('distinct_alternative', 'Give a different explanation.')
@@ -430,8 +441,10 @@ class HearingElements:
             run = self.run(state)
             if run['status'] not in ('HEARING', 'SEED_REQUIRED'):
                 raise ValueError('NOT_WAITING_FOR_OWNER')
-            if '@' in unicodedata.normalize('NFKC', text):
-                raise ValueError('ANSWER_INVALID:direct-identifier-detected')
+            try:
+                scan_private(text)
+            except IntakeError:
+                raise ValueError('ANSWER_INVALID:direct-identifier-detected') from None
             try:
                 event_id, path = _write_hearing_event(self.layout, text, subject_id=self.subject, source=source)
             except _HearingAnswerRejected as error:
