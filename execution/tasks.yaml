@@ -2257,3 +2257,12 @@ tasks:
           - "python3 tools/agent_runtime.py tools/task_harness.py validate — exit 0, valid"
           - "python3 tools/agent_runtime.py tools/build_graph.py --check --root entities — exit 0, OK: 0 entities"
           - "git diff --check; git diff --exit-code -- data/ overviews/coverage.md — exit 0"
+      - commit: fc75f8da45470577c6075f053c4d0f287b346b62
+        note: "Final review-correction checks used the supplied Python environment on PATH and a clean worktree. No real profile, parent state or sibling repository was modified; SM-050 remains review pending the owner human gate and orchestrator lifecycle."
+        checks:
+          - "python3 tools/agent_runtime.py -m unittest discover -s tests -p \"test_*.py\" — exit 0, Ran 328 tests in 79.623s, OK"
+          - "python3 tools/agent_runtime.py -m unittest tests.test_growth_elements.ElementHearingTests.test_pending_only_exports_no_raw_text_and_regenerates_synthetic_graph -v — exit 0, Ran 1 test in 0.622s, OK; synthetic build_graph regeneration/check and audit dry-run each exit 0"
+          - "python3 tools/agent_runtime.py tools/profile_root.py validate-repository --json — exit 0, PASS"
+          - "python3 tools/agent_runtime.py tools/task_harness.py validate — exit 0, valid"
+          - "python3 tools/agent_runtime.py tools/build_graph.py --check --root entities — exit 0, OK: 0 entities"
+          - "git diff --check 45242d5 HEAD; git diff --exit-code -- data/ overviews/coverage.md — exit 0"
