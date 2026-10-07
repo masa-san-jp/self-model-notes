@@ -2249,3 +2249,11 @@ tasks:
           - "python3 tools/agent_runtime.py tools/task_harness.py validate — exit 0, valid"
           - "python3 tools/agent_runtime.py tools/build_graph.py --check --root entities — exit 0, OK: 0 entities"
           - "git diff --check; git diff --exit-code -- data/ overviews/coverage.md — exit 0"
+      - note: "Issue #138 review corrections are based on orchestrator commit 45242d5. Require exact shared two-character content-word candidates, reject all element schema vocabulary, bind section-derived fields and Event references in code, defer the last heard section, supersede dependent Pattern drafts after Claim rejection, accept requester as the run-id alias, and scan every JSONL line for element records. Real-profile acceptance and parent #280 integration remain pending."
+        checks:
+          - "python3 tools/agent_runtime.py -m unittest tests.test_growth_elements tests.test_execution_tasks — exit 0, Ran 53 tests in 10.631s, OK; an earlier 52-test run failed one function-word repetition assertion, which was corrected without removing or skipping tests"
+          - "Synthetic CLI via requester: next WAITING -> answer HEARING -> respond WAITING -> four single-value answers COMPLETED -> next new run CONFIRMATION -> confirm yes WAITING -> export one tension signal -> answer HEARING -> skip SKIPPED; all 12 CLI operations exit 0; pending drafts export zero signals"
+          - "python3 tools/agent_runtime.py tools/profile_root.py validate-repository --json — exit 0, PASS"
+          - "python3 tools/agent_runtime.py tools/task_harness.py validate — exit 0, valid"
+          - "python3 tools/agent_runtime.py tools/build_graph.py --check --root entities — exit 0, OK: 0 entities"
+          - "git diff --check; git diff --exit-code -- data/ overviews/coverage.md — exit 0"

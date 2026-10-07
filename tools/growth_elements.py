@@ -34,13 +34,28 @@ MAX_ATTEMPTS = 5
 # Explicit downstream priority breaks equal coverage ties, never alphabetical.
 SECTIONS = {
     'tensions': ('両立しにくい二つの思いや行動', '本人が確認した両立しにくい思いが、次から制作のテーマの材料になります。'),
-    'recurring_patterns': ('別の出来事にも現れる同じ言葉や行動の形', '同じ言葉や形が別の出来事にも出て本人が確認すると、次から制作のテーマの材料になります。'),
+    'recurring_patterns': ('別の出来事にも現れる同じ言葉や行動の形', '同じ言葉や形が2件以上の出来事に出て、本人が確認したパターンだけが制作のテーマの材料になります。'),
     'seeks': ('得たいものや近づきたい状態', '本人が確認した得たいものが、次から制作のテーマの材料になります。'),
     'avoids': ('遠ざけたいことや離れたい状態', '本人が確認した遠ざけたいことが、次から制作のテーマの材料になります。'),
     'protects': ('失いたくないものや守りたい状態', '本人が確認した守りたいものが、次から制作のテーマの材料になります。'),
     'states': ('そのときだけの気持ちや反応', '本人が確認したそのときの反応が、次から制作の材料になります。'),
     'contexts': ('場所や相手などの場面によって変わる反応', '本人が確認した場面による違いが、次から制作の材料になります。'),
 }
+SECTION_FIELDS = {
+    'tensions': {'claim-layer': 'tension'},
+    'seeks': {'claim-layer': 'motivation', 'claim-direction': 'seek'},
+    'avoids': {'claim-layer': 'motivation', 'claim-direction': 'avoid'},
+    'protects': {'claim-layer': 'motivation', 'claim-direction': 'protect'},
+    'states': {'claim-scope': 'state'},
+    'contexts': {'claim-scope': 'context-bound'},
+}
+# Hiragana attached to another Japanese script is usually a particle or an
+# inflection here. Only isolated runs can qualify; omit common function words.
+HIRAGANA_FUNCTION_WORDS = frozenset(('これ', 'それ', 'あれ', 'ここ', 'そこ', 'どこ',
+    'こと', 'もの', 'とき', 'ため', 'よう', 'ながら', 'ので', 'から', 'まで',
+    'です', 'でした', 'ます', 'ました', 'した', 'して', 'いた', 'いる',
+    'だった', 'たい', 'ない', 'どう', 'どうですか', 'その', 'この', 'あの',
+    'していた', 'している', 'ていた', 'ている', 'でいた', 'でいる'))
 
 
 def canonical(value):
@@ -56,9 +71,24 @@ def scan_private(text):
 
 
 def terms(text):
-    """Literal script runs, including short Japanese/Latin owner words."""
+    """Conservative literal content-word candidates, at least two characters.
+
+    No stemming or substring matching: Japanese particles/inflections adjoining
+    kanji are not words. An isolated hiragana word can be delimited by quotes
+    in a question to preserve the same boundary as the supplied raw utterance.
+    """
     normalized = unicodedata.normalize('NFKC', text).casefold()
-    return set(re.findall(r'[一-龥々]+|[ぁ-ゖ]{2,}|[ァ-ヶー]{2,}|[a-z][a-z0-9]+', normalized))
+    result = set()
+    for match in re.finditer(r'[一-龥々]+|[ぁ-ゖ]+|[ァ-ヶー]+|[a-z][a-z0-9]+', normalized):
+        word = match.group()
+        if len(word) < 2:
+            continue
+        if re.fullmatch(r'[ぁ-ゖ]+', word):
+            neighbors = normalized[max(0, match.start() - 1):match.start()] + normalized[match.end():match.end() + 1]
+            if word in HIRAGANA_FUNCTION_WORDS or re.search(r'[一-龥々ァ-ヶー]', neighbors):
+                continue
+        result.add(word)
+    return result
 
 
 def raw_text(event):
@@ -77,13 +107,13 @@ def observed_order(event):
         return float('-inf'), event.id
 
 
-def select_section(entities):
+def select_section(entities, last_section=None):
     counts = {key: set() for key in SECTIONS}
     for signal in _signals(entities):
         for key, values in _signal_groups(signal, signal['statement']).items():
             if key in counts and values:
                 counts[key].update(signal['evidence_refs'])
-    return min(counts, key=lambda key: (len(counts[key]), list(SECTIONS).index(key)))
+    return min(counts, key=lambda key: (key == last_section, len(counts[key]), list(SECTIONS).index(key)))
 
 
 def repetition(events, anchor_id):
@@ -97,17 +127,20 @@ def repetition(events, anchor_id):
     for event in events:
         if not raw_text(event):
             continue
-        forms = terms(raw_text(event))
+        forms = {(1, word) for word in terms(raw_text(event))}
         for field in ('trigger', 'action'):
             value = event.meta.get(field)
             for text in value if isinstance(value, list) else [value]:
-                if isinstance(text, str) and len(text.strip()) >= 2:
-                    forms.add(text.strip())
-        for form in forms:
-            candidates.setdefault(form, set()).add(event.id)
-    eligible = [(form, sorted(ids)) for form, ids in candidates.items()
+                if isinstance(text, str) and terms(text):
+                    forms.add((0, unicodedata.normalize('NFKC', text).casefold().strip()))
+        for priority, form in forms:
+            candidates.setdefault((priority, form), set()).add(event.id)
+    eligible = [(priority, form, sorted(ids)) for (priority, form), ids in candidates.items()
                 if len(ids) >= 2 and anchor_id in ids]
-    return min(eligible, key=lambda pair: (-len(pair[0]), pair[0])) if eligible else None
+    if not eligible:
+        return None
+    _, form, ids = min(eligible, key=lambda item: (item[0], -len(item[1]), item[1]))
+    return form, ids
 
 
 def _safe_file(path):
@@ -222,8 +255,15 @@ class HearingElements:
     def next(self):
         with self.locked() as state:
             entities, _ = self.consent(self.entities())
+            superseded = self.reject_dependents(state)
             if self.run_id in state['runs']:
-                return self.report(self.run(state))
+                run = self.run(state)
+                if run['status'] == 'CONFIRMATION':
+                    self.start_hearing(state, run, entities)
+                    self.save(state)
+                elif superseded:
+                    self.save(state)
+                return self.report(run)
             run = {'subject': self.subject, 'purpose': self.purpose, 'values': {}, 'pending': None}
             state['runs'][self.run_id] = run
             pending = [key for key, draft in state['drafts'].items()
@@ -236,7 +276,22 @@ class HearingElements:
             self.save(state)
             return self.report(run)
 
+    @staticmethod
+    def reject_dependents(state):
+        """A rejected Claim supersedes dependent drafts, including old ledgers."""
+        changed = False
+        while True:
+            rejected = {key for key, draft in state['drafts'].items() if draft['status'] == 'rejected'}
+            dependents = [draft for draft in state['drafts'].values()
+                          if draft['status'] == 'pending' and rejected.intersection(draft['meta'].get('claim_refs', []))]
+            if not dependents:
+                return changed
+            for draft in dependents:
+                draft.update(status='rejected', rejection_reason='superseded')
+            changed = True
+
     def start_hearing(self, state, run, entities):
+        self.reject_dependents(state)
         while run['confirmations']:
             key = run['confirmations'][0]
             draft = state['drafts'][key]
@@ -246,7 +301,8 @@ class HearingElements:
                            why='はいと確認した内容だけが、制作へ渡す材料になります。')
                 return
             run['confirmations'].pop(0)
-        section = select_section(entities)
+        previous = state.get('last_heard', {}).get(self.subject + ':' + self.purpose)
+        section = select_section(entities, previous)
         run['section'] = section
         events = sorted((e for e in entities if e.type == 'event' and raw_text(e) and terms(raw_text(e))),
                         key=observed_order, reverse=True)
@@ -257,7 +313,7 @@ class HearingElements:
         event = events[0]
         run['anchor'] = event.id
         run['anchor_fingerprint'] = self.fingerprint(event)
-        self.text_request(run, 'hearing-question', 'この出来事について、知りたいことに沿った問いを一文で書いてください。出来事の言葉を含め、？で終えてください。',
+        self.text_request(run, 'hearing-question', 'この出来事について、知りたいことに沿った問いを一文で書いてください。出来事の2文字以上の語をそのまま含め、？で終えてください。',
                           {'recent_event': raw_text(event), 'item_description': SECTIONS[section][0]}, 60)
         run['pending']['checks'] += ['ends_with_question', 'contains_event_term', 'no_production_context']
 
@@ -282,7 +338,11 @@ class HearingElements:
         except ModuleNotFoundError:
             from tools.growth_tasks import question_bank_forbidden_tokens
         normalized = unicodedata.normalize('NFKC', value).casefold()
-        if any(token.casefold() in normalized for token in question_bank_forbidden_tokens()):
+        forbidden = (set(question_bank_forbidden_tokens()) | set(SECTIONS)
+                     | {part for section in SECTIONS for part in section.split('_')}
+                     | set(vocabularies()['claim_layers']) | set(vocabularies()['motivation_directions'])
+                     | {'belief'})
+        if any(unicodedata.normalize('NFKC', token).casefold() in normalized for token in forbidden):
             fail('forbidden_tokens', 'Remove internal schema vocabulary.')
         try:
             scan_private(value)
@@ -293,8 +353,8 @@ class HearingElements:
         if run['step'] == 'hearing-question':
             if not value.endswith(('?', '？')):
                 fail('ends_with_question', 'End the question with ? or ？.')
-            if not any(term in normalized for term in terms(request['inputs']['recent_event'])):
-                fail('contains_event_term', 'Include a word from the supplied Event.')
+            if not terms(value).intersection(terms(request['inputs']['recent_event'])):
+                fail('contains_event_term', 'Include an exact content word of at least two characters from the supplied Event.')
             if run['anchor'].split('/', 1)[1] in normalized:
                 fail('no_production_context', 'Do not name a record slug.')
         if run['step'] == 'alternative-2' and value == run['values']['alternative-1']:
@@ -352,24 +412,29 @@ class HearingElements:
     def advance(self, state, run, entities):
         step, values = run['step'], run['values']
         if step == 'hearing-question':
-            run.update(status='HEARING', pending=None, question=values[step], why=SECTIONS[run['section']][1])
-        elif step == 'claim-statement':
-            self.choice_request(run, 'claim-layer', '主張の層を一つ選んでください。', {'statement': values[step]}, vocabularies()['claim_layers'])
-        elif step == 'claim-layer':
-            self.choice_request(run, 'claim-evidence', 'この主張の根拠となる出来事の参照を一つ選んでください。',
-                                {'statement': values['claim-statement'], 'events': {run['event']: run['event_text']}}, [run['event']])
-        elif step == 'claim-evidence' and values['claim-layer'] == 'motivation':
-            self.choice_request(run, 'claim-direction', '主張が示す動機の方向を一つ選んでください。',
-                                {'statement': values['claim-statement']}, vocabularies()['motivation_directions'])
-        elif step in ('claim-evidence', 'claim-direction'):
-            self.choice_request(run, 'claim-scope', 'この一件の主張がその時だけか、場面の条件によるものかを選んでください。',
-                                {'statement': values['claim-statement'], 'event': run['event_text']}, ['state', 'context-bound'])
-        elif step == 'claim-scope' and values[step] == 'context-bound':
-            self.text_request(run, 'claim-condition', 'この主張が当てはまる場面の条件を一文で書いてください。',
-                              {'statement': values['claim-statement'], 'event': run['event_text']})
-        elif step in ('claim-scope', 'claim-condition'):
-            self.text_request(run, 'alternative-1', '同じ出来事を別に説明できる可能性を一文で書いてください。',
-                              {'event': run['event_text'], 'statement': values['claim-statement']})
+            run.update(status='HEARING', pending=None, question=values[step], why=SECTIONS[run['section']][1],
+                       heard_section=run['section'])
+            state.setdefault('last_heard', {})[self.subject + ':' + self.purpose] = run['section']
+        elif step in ('claim-statement', 'claim-layer', 'claim-direction', 'claim-scope'):
+            if step == 'claim-statement':
+                values['claim-evidence'] = run['event']
+                values.update(SECTION_FIELDS.get(run['section'], {}))
+            if 'claim-layer' not in values:
+                self.choice_request(run, 'claim-layer', '主張の層を一つ選んでください。',
+                                    {'statement': values['claim-statement']}, vocabularies()['claim_layers'])
+            elif values['claim-layer'] == 'motivation' and 'claim-direction' not in values:
+                self.choice_request(run, 'claim-direction', '主張が示す動機の方向を一つ選んでください。',
+                                    {'statement': values['claim-statement']}, vocabularies()['motivation_directions'])
+            elif 'claim-scope' not in values:
+                self.choice_request(run, 'claim-scope', 'この一件の主張がその時だけか、場面の条件によるものかを選んでください。',
+                                    {'statement': values['claim-statement'], 'event': run['event_text']}, ['state', 'context-bound'])
+            elif values['claim-scope'] == 'context-bound' and 'claim-condition' not in values:
+                self.text_request(run, 'claim-condition', 'この主張が当てはまる場面の条件を一文で書いてください。',
+                                  {'statement': values['claim-statement'], 'event': run['event_text']})
+            else:
+                self.request_alternative(run)
+        elif step == 'claim-condition':
+            self.request_alternative(run)
         elif step == 'alternative-1':
             self.text_request(run, 'alternative-2', '先の説明とは異なる、もう一つの説明を一文で書いてください。',
                               {'event': run['event_text'], 'statement': values['claim-statement'], 'previous_explanation': values[step]})
@@ -393,6 +458,11 @@ class HearingElements:
                 raise ValueError('REPETITION_CHANGED')
             self.store_pattern(state, run, entities)
             run.update(status='COMPLETED', pending=None)
+
+    def request_alternative(self, run):
+        values = run['values']
+        self.text_request(run, 'alternative-1', '同じ出来事を別に説明できる可能性を一文で書いてください。',
+                          {'event': run['event_text'], 'statement': values['claim-statement']})
 
     def draft_id(self, kind):
         digest = hashlib.sha256(canonical([self.run_id, self.subject, self.purpose]).encode()).hexdigest()[:24]
@@ -434,6 +504,7 @@ class HearingElements:
                 'contexts_seen': contexts, 'evidence': refs, 'claim_refs': [self.draft_id('claim')], 'counterevidence': None,
                 'confidence': 'unknown', 'status': 'hypothesis'}
         self.draft(state, run, meta, meta['condition'])
+        self.reject_dependents(state)
 
     def respond(self, text):
         try:
@@ -459,8 +530,11 @@ class HearingElements:
                 if not raw_text(event):
                     raise ValueError('RAW_VOICE_REQUIRED')
                 run.update(event=event_id, event_text=raw_text(event), event_fingerprint=self.fingerprint(event))
+                if run['status'] == 'SEED_REQUIRED':
+                    run['heard_section'] = run['section']
+                    state.setdefault('last_heard', {})[self.subject + ':' + self.purpose] = run['section']
                 self.text_request(run, 'claim-statement', 'この出来事から読み取れることを、可能性として一文で書いてください。',
-                                  {'event': run['event_text']})
+                                  {'event': run['event_text'], 'item_description': SECTIONS[run['section']][0]})
                 self.save(state)
             except BaseException:
                 path.unlink(missing_ok=True)
@@ -475,7 +549,12 @@ class HearingElements:
             run = self.run(state)
             if run['status'] != 'CONFIRMATION':
                 raise ValueError('NOT_WAITING_FOR_CONFIRMATION')
+            self.reject_dependents(state)
             draft = state['drafts'][run['draft_id']]
+            if draft['status'] == 'rejected' and draft.get('rejection_reason') == 'superseded':
+                self.start_hearing(state, run, entities)
+                self.save(state)
+                return self.report(run)
             if draft['status'] != 'pending':
                 raise ValueError('CONFIRMATION_CHANGED')
             path = None
@@ -496,6 +575,7 @@ class HearingElements:
                 atomic_write_text(path, serialize_markdown(entity))
             try:
                 draft['status'] = 'confirmed' if answer == 'yes' else 'rejected'
+                self.reject_dependents(state)
                 run['confirmations'].pop(0)
                 self.start_hearing(state, run, self.consent(self.entities())[0])
                 self.save(state)

@@ -1415,7 +1415,7 @@ def main() -> int:
     for command in ("next", "answer", "respond", "confirm", "skip"):
         entry = element_sub.add_parser(command)
         add_profile_root_argument(entry)
-        entry.add_argument("--run-id", required=True)
+        entry.add_argument("--run-id", "--requester", dest="run_id", required=True)
         entry.add_argument("--purpose", required=True)
         entry.add_argument("--subject")
         entry.add_argument("--json", action="store_true")

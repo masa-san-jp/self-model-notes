@@ -363,6 +363,15 @@ def _classify_privacy_path(repository_root: Path, path: str) -> str | None:
         return None
 
     if lower.endswith(".jsonl"):
+        # Element requests/answers can appear after an unrelated or malformed
+        # first record. Inspect every line, including nested relay envelopes.
+        for line in body.splitlines():
+            try:
+                element_record = json.loads(line)
+            except (ValueError, TypeError):
+                continue
+            if _contains_element_record(element_record):
+                return "growth-log"
         first_line = _first_nonempty_line(file_path)
         if first_line is None:
             return None

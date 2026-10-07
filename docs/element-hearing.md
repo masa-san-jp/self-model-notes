@@ -32,6 +32,9 @@ lock を使う。symlink の growth ディレクトリ・state・entity path を
 ## CLI と進行
 
 すべて repo の runtime を通し、明示的な `--profile-root`、run ID、同意目的を指定する。
+全 element 操作で `--requester` を `--run-id` の別名として受け付ける。
+親は同じ不透明な requester を同一 run の全操作へ渡す。返答と element envelope のキーは
+別名によらず `run_id` のままで、本人確認には新しい requester/run ID を使う。
 `--subject subject/<id>` は複数 Subject の profile では必須。
 この例の path は操作対象の placeholder で、実 profile の自動探索は行わない。
 
@@ -43,6 +46,24 @@ python3 tools/agent_runtime.py tools/growth_tasks.py element next \
 返り値は `run_id`、`status`、`next_action`、`blocked`。
 `status: WAITING` なら `next_action: {kind: element, request: ...}`。
 答え手はその request だけから一つの値を返す。
+
+親 wrapper（#280）の中継契約は次のとおり。`next` は現在地を再取得する操作であり、
+以下の owner 操作を推論の `answer` に置き換えない。本文の保存先は常に profile 内だけ。
+
+| status | next_action | 親が中継する相手・次の操作 |
+|---|---|---|
+| `WAITING` | `kind: element`, `request: element-request/v1` | 答え手へ依頼だけを渡し、`element-answer/v1` を `answer` のstdinへ渡す |
+| `HEARING` | `kind: hearing`, `question`, `why`, `answer_format: event-block` | 本人へ質問と効用を提示し、明示値を持つ annotated Event block を `respond` のstdinへ渡す |
+| `CONFIRMATION` | `kind: hearing`, `question`, `why`, `answer_format: yes-no` | 本人へ一件ずつ確認し、はい／いいえを `confirm --owner-answer yes|no` へ渡す |
+| `SEED_REQUIRED` | `kind: hearing`, `question`, `why`, `answer_format: event-block` | 本人の最近の出来事を聞き、Event block を `respond` のstdinへ渡す |
+| `COMPLETED` | `null` | 推論終了。草案の本人確認は次の新しいrunへ回す |
+| `SKIPPED` | `null` | 本人が今回は答えないとした状態。未確認草案は次のrunでも確認できる |
+| `BLOCKED` | `null`, `blocked: {element_id, failures}` | 同じ要素が5回失敗。依頼本文を親のstateやlogへ保存せず停止する |
+
+`respond` は `HEARING` / `SEED_REQUIRED`、`confirm` は `CONFIRMATION`、`skip` はこの三状態でのみ使う。
+`skip` は現在runを `SKIPPED` にし、本人の拒否を推論で補完しない。
+成功した操作（`BLOCKED` 以外）の終了コードは0、`BLOCKED` と固定コードの `ERROR` は2。
+不正／古いanswerの `ERROR` では試行回数を消費せず、親は `next` で現在地を再取得する。
 
 ```bash
 python3 tools/agent_runtime.py tools/growth_tasks.py element answer \
@@ -68,8 +89,12 @@ python3 tools/agent_runtime.py tools/growth_tasks.py element respond \
 同じ `respond` で Event を保存し、主張の推論から始める。
 `element skip` は質問・確認を断る経路。export は別操作で継続でき、草案は消さない。
 
-主張文 → 層の列挙 → 回答 Event の参照を各一要素で作る。
-動機の場合は方向、scope、条件（context-bound の場合）、異なる代替説明2件も各一要素にする。
+主張文の依頼は回答 Event のraw quoteと、質問対象の `item_description` を渡す。
+欄から決まるフィールドは推論せず、プログラムで固定する。
+`tensions` は layer=`tension`、`seeks` / `avoids` / `protects` は layer=`motivation` と
+対応する方向 `seek` / `avoid` / `protect`、`states` は scope=`state`、`contexts` は scope=`context-bound`。
+残る層・動機の方向・scopeだけを各一要素で選び、条件（context-bound の場合）、異なる代替説明2件も各一要素にする。
+根拠が回答 Event 一件と決まっているため、その実在参照はプログラムで結線し、選択の依頼を出さない。
 一件の回答から trait を作らない。confidence は `unknown`、反証未探索は `null` を保持する。
 ID、日付、参照結線、meta の組み立てはプログラムが行う。
 
@@ -85,6 +110,8 @@ python3 tools/agent_runtime.py tools/growth_tasks.py element confirm \
 ```
 
 `no` は草案を rejected として profile 内に保持する。
+拒否されたClaimを `claim_refs` に持つPattern草案は、自動で `rejected`、
+`rejection_reason: superseded` として確認列から外す。以前のledgerを再開した場合にも適用する。
 `yes` は根拠 Event の fingerprint、実在参照、同意、既存 validator を再確認してから
 既存型の `hypothesis` として `entities/claims/` または `entities/patterns/` へ保存する。
 確認は文の本人評価であり、supported や確度の昇格ではない。
@@ -92,27 +119,34 @@ python3 tools/agent_runtime.py tools/growth_tasks.py element confirm \
 
 ## 決定論と失敗条件
 
-質問対象は現在の export と同じ `_signal_groups` で得た各欄の distinct Event 根拠数が少ない順。
+直前に本人へ聞いた欄（同じsubject・purpose）は次の選択で最後に回す。
+そのほかの質問対象は現在の export と同じ `_signal_groups` で得た各欄の distinct Event 根拠数が少ない順。
 同数時は `tensions → recurring_patterns → seeks → avoids → protects → states → contexts`。
 全欄を候補にし、traits は複数 Context・時点の根拠を要求するため一件のヒアリング対象にしない。
 body/emotion slot の空欄やアルファベット順では選ばない。
 
 問いの inputs は最近の出来事一件の raw quote（既存の120字上限）と対象説明一つだけ。
-60字以内、一文、末尾 `?`/`？`、出来事中の語を含むこと、question-bank の forbidden_tokens、
-直接識別パターン、テーマ・slug・依頼文への言及を機械検査する。
+60字以内、一文、末尾 `?`/`？`、出来事と問いの `terms()` 集合に2文字以上の内容語候補が
+完全一致で一つ以上共通することを検査する。漢字1文字や部分文字列の一致では合格しない。
+禁止語はquestion-bank の forbidden_tokensに、SECTIONSの欄名とその英語構成語、
+claim_layers、motivation_directions、`belief` を加える。
+さらに直接識別パターン、テーマ・slug・依頼文への言及を機械検査する。
 識別パターンと禁止語は NFKC 正規化して検査し、全角や日本語に連結されたアドレス・URL も拒否する。
 制作のテーマや依頼文は inputs に渡さず、生の言葉だけの単純コピーも派生文として受け付けない。
 短い本人の語を分析文の中で使うことは許す。本人確認後も raw_voice field 自体は export しない。
 問いと一緒に示す効用文は欄ごとの固定表で、本人確認前の export や即時反映を約束しない。
 
-同じ語・形の判定は意味推論を使わず、raw quote の連続した漢字1文字以上・ひらがな/カタカナ2文字以上・
-英数字語2文字以上、または trigger/action の同一文字列を distinct Event ごとに数える。
+同じ語・形の判定は意味推論を使わず、2文字以上の連続した漢字・カタカナ・英数字語と、
+独立したひらがな語の完全一致を distinct Event ごとに数える。
+漢字に隣接する送り仮名・助詞や、共通の機能語だけは数えない。
+ひらがなだけの語は問いで引用符などの境界を保つ必要がある。
+内容語候補を含むtrigger/actionの文字列が2件以上で一致する場合は、raw quoteの語の一致より優先する。
 回答 Event を含む二件以上があるときだけ、共通の形と二件の raw quote を材料に
 Pattern 文一つを依頼する。文には数えた共通の形を要求する。
 これは保守的な文字列一致で、同義語や言い換えは検出しない。件数は推論への入口条件であり昇格基準ではない。
 Pattern も別に本人確認されるまで export しない。
 Pattern は生成元 Claim を参照し、その Claim が本人確認されていなければ保存を拒否する。
-Claim を「いいえ」とした場合、続く Pattern も「いいえ」または skip にできる。
+Claim を「いいえ」とした場合、そのClaimに依存するPatternの確認は出さない。
 
 同意はすべての遷移で再確認する。根拠 Event が変われば推論・確認は失敗し、
 失敗した Event 作成や確認時の書き込みは rollback する。失敗値の本文をエラーに出さない。
