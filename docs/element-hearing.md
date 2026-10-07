@@ -10,7 +10,7 @@ SM-050 の `done`、trusted-base acceptance は宣言しない。
 `schemas/element-request.schema.json` と `schemas/element-answer.schema.json` は親
 `agentic-art-orchestration` の同名ファイルからそのまま複製した。
 参照 checkout HEAD: `a3e9e00fc6f7ab12285216bdf48040aa37d12f65`。
-読み取り専用の参照: `/Users/masa/aa-work/lanes/L278/schemas/`。
+出所: masa-san-jp/agentic-art-orchestration の `schemas/element-request.schema.json` と `schemas/element-answer.schema.json`（#278、commit 5f7e186）。
 
 - request SHA-256: `dec0cc4987bad6ade858becb1e741ac74848df79406995b4cdbdfafe9f0ef1d7`
 - answer SHA-256: `7b74d114e0d9ee8976dc8ed17e43623b1e5a490a08c6bb4f1a5118b78c6cc812`
