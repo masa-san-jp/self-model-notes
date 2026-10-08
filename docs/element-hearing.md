@@ -55,7 +55,7 @@ python3 tools/agent_runtime.py tools/growth_tasks.py element next \
 | `WAITING` | `kind: element`, `request: element-request/v1` | 答え手へ依頼だけを渡し、`element-answer/v1` を `answer` のstdinへ渡す |
 | `HEARING` | `kind: hearing`, `question`, `why`, `answer_format: event-block` | 本人へ質問と効用を提示し、明示値を持つ annotated Event block を `respond` のstdinへ渡す |
 | `CONFIRMATION` | `kind: hearing`, `question`, `why`, `answer_format: yes-no` | 本人へ一件ずつ確認し、はい／いいえを `confirm --owner-answer yes|no` へ渡す |
-| `SEED_REQUIRED` | `kind: hearing`, `question`, `why`, `answer_format: event-block` | 本人の最近の出来事を聞き、Event block を `respond` のstdinへ渡す |
+| `SEED_REQUIRED` | `kind: hearing`, `question`, `why`, `answer_format: event-block` | 旧版の保存済み状態。本人の最近の出来事を聞き、Event block を `respond` のstdinへ渡す |
 | `COMPLETED` | `null` | 推論終了。草案の本人確認は次の新しいrunへ回す |
 | `SKIPPED` | `null` | 本人が今回は答えないとした状態。未確認草案は次のrunでも確認できる |
 | `BLOCKED` | `null`, `blocked: {element_id, failures}` | 同じ要素が5回失敗。依頼本文を親のstateやlogへ保存せず停止する |
@@ -84,9 +84,10 @@ python3 tools/agent_runtime.py tools/growth_tasks.py element respond \
   --profile-root /absolute/path/to/profile --run-id run-one --purpose artistic-research
 ```
 
-質問の材料になる最近の raw quote がない場合は `SEED_REQUIRED`。
-この場合は推論による質問を捏造せず、最近の出来事一件を記録する案内を出す。
-同じ `respond` で Event を保存し、主張の推論から始める。
+Issue #140 の revision 2 では、記録がない・題材にできる raw quote がない場合も
+出来事に頼らない型を選び、`WAITING → HEARING` を経て本人の回答を聞く。
+記録済みEventを捏造せず、同じ `respond` で回答を新しいEventとして保存し、主張の推論から始める。
+旧版で保存された `SEED_REQUIRED` も同じ `respond` で再開できる。
 `element skip` は質問・確認を断る経路。export は別操作で継続でき、草案は消さない。
 
 主張文の依頼は回答 Event のraw quoteと、質問対象の `item_description` を渡す。
@@ -125,11 +126,12 @@ python3 tools/agent_runtime.py tools/growth_tasks.py element confirm \
 全欄を候補にし、traits は複数 Context・時点の根拠を要求するため一件のヒアリング対象にしない。
 body/emotion slot の空欄やアルファベット順では選ばない。
 
-Issue #140 では、問いの inputs は最近の出来事一件の raw quote（既存の120字上限）、
-対象説明一つ、プログラムが選んだ `question_type` 一つ。
+Issue #140 では、問いの inputs は対象説明一つ、プログラムが選んだ `question_type` 一つ。
+出来事に基づく型だけに、題材の raw quote 一件（既存の120字上限）を追加する。
 推論はこの型の中身を保った言い換え一文だけを返し、型の選択や前提の補完をしない。
-60字以内、一文、末尾 `?`/`？`、出来事と問いの `terms()` 集合に2文字以上の内容語候補が
-完全一致で一つ以上共通することを検査する。漢字1文字や部分文字列の一致では合格しない。
+60字以内、一文、末尾 `?`/`？` を検査する。Event型では題材と名詞句の `terms()` 集合に
+2文字以上の内容語候補が完全一致で一つ以上共通することも要求する。
+漢字1文字や部分文字列の一致では合格しない。standaloneはEvent語の一致を要求しない。
 禁止語はquestion-bank の forbidden_tokensに、SECTIONSの欄名とその英語構成語、
 claim_layers、motivation_directions、`belief` を加える。
 さらに直接識別パターン、テーマ・slug・依頼文への言及を機械検査する。
@@ -155,13 +157,14 @@ Claim を「いいえ」とした場合、そのClaimに依存するPatternの�
 CLI の ERROR は固定コードのみ。状態が進まなければ wrapper は `next` で再取得する。
 不正な entity YAML の本文や絶対 path は、CLI・要素 API のエラーにも出さない。
 
-## 答えを持っている問いの型（Issue #140、初期案）
+## 答えを持っている問いの型（Issue #140、2026-10-08承認）
 
 正本は `config/element-question-types.yaml`。`contract_version: element-question-types/v1`、
-`revision: 1`、`owner_review: pending` は**オーナー確認前の提案**であり、確認済みとは扱わない。
-以下の22型をオーナーが確認し、承認・追加・変更は config の PR で記録する。
-変更時は revision を増やし、承認後だけ owner_review を approved にする。
-実 profile での意味・答えやすさの評価はオーケストレーターと本人の確認に残す。
+`revision: 2`、`owner_review: approved`、`owner_reviewed_at: "2026-10-08"`。
+オーナーは2026-10-08に以下の既存22型の一覧を承認し、出来事に頼らない型の追加と
+名詞句の検査を指示した。revision 2 はその指示を反映した36型を記録する。
+以後の承認・追加・変更は config の PR で記録し、revision を増やす。
+型一覧の承認と、Issue #138 の実 run の本人評価・親pin/wrapper更新は別の条件である。
 
 各欄の基本型は、既に本人が記録した一件を「この出来事のとき」として範囲を固定する。
 制作の有無、行き詰まり、緊張、拒否経験を新たに仮定しない。
@@ -180,37 +183,65 @@ CLI の ERROR は固定コードのみ。状態が進まなければ wrapper は
 contexts の4番目の題材は「小さい頃のこの出来事のとき、今でも印象に残る場面はどんな場面でしたか？」。
 本人の raw quote に「小さい頃」がある場合だけ候補に入り、config 上は最初に置く。
 小さい頃の記憶があると推測したり、最近の記録を幼少期の記録へ読み替えたりしない。
-覚えていない、答えたくない場合の既存 skip は残す。答えを持っているかの意味判断は文字列検査で
-保証できないため、初期案の確認では「望み」「支え」なども含め、本人が答えやすいかを評価する。
+覚えていない、答えたくない場合の既存 skip は残す。
 未知・未観測を「ない」へ変換せず、回答から緊張やPatternがあると決めつけない。
+
+追加した出来事に頼らない型（`basis: standalone`）は各欄2個。
+この型の前提は本人の既存記録ではなく、時期・対象を指定する以下の文自身で完結する。
+この型へ返したannotated Event blockも、既存のcreate-only経路で新しいEventになり、
+その一件を根拠に主張草案の推論へ進む。日付・context等は本人の明示値を使い、推論で埋めない。
+
+| 欄 | 型1 | 型2 |
+|---|---|---|
+| tensions | 最近、やりたいのにやらないと決めたことは何ですか？ | 小さい頃、いちばんやってみたかったことは何ですか？ |
+| recurring_patterns | 小さい頃の思い出で、今でも思い出すことが多い印象的なエピソードは何ですか？ | 最近いちばん時間を忘れて取り組んだことは何ですか？ |
+| seeks | 最近いちばん時間を忘れて取り組んだことは何ですか？ | 小さい頃、いちばん楽しみにしていたことは何ですか？ |
+| avoids | 最近、やりたいのにやらないと決めたことは何ですか？ | 最近の生活で、いちばん気になったことは何ですか？ |
+| protects | 小さい頃の思い出で、今でも大事にしていることは何ですか？ | 最近の生活で、いちばん大切にしている時間はどんな時間ですか？ |
+| states | 昨日、いちばん印象に残った気持ちはどんな気持ちでしたか？ | 今日、いちばん気になっていることは何ですか？ |
+| contexts | 小さい頃の思い出で、今でも思い出すことが多い印象的なエピソードは何ですか？ | 昨日、いちばん長く過ごした場所はどんな場所でしたか？ |
 
 選択と検査は以下の決定論で行う。
 
 1. 欄は上記の根拠数・直前欄の回避・固定の同数優先順で決める。
-2. 選んだ欄の型から `requires_event_text` の全語が raw quote にある型と無条件の型を候補にする。
-   同じsubject・purpose・欄で直前に本人へ出した型を避け、config順で最初の型を選ぶ。
-   3回目以降も直前だけを避ける。無条件の型を最低2個要求する。
+2. 同じsubjectの同意検証済みEvent数が `selection.standalone_below_event_count: 3` 未満なら
+   standaloneを優先する。この数は質問の入口選択だけであり、Pattern昇格やconfidenceの閾値ではない。
+   3件以上なら、同じsubject・purposeで直前に本人へ聞いたEventを除外し、観測日時が新しい順
+   （同日時はEvent IDの降順）で別の題材を選ぶ。raw quoteと2文字以上の内容語が必要。
+   別の題材がなければstandaloneを選び、同じEventの再利用はしない。
+   旧ledgerに直前Eventの索引がない場合は、既に聞いた旧anchorをすべて保守的に除外する。
+   `requires_event_text` の全語がraw quoteにあるEvent型だけが条件付き候補になる。
+   優先したbasisの中で直前の型を避け、config順で最初の型を選ぶ。
+   優先basisに別型がなければ別basisの型、候補が一つだけならその型を使う。
 3. 選んだ型のID・版・問い・`scope_terms` をprofile内runへ保存し、requestのinputsへ渡す。
    同じ問いの再試行・再開では変更しない。失敗は履歴を更新せず、HEARINGになった時だけ履歴に残す。
+   standaloneの依頼にはEvent本文・anchorを持たせず、直前Eventの履歴も上書きしない。
 4. 既存の60字・一文・本人の内容語・privacy検査に加え、NFKC正規化して
    `no_existence_question`（ありましたか／ありますか／ありませんか等）、
    `no_unbounded_words`（ほか／他にも／何か／いつか／どこか等）、
    `contains_scope_terms`（選択型の全前提語）、`asks_content`（何／どんな／どの）を検査する。
-   前提語はそのまま残す。自然さを理由に消す・別の時期に置き換えることも拒否する。
+   standaloneの前提語はそのまま残す。Event型では「この出来事」を短い名詞句へ置き換え、
+   時期を示す「のとき」と、「小さい頃」などの追加前提語は残す。
+   `event_noun_phrase` は名詞句を文頭の型のprefixと「のとき」の間から取り出し、
+   2〜40文字・2文字以上の内容語・助詞で終わらないこと・名詞に使える末尾を確認する。
+   「この出来事」が残る形、引用した単語だけの句、動詞の過去形で終わる句、句読点も拒否する。
+   `contains_event_term` はこの名詞句内の内容語と題材の内容語の完全一致を要求する。
+   質問の後半だけに本人の語を入れても通らない。引用語を含む文法的な句
+   （例: 「うれしい」と感じた場面）は、引用した単語だけの挿入とは区別する。
+   これは保守的な表面形の検査であり、日本語全体の意味・流暢さを判定する推論は追加しない。
 5. 落ちたら同じ型・同じ要素だけを再試行し、5回でBLOCKED。空の問いや別型へfallbackしない。
    不正なconfigも固定コード `QUESTION_TYPES_INVALID` で停止し、部分runを保存しない。
 
 型の追加はentity型・closed vocabularyの追加ではなく質問configだけの変更。
 親のelement-request/answer envelope、HEARING中継、本人確認、同意、export境界は既存のまま。
-旧版の未受理のhearing-questionは `next` で型を結び直し、attemptを維持する。
+旧版の未受理のhearing-question（revision 1の型を含む）は `next` で型を結び直し、attemptを維持する。
 旧依頼に直接answerした場合は `QUESTION_TYPE_REQUIRED` で進めず、nextで再取得する。
 既に受理された問い・草案は過去の記録として保持する。
 
 合成profileでのCLI例（推論役に渡した一文を検査したもので、モデルの実応答評価ではない）:
 
-- tensions: 「予定」のこの出来事のとき、まず考えたことは何ですか？
-- recurring_patterns: 「予定」のこの出来事のとき、一番印象に残った場面はどんな場面でしたか？
-- contexts（幼少期の記録）: 小さい頃の「窓辺」のこの出来事のとき、今でも印象に残る場面はどんな場面でしたか？
+- Event 1件、tensions: 最近、やりたいのにやらないと決めたことは何ですか？
+- Event 3件、recurring_patterns: 制作の予定を見直した作業のとき、一番印象に残った場面はどんな場面でしたか？
 
 ## 検証と残る human gate
 
