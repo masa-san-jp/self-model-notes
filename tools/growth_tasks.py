@@ -1410,6 +1410,18 @@ def main() -> int:
     report_parser = sub.add_parser("report")
     add_profile_root_argument(report_parser)
 
+    element_parser = sub.add_parser("element", help="profile-local one-value hearing and owner confirmation")
+    element_sub = element_parser.add_subparsers(dest="element_command", required=True)
+    for command in ("next", "answer", "respond", "confirm", "skip"):
+        entry = element_sub.add_parser(command)
+        add_profile_root_argument(entry)
+        entry.add_argument("--run-id", "--requester", dest="run_id", required=True)
+        entry.add_argument("--purpose", required=True)
+        entry.add_argument("--subject")
+        entry.add_argument("--json", action="store_true")
+        if command == "confirm":
+            entry.add_argument("--owner-answer", required=True, choices=("yes", "no"))
+
     hearing_parser = sub.add_parser("hearing")
     hearing_sub = hearing_parser.add_subparsers(dest="hearing_command", required=True)
 
@@ -1449,6 +1461,32 @@ def main() -> int:
         return 2
 
     try:
+        if args.command == "element":
+            try:
+                from growth_elements import HearingElements
+            except ModuleNotFoundError:
+                from tools.growth_elements import HearingElements
+            try:
+                engine = HearingElements(args.profile_root, args.run_id, args.purpose, args.subject)
+                if args.element_command == "next":
+                    result = engine.next()
+                elif args.element_command == "answer":
+                    text = sys.stdin.read(1_000_001)
+                    if len(text) > 1_000_000:
+                        raise ValueError("INPUT_TOO_LARGE")
+                    result = engine.answer(json.loads(text))
+                elif args.element_command == "respond":
+                    result = engine.respond(sys.stdin.read(1_000_001))
+                elif args.element_command == "confirm":
+                    result = engine.confirm(args.owner_answer)
+                else:
+                    result = engine.skip()
+                print(json.dumps(result, ensure_ascii=False, sort_keys=True))
+                return 2 if result["status"] == "BLOCKED" else 0
+            except (OSError, ValueError, KeyError, TypeError):
+                # Never render parsing errors, paths or rejected private values.
+                print(json.dumps({"status": "ERROR", "reason": "ELEMENT_OPERATION_REJECTED"}), file=sys.stderr)
+                return 2
         if args.command == "generate":
             queue = generate(args.profile_root)
             print(f"generated {len(queue['tasks'])} growth task(s)")

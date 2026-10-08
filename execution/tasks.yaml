@@ -2175,3 +2175,94 @@ tasks:
           - "python3 tools/agent_runtime.py tools/task_harness.py validate — exit 0, valid"
           - "python3 tools/agent_runtime.py tools/build_graph.py --check --root entities — exit 0, OK, 0 entities"
           - "git diff --check; git diff --exit-code -- data/ overviews/coverage.md — exit 0"
+
+  - id: SM-050
+    title: "Profile-local element hearing and owner-confirmed derivation"
+    phase: 10
+    status: review
+    depends_on: [SM-047]
+    issue: https://github.com/masa-san-jp/self-model-notes/issues/138
+    allowed_paths:
+      - tools/growth_tasks.py
+      - tools/growth_elements.py
+      - tools/profile_root.py
+      - schemas/element-request.schema.json
+      - schemas/element-answer.schema.json
+      - tests/test_growth_elements.py
+      - tests/test_execution_tasks.py
+      - docs/element-hearing.md
+      - README.md
+      - execution/tasks.yaml
+    external_paths:
+      - growth/elements/**
+      - entities/events/**
+      - entities/claims/**
+      - entities/patterns/**
+      - data/**
+      - overviews/**
+    acceptance:
+      - Exported sections with empty or thin distinct Event evidence receive deterministic priority without alphabetical question selection
+      - Each question uses one recent Event quote and one item description with mechanical question, length, term and forbidden-vocabulary checks
+      - Each inference returns exactly one value and retries only that element up to five attempts using the parent element request and answer contracts
+      - Answer Event derivation separates statement, layer and real Event reference; repeated literal words or forms require two distinct Events before Pattern inference
+      - Draft hypotheses remain profile-local and enter canonical entities only after explicit owner yes confirmation in a later run; consent and privacy are rechecked
+      - Synthetic question to answer to draft to owner confirmation to exported signal succeeds and repository privacy guard remains PASS
+      - Owner accepts a meaningful entrance question in a real run after orchestrator review; the implementation agent never accesses a real profile
+    checks:
+      - python3 tools/agent_runtime.py -m unittest tests.test_growth_elements tests.test_execution_tasks
+      - python3 tools/agent_runtime.py -m unittest discover -s tests -p "test_*.py"
+      - python3 tools/agent_runtime.py tools/profile_root.py validate-repository --json
+      - python3 tools/agent_runtime.py tools/task_harness.py validate
+      - python3 tools/agent_runtime.py tools/build_graph.py --check --root entities
+      - git diff --check
+    stop_if:
+      - A core entity vocabulary or consent contract must be changed
+      - A real profile or sibling repository must be modified
+    claim: null
+    evidence:
+      - note: "Local Issue #138 implementation under the assigned branch for orchestrator review. Remote claim, PR, trusted-base acceptance and owner real-run acceptance remain pending; registration does not assert lifecycle completion."
+        checks:
+          - "python3 tools/agent_runtime.py -m unittest tests.test_growth_elements tests.test_execution_tasks — exit 0, Ran 38 tests, OK"
+          - "Synthetic question -> answer Event -> hypothesis drafts -> later-run owner confirmation -> signals, graph regeneration/check and audit dry-run — exit 0"
+          - "python3 tools/agent_runtime.py tools/profile_root.py validate-repository --json — exit 0, PASS"
+          - "python3 tools/agent_runtime.py tools/task_harness.py validate — exit 0, valid"
+          - "python3 tools/agent_runtime.py tools/build_graph.py --check --root entities — exit 0, OK: 0 entities"
+          - "git diff --check; git diff --cached --check; git diff --exit-code -- data/ overviews/coverage.md — exit 0"
+      - commit: fc513f89777e73c75eb7e200780d60d2a27fec11
+        note: "Initial clean-worktree full run completed all 313 tests, exit 1, failures=5 and errors=5. The PATH-selected nested python3 lacked PyYAML (runtime exit 9), affecting the existing runtime, hearing, growth-completion and onboarding checks. No failing test was removed or skipped; rerun uses the supplied Python environment on PATH."
+      - note: "Harden one-sentence and normalized identifier/URL/slug checks and sanitize malformed entity errors at the element API boundary. All validation uses the supplied Python environment on PATH; real-run owner acceptance remains pending."
+        checks:
+          - "python3 tools/agent_runtime.py -m unittest tests.test_growth_elements tests.test_execution_tasks — exit 0, Ran 40 tests, OK"
+          - "python3 tools/agent_runtime.py tools/profile_root.py validate-repository --json — exit 0, PASS"
+          - "python3 tools/agent_runtime.py tools/task_harness.py validate — exit 0, valid"
+          - "python3 tools/agent_runtime.py tools/build_graph.py --check --root entities — exit 0, OK: 0 entities"
+          - "git diff --check; git diff --exit-code -- data/ overviews/coverage.md — exit 0"
+      - note: "Clean-worktree rerun with the supplied Python environment on PATH completed all 315 tests, exit 0, Ran 315 tests in 1751.122s, OK."
+      - note: "Support short Japanese and Latin raw words as question material, and distinguish a bare raw-word copy from a derived sentence using the owner's words. No entity type, confidence promotion, consent or export rule was changed."
+        checks:
+          - "python3 tools/agent_runtime.py -m unittest tests.test_growth_elements tests.test_execution_tasks — exit 0, Ran 42 tests in 110.756s, OK"
+      - commit: 41df916978eb13ec8092619e946f572db3821385
+        note: "Final implementation validation used the supplied Python environment on PATH. SM-050 remains review: real-profile owner acceptance, parent wrapper/pin integration and the trusted-base remote lifecycle are reserved for the orchestrator."
+        checks:
+          - "python3 tools/agent_runtime.py -m unittest discover -s tests -p \"test_*.py\" — exit 0, Ran 317 tests in 2163.676s, OK"
+          - "python3 tools/agent_runtime.py tools/profile_root.py validate-repository --json — exit 0, PASS"
+          - "python3 tools/agent_runtime.py tools/task_harness.py validate — exit 0, valid"
+          - "python3 tools/agent_runtime.py tools/build_graph.py --check --root entities — exit 0, OK: 0 entities"
+          - "git diff --check; git diff --exit-code -- data/ overviews/coverage.md — exit 0"
+      - note: "Issue #138 review corrections are based on orchestrator commit 45242d5. Require exact shared two-character content-word candidates, reject all element schema vocabulary, bind section-derived fields and Event references in code, defer the last heard section, supersede dependent Pattern drafts after Claim rejection, accept requester as the run-id alias, and scan every JSONL line for element records. Real-profile acceptance and parent #280 integration remain pending."
+        checks:
+          - "python3 tools/agent_runtime.py -m unittest tests.test_growth_elements tests.test_execution_tasks — exit 0, Ran 53 tests in 10.631s, OK; an earlier 52-test run failed one function-word repetition assertion, which was corrected without removing or skipping tests"
+          - "Synthetic CLI via requester: next WAITING -> answer HEARING -> respond WAITING -> four single-value answers COMPLETED -> next new run CONFIRMATION -> confirm yes WAITING -> export one tension signal -> answer HEARING -> skip SKIPPED; all 12 CLI operations exit 0; pending drafts export zero signals"
+          - "python3 tools/agent_runtime.py tools/profile_root.py validate-repository --json — exit 0, PASS"
+          - "python3 tools/agent_runtime.py tools/task_harness.py validate — exit 0, valid"
+          - "python3 tools/agent_runtime.py tools/build_graph.py --check --root entities — exit 0, OK: 0 entities"
+          - "git diff --check; git diff --exit-code -- data/ overviews/coverage.md — exit 0"
+      - commit: fc75f8da45470577c6075f053c4d0f287b346b62
+        note: "Final review-correction checks used the supplied Python environment on PATH and a clean worktree. No real profile, parent state or sibling repository was modified; SM-050 remains review pending the owner human gate and orchestrator lifecycle."
+        checks:
+          - "python3 tools/agent_runtime.py -m unittest discover -s tests -p \"test_*.py\" — exit 0, Ran 328 tests in 79.623s, OK"
+          - "python3 tools/agent_runtime.py -m unittest tests.test_growth_elements.ElementHearingTests.test_pending_only_exports_no_raw_text_and_regenerates_synthetic_graph -v — exit 0, Ran 1 test in 0.622s, OK; synthetic build_graph regeneration/check and audit dry-run each exit 0"
+          - "python3 tools/agent_runtime.py tools/profile_root.py validate-repository --json — exit 0, PASS"
+          - "python3 tools/agent_runtime.py tools/task_harness.py validate — exit 0, valid"
+          - "python3 tools/agent_runtime.py tools/build_graph.py --check --root entities — exit 0, OK: 0 entities"
+          - "git diff --check 45242d5 HEAD; git diff --exit-code -- data/ overviews/coverage.md — exit 0"
