@@ -16,14 +16,15 @@ import os
 from pathlib import Path
 import re
 import unicodedata
+import yaml
 
 try:
-    from kb import Entity, discover_entities, serialize_markdown, validate_entities, vocabularies
+    from kb import Entity, discover_entities, load_yaml, serialize_markdown, validate_entities, vocabularies
     from profile_root import atomic_write_text, resolve_profile_root
     from intake_conversation import IntakeError, _scan_direct_identifiers
     from export_signals import _signals, _signal_groups
 except ModuleNotFoundError:
-    from tools.kb import Entity, discover_entities, serialize_markdown, validate_entities, vocabularies
+    from tools.kb import Entity, discover_entities, load_yaml, serialize_markdown, validate_entities, vocabularies
     from tools.profile_root import atomic_write_text, resolve_profile_root
     from tools.intake_conversation import IntakeError, _scan_direct_identifiers
     from tools.export_signals import _signals, _signal_groups
@@ -31,6 +32,11 @@ except ModuleNotFoundError:
 STATE_CONTRACT = 'growth-elements/v1'
 SAFE_ID = re.compile(r'[A-Za-z0-9][A-Za-z0-9._-]{0,127}')
 MAX_ATTEMPTS = 5
+QUESTION_TYPES_PATH = Path(__file__).resolve().parents[1] / 'config' / 'element-question-types.yaml'
+# Normalize before checking, including full-width spelling in inferred values.
+EXISTENCE_QUESTION = re.compile(r'(?:ありました|あります|あった|ある|ありません|なかった|ない|ございます|ございました|有りました|有ります)(?:の)?(?:です|んです|でしょう)?か')
+UNBOUNDED_WORDS = ('ほか', '他にも', '他に', '他の', '何か', 'なにか', 'いつか', 'どこか', 'どれか', '誰か', 'だれか', 'そのうち')
+QUESTION_CHECKS = ('no_existence_question', 'no_unbounded_words', 'contains_scope_terms', 'asks_content')
 # Explicit downstream priority breaks equal coverage ties, never alphabetical.
 SECTIONS = {
     'tensions': ('両立しにくい二つの思いや行動', '本人が確認した両立しにくい思いが、次から制作のテーマの材料になります。'),
@@ -114,6 +120,73 @@ def select_section(entities, last_section=None):
             if key in counts and values:
                 counts[key].update(signal['evidence_refs'])
     return min(counts, key=lambda key: (key == last_section, len(counts[key]), list(SECTIONS).index(key)))
+
+
+def question_shape_failures(value, scope_terms):
+    """Literal safeguards for the one inferred rewording, also used for config."""
+    normalized = unicodedata.normalize('NFKC', value).casefold()
+    failures = []
+    if EXISTENCE_QUESTION.search(normalized):
+        failures.append({'check': 'no_existence_question', 'reason': 'Ask for content, not whether something exists.'})
+    if any(word in normalized for word in UNBOUNDED_WORDS):
+        failures.append({'check': 'no_unbounded_words', 'reason': 'Remove words that leave the scope unbounded.'})
+    if not all(unicodedata.normalize('NFKC', term).casefold() in normalized for term in scope_terms):
+        failures.append({'check': 'contains_scope_terms', 'reason': 'Keep every premise phrase of the selected question type.'})
+    if not any(word in normalized for word in ('何', 'どんな', 'どの')):
+        failures.append({'check': 'asks_content', 'reason': 'Ask for content using 何, どんな or どの.'})
+    return failures
+
+
+def load_question_types(path=QUESTION_TYPES_PATH):
+    """Reject incomplete/unsafe proposals instead of inventing a fallback."""
+    try:
+        config = load_yaml(path)
+        if (set(config) != {'contract_version', 'revision', 'owner_review', 'sections'}
+                or config['contract_version'] != 'element-question-types/v1'
+                or type(config['revision']) is not int or config['revision'] < 1
+                or config['owner_review'] not in ('pending', 'approved')
+                or set(config['sections']) != set(SECTIONS)):
+            raise ValueError
+        ids = set()
+        for types in config['sections'].values():
+            if not isinstance(types, list) or not 3 <= len(types) <= 5:
+                raise ValueError
+            # At least two unconditional types allow rotation for any Event.
+            if sum('requires_event_text' not in item for item in types) < 2:
+                raise ValueError
+            for item in types:
+                if (set(item) - {'id', 'question', 'scope_terms', 'requires_event_text'}
+                        or not {'id', 'question', 'scope_terms'} <= set(item)
+                        or not isinstance(item['id'], str) or not SAFE_ID.fullmatch(item['id'])
+                        or item['id'] in ids):
+                    raise ValueError
+                ids.add(item['id'])
+                for field in ('scope_terms', 'requires_event_text'):
+                    if field in item and (not isinstance(item[field], list) or not item[field]
+                            or any(not isinstance(term, str) or not term.strip() for term in item[field])):
+                        raise ValueError
+                text = item['question']
+                if (not isinstance(text, str) or not text.strip() or len(text) > 60
+                        or '\n' in text or len(re.findall(r'[。.!?！？]', text)) != 1
+                        or not text.endswith(('?', '？')) or question_shape_failures(text, item['scope_terms'])):
+                    raise ValueError
+                scan_private(text)
+        return config
+    except (OSError, ValueError, TypeError, KeyError, IntakeError, yaml.YAMLError):
+        raise ValueError('QUESTION_TYPES_INVALID') from None
+
+
+def select_question_type(config, section, event_text, last_type=None):
+    normalized = unicodedata.normalize('NFKC', event_text).casefold()
+    eligible = [item for item in config['sections'][section]
+                if all(unicodedata.normalize('NFKC', phrase).casefold() in normalized
+                       for phrase in item.get('requires_event_text', []))]
+    if not eligible:
+        raise ValueError('QUESTION_TYPES_INVALID')
+    # Config order breaks ties. A heard type is remembered per section.
+    item = next((item for item in eligible if item['id'] != last_type), eligible[0])
+    return {'contract_version': config['contract_version'], 'revision': config['revision'],
+            **deepcopy(item)}
 
 
 def repetition(events, anchor_id):
@@ -263,6 +336,13 @@ class HearingElements:
                     self.save(state)
                 elif superseded:
                     self.save(state)
+                if run['status'] == 'WAITING' and run['step'] == 'hearing-question' and 'question_type' not in run:
+                    # Upgrade old pending questions without accepting an unbounded
+                    # legacy value or resetting the failure budget.
+                    attempt = run['pending']['attempt']
+                    self.question_request(state, run, run['pending']['inputs']['recent_event'])
+                    run['pending']['attempt'] = attempt
+                    self.save(state)
                 return self.report(run)
             run = {'subject': self.subject, 'purpose': self.purpose, 'values': {}, 'pending': None}
             state['runs'][self.run_id] = run
@@ -313,9 +393,19 @@ class HearingElements:
         event = events[0]
         run['anchor'] = event.id
         run['anchor_fingerprint'] = self.fingerprint(event)
-        self.text_request(run, 'hearing-question', 'この出来事について、知りたいことに沿った問いを一文で書いてください。出来事の2文字以上の語をそのまま含め、？で終えてください。',
-                          {'recent_event': raw_text(event), 'item_description': SECTIONS[section][0]}, 60)
-        run['pending']['checks'] += ['ends_with_question', 'contains_event_term', 'no_production_context']
+        self.question_request(state, run, raw_text(event))
+
+    def question_request(self, state, run, event_text):
+        key = self.subject + ':' + self.purpose
+        last_type = state.get('last_question_type', {}).get(key, {}).get(run['section'])
+        selected = select_question_type(load_question_types(), run['section'], event_text, last_type)
+        # Pin the selected revision/premises across retries and config updates.
+        run['question_type'] = selected
+        self.text_request(run, 'hearing-question',
+                          '選ばれたquestion_typeの問いだけを、この出来事の言葉に合わせて一文で言い換えてください。型の問いの中身とscope_termsの全前提語を残し、範囲を広げたり別の型を選んだりしないでください。出来事の2文字以上の内容語をそのまま含め、何・どんな・どので中身を聞き、？で終えてください。有無の質問と、ほか・何か・いつかなど範囲のない語は禁止です。',
+                          {'recent_event': event_text, 'item_description': SECTIONS[run['section']][0],
+                           'question_type': deepcopy(selected)}, 60)
+        run['pending']['checks'] += ['ends_with_question', 'contains_event_term', 'no_production_context', *QUESTION_CHECKS]
 
     def failures(self, run, value):
         request = run['pending']
@@ -351,6 +441,10 @@ class HearingElements:
         if any(word in normalized for word in ('テーマ', 'slug', '依頼文', 'プロンプト', 'theme', 'prompt')):
             fail('no_production_context', 'Do not refer to production instructions or a theme.')
         if run['step'] == 'hearing-question':
+            # Old pending states must go through next() to bind a type first.
+            if 'question_type' not in run:
+                raise ValueError('QUESTION_TYPE_REQUIRED')
+            failures.extend(question_shape_failures(value, run['question_type']['scope_terms']))
             if not value.endswith(('?', '？')):
                 fail('ends_with_question', 'End the question with ? or ？.')
             if not terms(value).intersection(terms(request['inputs']['recent_event'])):
@@ -415,6 +509,7 @@ class HearingElements:
             run.update(status='HEARING', pending=None, question=values[step], why=SECTIONS[run['section']][1],
                        heard_section=run['section'])
             state.setdefault('last_heard', {})[self.subject + ':' + self.purpose] = run['section']
+            state.setdefault('last_question_type', {}).setdefault(self.subject + ':' + self.purpose, {})[run['section']] = run['question_type']['id']
         elif step in ('claim-statement', 'claim-layer', 'claim-direction', 'claim-scope'):
             if step == 'claim-statement':
                 values['claim-evidence'] = run['event']

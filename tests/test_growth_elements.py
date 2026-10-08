@@ -4,11 +4,15 @@ import hashlib
 from pathlib import Path
 import subprocess
 import sys
+from copy import deepcopy
+import tempfile
+import unittest
 from unittest import mock
 
 from tests.test_growth_hearing import GrowthHearingTestCase
 from tests.test_validation import make_entity
-from tools.growth_elements import HearingElements, SECTIONS, SECTION_FIELDS, repetition, select_section, terms
+from tools.growth_elements import (HearingElements, SECTIONS, SECTION_FIELDS, load_question_types,
+                                   question_shape_failures, select_question_type, repetition, select_section, terms)
 from tools.kb import discover_entities, parse_markdown, serialize_markdown, validate_entities
 from tools.export_signals import build_signal_export, export_signals
 from tools.profile_root import _classify_privacy_path
@@ -39,7 +43,12 @@ class ElementHearingTests(GrowthHearingTestCase):
         return (engine or self.engine).answer(self.envelope(report, value))
 
     def question(self):
-        return self.answer(self.engine.next(), '予定を迷っていたとき、休みたい気持ちと両立しにくかったことは？')
+        report = self.engine.next()
+        return self.answer(report, self.reword(report, '予定'))
+
+    def reword(self, report, term):
+        return report['next_action']['request']['inputs']['question_type']['question'].replace(
+            'この出来事', f'「{term}」のこの出来事')
 
     def derive(self):
         report = self.question()
@@ -69,10 +78,13 @@ class ElementHearingTests(GrowthHearingTestCase):
         self.assertTrue(result['allowed'])
         return build_signal_export(result)['signals']
 
-    def test_question_uses_only_one_quote_and_one_description(self):
+    def test_question_uses_one_quote_one_description_and_program_selected_type(self):
         report = self.engine.next()
         request = report['next_action']['request']
-        self.assertEqual({'recent_event', 'item_description'}, set(request['inputs']))
+        self.assertEqual({'recent_event', 'item_description', 'question_type'}, set(request['inputs']))
+        self.assertEqual('tensions-thought', request['inputs']['question_type']['id'])
+        self.assertEqual(1, request['inputs']['question_type']['revision'])
+        self.assertEqual(['この出来事のとき'], request['inputs']['question_type']['scope_terms'])
         self.assertEqual('予定を迷いながら、窓辺で休みたいと思った', request['inputs']['recent_event'])
         self.assertEqual(SECTIONS['tensions'][0], request['inputs']['item_description'])
         self.assertEqual({'type': 'text', 'max_chars': 60}, request['answer_format'])
@@ -99,6 +111,95 @@ class ElementHearingTests(GrowthHearingTestCase):
         self.assertEqual(SECTIONS['tensions'][1], report['next_action']['why'])
         self.assertEqual('event-block', report['next_action']['answer_format'])
 
+    def test_answerable_shape_checks_retry_the_same_type_and_preserve_safe_errors(self):
+        invalid = [
+            ('予定のこの出来事のとき、何を感じた場面がありましたか？', 'no_existence_question'),
+            ('予定のこの出来事のとき、何を感じた場面がありますか？', 'no_existence_question'),
+            ('予定のこの出来事のとき、何を感じた場面がありませんか？', 'no_existence_question'),
+            ('予定のこの出来事のとき、何を感じた場面があるのでしょうか？', 'no_existence_question'),
+            ('予定のこの出来事のとき、ほかに気になったことは何ですか？', 'no_unbounded_words'),
+            ('予定のこの出来事のとき、何か気になった場面はどんな場面でしたか？', 'no_unbounded_words'),
+            ('予定のこの出来事のとき、いつかしたいことは何ですか？', 'no_unbounded_words'),
+            ('予定を迷ったとき、まず考えたことは何ですか？', 'contains_scope_terms'),
+            ('予定のこの出来事のとき、まず考えたことは？', 'asks_content'),
+            ('', 'non_empty'),
+        ]
+        for index, (value, check) in enumerate(invalid):
+            with self.subTest(check=check, index=index):
+                engine = self.new_engine('shape-' + str(index))
+                before = engine.next()
+                history = json.loads(engine.path.read_text()).get('last_question_type')
+                report = self.answer(before, value, engine)
+                request = report['next_action']['request']
+                self.assertEqual('WAITING', report['status'])
+                self.assertEqual(2, request['attempt'])
+                self.assertEqual(before['next_action']['request']['inputs'], request['inputs'])
+                self.assertEqual(before['next_action']['request']['checks'], request['checks'])
+                self.assertIn(check, [failure['check'] for failure in request['previous_failure']])
+                state = json.loads(engine.path.read_text())
+                self.assertEqual(history, state.get('last_question_type'))
+                self.assertEqual({}, state['runs'][engine.run_id]['values'])
+                self.assertEqual('HEARING', self.answer(report, self.reword(report, '予定'), engine)['status'])
+
+    def test_type_rotation_is_per_section_and_only_records_heard_questions(self):
+        selected = []
+        with mock.patch('tools.growth_elements.select_section', return_value='tensions'):
+            for index in range(3):
+                engine = self.new_engine('rotate-' + str(index))
+                report = engine.next()
+                selected.append(report['next_action']['request']['inputs']['question_type']['id'])
+                self.assertEqual(report, self.new_engine(engine.run_id).next())
+                self.answer(report, self.reword(report, '予定'), engine)
+                engine.skip()
+        self.assertEqual(['tensions-thought', 'tensions-choice', 'tensions-thought'], selected)
+        with mock.patch('tools.growth_elements.select_section', return_value='states'):
+            request = self.new_engine('different-section').next()['next_action']['request']
+        self.assertEqual('states-feeling', request['inputs']['question_type']['id'])
+
+    def test_question_type_and_revision_are_pinned_on_retry_after_config_change(self):
+        report = self.engine.next()
+        newer = deepcopy(load_question_types())
+        newer['revision'] = 2
+        newer['sections']['tensions'][0]['scope_terms'] = ['前回の制作のとき']
+        with mock.patch('tools.growth_elements.load_question_types', return_value=newer):
+            report = self.answer(report, '予定については？')
+            self.assertEqual(1, report['next_action']['request']['inputs']['question_type']['revision'])
+            self.assertEqual(report, self.new_engine('run-one').next())
+            self.assertEqual('HEARING', self.answer(report, self.reword(report, '予定'))['status'])
+
+    def test_old_untyped_pending_question_requires_rebinding_without_resetting_attempt(self):
+        report = self.engine.next()
+        state = json.loads(self.engine.path.read_text())
+        run = state['runs']['run-one']
+        del run['question_type']
+        del run['pending']['inputs']['question_type']
+        run['pending']['attempt'] = 3
+        self.engine.save(state)
+        old_report = self.engine.report(run)
+        with self.assertRaisesRegex(ValueError, 'QUESTION_TYPE_REQUIRED'):
+            self.answer(old_report, '予定を迷ったとき、何を思いましたか？')
+        upgraded = self.new_engine('run-one').next()
+        self.assertEqual(3, upgraded['next_action']['request']['attempt'])
+        self.assertEqual(report['next_action']['request']['inputs'], upgraded['next_action']['request']['inputs'])
+        self.assertEqual('HEARING', self.answer(upgraded, self.reword(upgraded, '予定'))['status'])
+
+    def test_invalid_type_config_creates_no_partial_run_or_fallback(self):
+        with mock.patch('tools.growth_elements.load_question_types', side_effect=ValueError('QUESTION_TYPES_INVALID')):
+            with self.assertRaisesRegex(ValueError, 'QUESTION_TYPES_INVALID'):
+                self.engine.next()
+        self.assertFalse(self.engine.path.exists())
+
+    def test_childhood_type_needs_explicit_anchor_and_preserves_both_premises(self):
+        seed = parse_markdown(self.seed)
+        seed.meta['raw_voice'][0]['text'] = '小さい頃、窓辺で絵を描いた'
+        self.seed.write_text(serialize_markdown(seed))
+        with mock.patch('tools.growth_elements.select_section', return_value='contexts'):
+            report = self.engine.next()
+        self.assertEqual('contexts-childhood', report['next_action']['request']['inputs']['question_type']['id'])
+        report = self.answer(report, '窓辺のこの出来事のとき、印象に残った場面はどんな場面でしたか？')
+        self.assertIn('contains_scope_terms', [failure['check'] for failure in report['next_action']['request']['previous_failure']])
+        self.assertEqual('HEARING', self.answer(report, self.reword(report, '窓辺'))['status'])
+
     def test_question_requires_exact_content_word_not_single_kanji_or_substring(self):
         seed = parse_markdown(self.seed)
         seed.meta['raw_voice'][0]['text'] = '近くの川辺で休みたいと思った'
@@ -108,7 +209,7 @@ class ElementHearingTests(GrowthHearingTestCase):
             report = self.answer(report, question)
             self.assertIn('contains_event_term', [failure['check'] for failure in
                           report['next_action']['request']['previous_failure']])
-        self.assertEqual('HEARING', self.answer(report, '川辺で休みたいとき、どんな迷いがあった？')['status'])
+        self.assertEqual('HEARING', self.answer(report, self.reword(report, '川辺'))['status'])
         self.assertEqual({'川辺'}, terms('近くの川辺で休みたいと思った'))
 
     def test_element_text_rejects_section_layer_and_direction_vocabulary(self):
@@ -140,7 +241,7 @@ class ElementHearingTests(GrowthHearingTestCase):
                     while report['status'] == 'CONFIRMATION':
                         report = engine.confirm('yes')
                 term = sorted(terms(report['next_action']['request']['inputs']['recent_event']))[0]
-                report = self.answer(report, f'「{term}」のとき、どんな思いがあった？', engine)
+                report = self.answer(report, self.reword(report, term), engine)
                 self.assertEqual(SECTIONS[section][1], report['next_action']['why'])
                 report = engine.respond(self.event_block('fields-reply-' + str(index), trigger='別々の締切'))
                 self.assertEqual(SECTIONS[section][0], report['next_action']['request']['inputs']['item_description'])
@@ -173,10 +274,8 @@ class ElementHearingTests(GrowthHearingTestCase):
                 self.assertTrue(signal[section])
 
     def test_short_japanese_and_latin_words_use_existing_event_for_question(self):
-        cases = [('うれしい', '「うれしい」と感じたとき、どんな迷いがあった？'),
-                 ('火花を見た', '火花を見たとき、気になっていたことは？'),
-                 ('AI', 'AIを使ったとき、迷っていたことは？')]
-        for index, (voice, question) in enumerate(cases):
+        cases = [('うれしい', 'うれしい'), ('火花を見た', '火花'), ('AI', 'AI')]
+        for index, (voice, term) in enumerate(cases):
             seed = parse_markdown(self.seed)
             seed.meta['raw_voice'][0]['text'] = voice
             self.seed.write_text(serialize_markdown(seed))
@@ -184,14 +283,15 @@ class ElementHearingTests(GrowthHearingTestCase):
             report = engine.next()
             self.assertEqual('WAITING', report['status'])
             self.assertEqual(voice, report['next_action']['request']['inputs']['recent_event'])
-            self.assertEqual('HEARING', self.answer(report, question, engine)['status'])
+            self.assertEqual('HEARING', self.answer(report, self.reword(report, term), engine)['status'])
 
     def test_short_raw_word_can_anchor_derived_claim_and_pattern_without_pure_copy(self):
         seed = parse_markdown(self.seed)
         seed.meta.update(trigger=None, action=[], raw_voice=[{
             'text': 'うれしい', 'source_ref': 'source/conversation-20260901'}])
         self.seed.write_text(serialize_markdown(seed))
-        report = self.answer(self.engine.next(), '「うれしい」と感じたとき、どんな迷いがあった？')
+        report = self.engine.next()
+        report = self.answer(report, self.reword(report, 'うれしい'))
         block = self.event_block('short-reply').replace('自分で決めたい', 'うれしい')
         report = self.engine.respond(block)
         report = self.answer(report, '「うれしい。」')
@@ -472,7 +572,7 @@ class ElementHearingTests(GrowthHearingTestCase):
         self.assertEqual(0, result.returncode, result.stderr)
         report = json.loads(result.stdout)
         result = subprocess.run(base + ['answer'] + args, cwd=ROOT, text=True,
-                                input=json.dumps(self.envelope(report, '予定を迷ったのはなぜ？')), capture_output=True)
+                                input=json.dumps(self.envelope(report, self.reword(report, '予定'))), capture_output=True)
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertEqual('HEARING', json.loads(result.stdout)['status'])
         result = subprocess.run(base + ['answer'] + args, cwd=ROOT, text=True,
@@ -503,7 +603,7 @@ class ElementHearingTests(GrowthHearingTestCase):
             return report
         report = call('next')
         self.assertEqual('A1.hearing-question', report['next_action']['request']['element_id'])
-        report = call('answer', value=json.dumps(self.envelope(report, '予定を迷ったとき、どんな思いがぶつかった？')))
+        report = call('answer', value=json.dumps(self.envelope(report, self.reword(report, '予定'))))
         self.assertEqual('HEARING', report['status'])
         report = call('respond', value=self.event_block('cli-full-reply'))
         values = ['計画に合わせたい思いと、自分で決めたい思いがぶつかる可能性がある。', 'state',
@@ -527,7 +627,7 @@ class ElementHearingTests(GrowthHearingTestCase):
         self.assertEqual(1, exported['signal_count'])
         self.assertTrue(exported['signals'][0]['tensions'])
         self.cli_flow_trace.append({'command': 'export_signals', 'exit': result.returncode, 'signal_count': exported['signal_count']})
-        report = call('answer', run='cli-full-two', value=json.dumps(self.envelope(report, '自分で決めたいとき、繰り返す迷いは？')))
+        report = call('answer', run='cli-full-two', value=json.dumps(self.envelope(report, self.reword(report, '自分'))))
         self.assertEqual('HEARING', report['status'])
         self.assertEqual('SKIPPED', call('skip', run='cli-full-two')['status'])
 
@@ -681,3 +781,66 @@ class ElementHearingTests(GrowthHearingTestCase):
             self.assertEqual(0, result.returncode, result.stderr)
         self.assertTrue((self.profile / 'data').is_dir())
         self.assertTrue((self.profile / 'overviews' / 'coverage.md').is_file())
+
+
+class QuestionTypeConfigTests(unittest.TestCase):
+    def test_all_sections_have_three_to_five_valid_content_questions(self):
+        config = load_question_types()
+        self.assertEqual('pending', config['owner_review'])
+        for section in SECTIONS:
+            types = config['sections'][section]
+            self.assertTrue(3 <= len(types) <= 5)
+            for item in types:
+                self.assertEqual([], question_shape_failures(item['question'], item['scope_terms']))
+                self.assertTrue(item['question'].endswith('？'))
+                self.assertLessEqual(len(item['question']), 60)
+            first = select_question_type(config, section, '予定を迷った')
+            self.assertNotEqual(first['id'], select_question_type(config, section, '予定を迷った', first['id'])['id'])
+
+    def test_config_rejects_invalid_versions_missing_sections_duplicates_and_bad_questions(self):
+        original = load_question_types()
+        mutations = [
+            lambda c: c.update(revision=True),
+            lambda c: c.update(contract_version='unknown'),
+            lambda c: c.update(owner_review='unknown'),
+            lambda c: c.update(extra='untrusted'),
+            lambda c: c['sections'].pop('tensions'),
+            lambda c: c['sections'].update(traits=c['sections']['states']),
+            lambda c: c['sections']['tensions'].pop(),
+            lambda c: c['sections']['tensions'][1].update(id=c['sections']['tensions'][0]['id']),
+            lambda c: c['sections']['tensions'][0].update(question='何ですか？'),
+            lambda c: c['sections']['tensions'][0].update(question='この出来事のとき、何をした場面がありましたか？'),
+            lambda c: c['sections']['tensions'][0].update(question='この出来事のとき、ほかに気になったことは何ですか？'),
+            lambda c: c['sections']['tensions'][0].update(scope_terms=[]),
+            lambda c: c['sections']['tensions'][0].update(requires_event_text=[]),
+            lambda c: c['sections']['tensions'][0].update(question='この出来事のとき、予定は？'),
+        ]
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'types.yaml'
+            for mutate in mutations:
+                config = deepcopy(original)
+                mutate(config)
+                path.write_text(json.dumps(config, ensure_ascii=False))
+                with self.subTest(mutation=mutate), self.assertRaisesRegex(ValueError, '^QUESTION_TYPES_INVALID$'):
+                    load_question_types(path)
+            path.write_text('question: [unterminated-private-value')
+            with self.assertRaisesRegex(ValueError, '^QUESTION_TYPES_INVALID$'):
+                load_question_types(path)
+
+    def test_unbounded_variants_and_full_width_existence_questions_are_rejected(self):
+        for word in ('ほか', '他にも', '他に', '他の', '何か', 'なにか', 'いつか', 'どこか', 'どれか', '誰か', 'だれか', 'そのうち'):
+            with self.subTest(word=word):
+                failures = question_shape_failures(f'この出来事のとき、{word}気になったことは何ですか？', ['この出来事のとき'])
+                self.assertIn('no_unbounded_words', [failure['check'] for failure in failures])
+        for ending in ('ありますか', 'ありましたか', 'ありませんか', 'あったか', 'あるのですか', 'ございますか', '有りますか'):
+            with self.subTest(ending=ending):
+                failures = question_shape_failures(f'この出来事のとき、何をした場面が{ending}？', ['この出来事のとき'])
+                self.assertIn('no_existence_question', [failure['check'] for failure in failures])
+        failures = question_shape_failures('この出来事のとき、ＡＩを使った場面がありますか？', ['この出来事のとき'])
+        self.assertIn('no_existence_question', [failure['check'] for failure in failures])
+
+    def test_childhood_scope_is_only_eligible_for_explicit_childhood_event(self):
+        config = load_question_types()
+        self.assertEqual('contexts-scene', select_question_type(config, 'contexts', '最近窓辺で休んだ')['id'])
+        self.assertEqual('contexts-childhood', select_question_type(config, 'contexts', '小さい頃、窓辺で絵を描いた')['id'])
+        self.assertEqual('contexts-scene', select_question_type(config, 'contexts', '小さい頃、窓辺で絵を描いた', 'contexts-childhood')['id'])
