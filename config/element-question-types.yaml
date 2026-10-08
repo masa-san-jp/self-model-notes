@@ -1,0 +1,160 @@
+# Owner-approved types (2026-10-08). Config order is the deterministic tie-breaker.
+contract_version: element-question-types/v1
+revision: 2
+owner_review: approved
+owner_reviewed_at: "2026-10-08"
+selection:
+  standalone_below_event_count: 3
+sections:
+  tensions:
+    - id: tensions-thought
+      basis: event
+      question: この出来事のとき、まず考えたことは何ですか？
+      scope_terms: [この出来事のとき]
+    - id: tensions-choice
+      basis: event
+      question: この出来事のとき、自分の選び方はどんな選び方でしたか？
+      scope_terms: [この出来事のとき]
+    - id: tensions-feeling
+      basis: event
+      question: この出来事のとき、自分の気持ちはどんな気持ちでしたか？
+      scope_terms: [この出来事のとき]
+    - id: tensions-recent-choice
+      basis: standalone
+      question: 最近、やりたいのにやらないと決めたことは何ですか？
+      scope_terms: [最近, やりたいのにやらないと決めたこと]
+    - id: tensions-childhood-wish
+      basis: standalone
+      question: 小さい頃、いちばんやってみたかったことは何ですか？
+      scope_terms: [小さい頃, いちばんやってみたかったこと]
+  recurring_patterns:
+    - id: patterns-scene
+      basis: event
+      question: この出来事のとき、一番印象に残った場面はどんな場面でしたか？
+      scope_terms: [この出来事のとき]
+    - id: patterns-action
+      basis: event
+      question: この出来事のとき、最初にしたことは何ですか？
+      scope_terms: [この出来事のとき]
+    - id: patterns-process
+      basis: event
+      question: この出来事のとき、自分の進め方はどんな進め方でしたか？
+      scope_terms: [この出来事のとき]
+    - id: patterns-childhood-memory
+      basis: standalone
+      question: 小さい頃の思い出で、今でも思い出すことが多い印象的なエピソードは何ですか？
+      scope_terms: [小さい頃の思い出, 今でも思い出すことが多い]
+    - id: patterns-recent-absorption
+      basis: standalone
+      question: 最近いちばん時間を忘れて取り組んだことは何ですか？
+      scope_terms: [最近いちばん時間を忘れて取り組んだこと]
+  seeks:
+    - id: seeks-wish
+      basis: event
+      question: この出来事のとき、自分が望んでいたことは何ですか？
+      scope_terms: [この出来事のとき]
+    - id: seeks-attention
+      basis: event
+      question: この出来事のとき、一番心が向いたものは何ですか？
+      scope_terms: [この出来事のとき]
+    - id: seeks-next
+      basis: event
+      question: この出来事のとき、次にしたかったことは何ですか？
+      scope_terms: [この出来事のとき]
+    - id: seeks-recent-absorption
+      basis: standalone
+      question: 最近いちばん時間を忘れて取り組んだことは何ですか？
+      scope_terms: [最近いちばん時間を忘れて取り組んだこと]
+    - id: seeks-childhood-joy
+      basis: standalone
+      question: 小さい頃、いちばん楽しみにしていたことは何ですか？
+      scope_terms: [小さい頃, いちばん楽しみにしていたこと]
+  avoids:
+    - id: avoids-concern
+      basis: event
+      question: この出来事のとき、一番気になったことは何ですか？
+      scope_terms: [この出来事のとき]
+    - id: avoids-distance
+      basis: event
+      question: この出来事のとき、周りとの距離の取り方はどんな取り方でしたか？
+      scope_terms: [この出来事のとき]
+    - id: avoids-pace
+      basis: event
+      question: この出来事のとき、自分のペースはどんなペースでしたか？
+      scope_terms: [この出来事のとき]
+    - id: avoids-recent-choice
+      basis: standalone
+      question: 最近、やりたいのにやらないと決めたことは何ですか？
+      scope_terms: [最近, やりたいのにやらないと決めたこと]
+    - id: avoids-recent-concern
+      basis: standalone
+      question: 最近の生活で、いちばん気になったことは何ですか？
+      scope_terms: [最近の生活, いちばん気になったこと]
+  protects:
+    - id: protects-value
+      basis: event
+      question: この出来事のとき、自分が大事にしていたことは何ですか？
+      scope_terms: [この出来事のとき]
+    - id: protects-support
+      basis: event
+      question: この出来事のとき、自分を支えていたものは何ですか？
+      scope_terms: [この出来事のとき]
+    - id: protects-own-way
+      basis: event
+      question: この出来事のとき、自分らしいと思う部分はどんな部分でしたか？
+      scope_terms: [この出来事のとき]
+    - id: protects-childhood-memory
+      basis: standalone
+      question: 小さい頃の思い出で、今でも大事にしていることは何ですか？
+      scope_terms: [小さい頃の思い出, 今でも大事にしていること]
+    - id: protects-recent-time
+      basis: standalone
+      question: 最近の生活で、いちばん大切にしている時間はどんな時間ですか？
+      scope_terms: [最近の生活, いちばん大切にしている時間]
+  states:
+    - id: states-feeling
+      basis: event
+      question: この出来事のとき、自分の気持ちはどんな気持ちでしたか？
+      scope_terms: [この出来事のとき]
+    - id: states-impression
+      basis: event
+      question: この出来事のとき、一番印象に残ったことは何ですか？
+      scope_terms: [この出来事のとき]
+    - id: states-reaction
+      basis: event
+      question: この出来事のとき、自分の反応はどんな反応でしたか？
+      scope_terms: [この出来事のとき]
+    - id: states-yesterday-feeling
+      basis: standalone
+      question: 昨日、いちばん印象に残った気持ちはどんな気持ちでしたか？
+      scope_terms: [昨日, いちばん印象に残った気持ち]
+    - id: states-today-concern
+      basis: standalone
+      question: 今日、いちばん気になっていることは何ですか？
+      scope_terms: [今日, いちばん気になっていること]
+  contexts:
+    - id: contexts-childhood
+      basis: event
+      question: 小さい頃のこの出来事のとき、今でも印象に残る場面はどんな場面でしたか？
+      scope_terms: [小さい頃, この出来事のとき]
+      requires_event_text: [小さい頃]
+    - id: contexts-scene
+      basis: event
+      question: この出来事のとき、周りの様子はどんな様子でしたか？
+      scope_terms: [この出来事のとき]
+    - id: contexts-place
+      basis: event
+      question: この出来事のとき、自分がいた場所はどんな場所でしたか？
+      scope_terms: [この出来事のとき]
+    - id: contexts-attention
+      basis: event
+      question: この出来事のとき、自分が目を向けていたものは何ですか？
+      scope_terms: [この出来事のとき]
+    - id: contexts-childhood-memory
+      basis: standalone
+      question: 小さい頃の思い出で、今でも思い出すことが多い印象的なエピソードは何ですか？
+      scope_terms: [小さい頃の思い出, 今でも思い出すことが多い]
+    - id: contexts-yesterday-place
+      basis: standalone
+      question: 昨日、いちばん長く過ごした場所はどんな場所でしたか？
+      scope_terms: [昨日, いちばん長く過ごした場所]
